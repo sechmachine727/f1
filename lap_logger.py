@@ -76,7 +76,11 @@ def main():
     sock.bind((UDP_IP, UDP_PORT))
     print(f"Listening on UDP {UDP_IP}:{UDP_PORT} ...")
 
-    out_path = Path(f"f1_25_laps_{int(time.time())}.csv")
+    # Create data directory if it doesn't exist
+    data_dir = Path("data")
+    data_dir.mkdir(exist_ok=True)
+
+    out_path = data_dir / f"f1_25_laps_{int(time.time())}.csv"
     with out_path.open("w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(
             f,
