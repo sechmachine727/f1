@@ -208,3 +208,9 @@ __marimo__/
 
 # Ignore folders that contain data
 data/
+
+# Logs
+logs/
+
+# Cruse's database
+cruse_threads.db
