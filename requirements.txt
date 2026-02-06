@@ -1,2 +1,6 @@
+# Neuro SAN
+neuro-san==0.6.26
+nsflow==0.6.7
+
 # For the F1 telemetry tools https://github.com/Fredrik2002/f1-25-telemetry-application
 PySide6==6.9.3
