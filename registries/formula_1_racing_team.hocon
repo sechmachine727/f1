@@ -16,6 +16,7 @@
 # Optional metadata describing this agent network
     "metadata": {
         "sample_queries": [
+            "I touched the wall on turn 10! Is there any damage to the car?",
             "Ahhh I hit him! He braked so early! Any damage on the car?"
             "Give me a quick status check of the car",
             "What's the weather forecast?",

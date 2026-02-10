@@ -54,3 +54,13 @@ python -m lag_logger
 ## Reinforcement Learning
 
 [Explainable Reinforcement Learning for Formula One Race Strategy](https://arxiv.org/abs/2501.04068)
+
+## F1 Race Engineer Concept
+
+![race_engineer_dashboard.png](race_engineer_dashboard.png)
+
+1. The top 3 panels report telemetry straight from the game.
+2. Under each telemetry panel, the 'alerts' are produced by Neuro SAN
+  agents constantly monitoring their telemetry data.
+3. The bottom part is produced by another agent that summarizes the
+  specialized agents' findings into what should be communicated to the driver.
