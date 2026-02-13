@@ -53,7 +53,7 @@ export function TireTelemetry() {
               <div className="flex items-center justify-between text-[9px] text-muted-foreground">
                 <span>{t.pressure.toFixed(1)} bar</span>
               </div>
-              <BarGauge value={life} max={100} label="Life" warn={40} critical={25} />
+              <BarGauge value={life} max={100} label="Life" warn={40} critical={25} invertThresholds />
             </div>
           );
         })}
