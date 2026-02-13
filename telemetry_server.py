@@ -1,4 +1,4 @@
-"""WebSocket bridge that streams live F1 25 tyre telemetry from UDP to the
+"""WebSocket bridge that streams live F1 25 telemetry from UDP to the
 race_engineer_hub web app.
 
 Usage:
@@ -6,7 +6,7 @@ Usage:
 
 Listens on UDP 20777 for F1 25 telemetry packets and exposes a WebSocket
 server on port 8765.  The web app connects to ws://localhost:8765 and
-receives JSON frames with the latest tyre state.
+receives JSON frames with the latest telemetry state (tires + power unit).
 """
 
 import asyncio
@@ -72,6 +72,35 @@ def build_message() -> str:
             "brakeTemp": telemetry_state.get(f"brake_temp_{wn}", 0),
         }
 
+    # -- Power Unit --
+    ERS_MAX_ENERGY_J = 4_000_000  # 4 MJ per F1 regulations
+    ers_store = status_state.get("ers_store_energy", 0)
+    battery_pct = round((ers_store / ERS_MAX_ENERGY_J) * 100, 1) if ERS_MAX_ENERGY_J else 0
+
+    FUEL_MIX_LABELS = {0: "LEAN", 1: "STANDARD", 2: "RICH", 3: "MAX"}
+    ERS_MODE_LABELS = {0: "NONE", 1: "MEDIUM", 2: "HOTLAP", 3: "OVERTAKE"}
+
+    power_unit = {
+        "rpm": telemetry_state.get("engine_rpm", 0),
+        "engineTemp": telemetry_state.get("engine_temp", 0),
+        "gear": telemetry_state.get("gear", 0),
+        "fuelInTank": round(status_state.get("fuel_in_tank", 0), 2),
+        "fuelRemainingLaps": round(status_state.get("fuel_remaining_laps", 0), 1),
+        "fuelMix": FUEL_MIX_LABELS.get(status_state.get("fuel_mix", 1), "STANDARD"),
+        "icePowerKW": round(status_state.get("engine_power_ice", 0), 1),
+        "mgukPowerKW": round(status_state.get("engine_power_mguk", 0), 1),
+        "ersStoreEnergy": round(ers_store, 0),
+        "batteryPct": battery_pct,
+        "ersDeployMode": ERS_MODE_LABELS.get(
+            status_state.get("ers_deploy_mode", 0), "NONE"
+        ),
+        "ersDeployedThisLap": round(status_state.get("ers_deployed_this_lap", 0), 0),
+        "ersHarvestedMGUK": round(status_state.get("ers_harvested_mguk", 0), 0),
+        "ersHarvestedMGUH": round(status_state.get("ers_harvested_mguh", 0), 0),
+        "engineDamage": damage_state.get("engine_damage", 0),
+        "gearboxDamage": damage_state.get("gearbox_damage", 0),
+    }
+
     return json.dumps({
         "tires": tires,
         "compound": status_state.get("tyre_compound_actual", ""),
@@ -79,6 +108,7 @@ def build_message() -> str:
         "tyresAgeLaps": status_state.get("tyres_age_laps", 0),
         "currentLap": lap_state.get("current_lap_num", 0),
         "speed": telemetry_state.get("speed_kmh", 0),
+        "powerUnit": power_unit,
     })
 
 
@@ -161,6 +191,17 @@ async def udp_reader():
                 "tyre_compound_actual": ACTUAL_COMPOUND.get(actual, str(actual)),
                 "tyre_compound_visual": VISUAL_COMPOUND.get(visual, str(visual)),
                 "tyres_age_laps": age,
+                # Power unit fields from CarStatus
+                "fuel_in_tank": fields[5],
+                "fuel_remaining_laps": fields[7],
+                "fuel_mix": fields[2],
+                "engine_power_ice": fields[17],
+                "engine_power_mguk": fields[18],
+                "ers_store_energy": fields[19],
+                "ers_deploy_mode": fields[20],
+                "ers_harvested_mguk": fields[21],
+                "ers_harvested_mguh": fields[22],
+                "ers_deployed_this_lap": fields[23],
             }
             continue
 
@@ -175,6 +216,9 @@ async def udp_reader():
                 new_damage[f"tyre_wear_{wn}"] = round(fields[0 + i], 2)
                 new_damage[f"tyre_damage_{wn}"] = fields[4 + i]
                 new_damage[f"tyre_blisters_{wn}"] = fields[12 + i]
+            # Power unit damage fields
+            new_damage["engine_damage"] = fields[25]
+            new_damage["gearbox_damage"] = fields[24]
             damage_state = new_damage
             continue
 
@@ -185,7 +229,12 @@ async def udp_reader():
                 continue
             fields = CAR_TELEMETRY_STRUCT.unpack_from(data, base)
 
-            telem = {"speed_kmh": fields[0]}
+            telem = {
+                "speed_kmh": fields[0],
+                "engine_rpm": fields[6],
+                "engine_temp": fields[22],
+                "gear": fields[5],
+            }
             for i, wn in enumerate(WHEEL_NAMES):
                 telem[f"brake_temp_{wn}"] = fields[10 + i]
                 telem[f"tyre_surface_temp_{wn}"] = fields[14 + i]
