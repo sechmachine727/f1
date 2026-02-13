@@ -55,7 +55,21 @@ python -m lag_logger
 
 [Explainable Reinforcement Learning for Formula One Race Strategy](https://arxiv.org/abs/2501.04068)
 
-## F1 Race Engineer Concept
+## F1 Race Engineer Hub
+
+Start the tyre telemetry WebSocket bridge (streams live F1 25 UDP data to the web app):
+```shell
+python -m tyre_telemetry_server
+```
+
+In a separate terminal, start the web app:
+```shell
+cd race_engineer_hub && npm run dev
+```
+
+The tires panel will show "Waiting for telemetry…" until the F1 game starts sending UDP data on port 20777.
+
+## F1 Race Engineer Hub Concept
 
 ![race_engineer_dashboard.png](race_engineer_dashboard.png)
 
