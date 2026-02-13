@@ -57,9 +57,9 @@ python -m lag_logger
 
 ## F1 Race Engineer Hub
 
-Start the tyre telemetry WebSocket bridge (streams live F1 25 UDP data to the web app):
+Start the telemetry WebSocket bridge (streams live F1 25 UDP data to the web app):
 ```shell
-python -m tyre_telemetry_server
+python -m telemetry_server
 ```
 
 In a separate terminal, start the web app:
