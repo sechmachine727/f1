@@ -10,9 +10,11 @@ UDP_PORT = 20777
 
 # ---- Packet constants (F1 25 spec) ----
 PACKET_ID_LAP_DATA = 2
+PACKET_ID_CAR_SETUPS = 5
 PACKET_ID_CAR_TELEMETRY = 6
 PACKET_ID_CAR_STATUS = 7
 PACKET_ID_CAR_DAMAGE = 10
+PACKET_ID_MOTION_EX = 13
 
 # PacketHeader (packed, little-endian)
 HEADER_STRUCT = struct.Struct("<HBBBBBQfIIBB")
@@ -142,6 +144,69 @@ CAR_DAMAGE_STRUCT = struct.Struct(
     "B"      # m_engineSeized
 )
 CAR_DAMAGE_SIZE = CAR_DAMAGE_STRUCT.size  # 46
+
+# ---- CarSetupData struct (50 bytes) ----
+CAR_SETUP_STRUCT = struct.Struct(
+    "<"
+    "B"      # m_frontWing
+    "B"      # m_rearWing
+    "B"      # m_onThrottle
+    "B"      # m_offThrottle
+    "f"      # m_frontCamber
+    "f"      # m_rearCamber
+    "f"      # m_frontToe
+    "f"      # m_rearToe
+    "B"      # m_frontSuspension
+    "B"      # m_rearSuspension
+    "B"      # m_frontAntiRollBar
+    "B"      # m_rearAntiRollBar
+    "B"      # m_frontSuspensionHeight
+    "B"      # m_rearSuspensionHeight
+    "B"      # m_brakePressure
+    "B"      # m_brakeBias
+    "B"      # m_engineBraking
+    "f"      # m_rearLeftTyrePressure
+    "f"      # m_rearRightTyrePressure
+    "f"      # m_frontLeftTyrePressure
+    "f"      # m_frontRightTyrePressure
+    "B"      # m_ballast
+    "f"      # m_fuelLoad
+)
+CAR_SETUP_SIZE = CAR_SETUP_STRUCT.size  # 50
+
+# ---- PacketMotionExData (player only, 244 bytes after header) ----
+MOTION_EX_STRUCT = struct.Struct(
+    "<"
+    "4f"     # m_suspensionPosition[4]
+    "4f"     # m_suspensionVelocity[4]
+    "4f"     # m_suspensionAcceleration[4]
+    "4f"     # m_wheelSpeed[4]
+    "4f"     # m_wheelSlipRatio[4]
+    "4f"     # m_wheelSlipAngle[4]
+    "4f"     # m_wheelLatForce[4]
+    "4f"     # m_wheelLongForce[4]
+    "f"      # m_heightOfCOGAboveGround
+    "f"      # m_localVelocityX
+    "f"      # m_localVelocityY
+    "f"      # m_localVelocityZ
+    "f"      # m_angularVelocityX
+    "f"      # m_angularVelocityY
+    "f"      # m_angularVelocityZ
+    "f"      # m_angularAccelerationX
+    "f"      # m_angularAccelerationY
+    "f"      # m_angularAccelerationZ
+    "f"      # m_frontWheelsAngle
+    "4f"     # m_wheelVertForce[4]
+    "f"      # m_frontAeroHeight
+    "f"      # m_rearAeroHeight
+    "f"      # m_frontRollAngle
+    "f"      # m_rearRollAngle
+    "f"      # m_chassisYaw
+    "f"      # m_chassisPitch
+    "4f"     # m_wheelCamber[4]
+    "4f"     # m_wheelCamberGain[4]
+)
+MOTION_EX_SIZE = MOTION_EX_STRUCT.size  # 244
 
 # ---- Tyre compound lookup ----
 ACTUAL_COMPOUND = {
