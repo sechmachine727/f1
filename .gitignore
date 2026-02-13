@@ -208,6 +208,9 @@ __marimo__/
 
 .DS_Store
 
+# Vite cache
+.vite/
+
 # Ignore folders that contain data
 data/
 
