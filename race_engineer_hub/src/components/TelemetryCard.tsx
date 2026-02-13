@@ -62,12 +62,14 @@ interface BarGaugeProps {
   label: string;
   warn?: number;
   critical?: number;
+  /** When true, warn/critical trigger when value drops *below* the threshold. */
+  invertThresholds?: boolean;
 }
 
-export function BarGauge({ value, max, label, warn, critical }: BarGaugeProps) {
+export function BarGauge({ value, max, label, warn, critical, invertThresholds }: BarGaugeProps) {
   const pct = Math.min((value / max) * 100, 100);
-  const isWarn = warn !== undefined && value >= warn;
-  const isCrit = critical !== undefined && value >= critical;
+  const isWarn = warn !== undefined && (invertThresholds ? value <= warn : value >= warn);
+  const isCrit = critical !== undefined && (invertThresholds ? value <= critical : value >= critical);
   const barColor = isCrit ? "bg-accent" : isWarn ? "bg-warning" : "bg-primary";
 
   return (
