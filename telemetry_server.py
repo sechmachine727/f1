@@ -2,7 +2,7 @@
 race_engineer_hub web app.
 
 Usage:
-    python tyre_telemetry_server.py
+    python telemetry_server.py
 
 Listens on UDP 20777 for F1 25 telemetry packets and exposes a WebSocket
 server on port 8765.  The web app connects to ws://localhost:8765 and
@@ -23,6 +23,8 @@ from tyre_logger import (
     ACTUAL_COMPOUND,
     CAR_DAMAGE_SIZE,
     CAR_DAMAGE_STRUCT,
+    CAR_SETUP_SIZE,
+    CAR_SETUP_STRUCT,
     CAR_STATUS_SIZE,
     CAR_STATUS_STRUCT,
     CAR_TELEMETRY_SIZE,
@@ -31,10 +33,14 @@ from tyre_logger import (
     HEADER_STRUCT,
     LAPDATA_SIZE,
     LAPDATA_STRUCT,
+    MOTION_EX_SIZE,
+    MOTION_EX_STRUCT,
     PACKET_ID_CAR_DAMAGE,
+    PACKET_ID_CAR_SETUPS,
     PACKET_ID_CAR_STATUS,
     PACKET_ID_CAR_TELEMETRY,
     PACKET_ID_LAP_DATA,
+    PACKET_ID_MOTION_EX,
     VISUAL_COMPOUND,
     WHEEL_NAMES,
 )
@@ -54,6 +60,8 @@ lap_state: dict = {}
 status_state: dict = {}
 damage_state: dict = {}
 telemetry_state: dict = {}
+setup_state: dict = {}
+motion_ex_state: dict = {}
 
 connected_clients: set = set()
 
@@ -101,6 +109,29 @@ def build_message() -> str:
         "gearboxDamage": damage_state.get("gearbox_damage", 0),
     }
 
+    # -- Aero --
+    fl_wing_dmg = damage_state.get("front_left_wing_damage", 0)
+    fr_wing_dmg = damage_state.get("front_right_wing_damage", 0)
+    front_wing_damage = max(fl_wing_dmg, fr_wing_dmg)
+
+    aero = {
+        "speed": telemetry_state.get("speed_kmh", 0),
+        "drs": bool(telemetry_state.get("drs", 0)),
+        "drsAllowed": bool(status_state.get("drs_allowed", 0)),
+        "drsActivationDistance": status_state.get("drs_activation_distance", 0),
+        "frontWing": setup_state.get("front_wing", 0),
+        "rearWing": setup_state.get("rear_wing", 0),
+        "frontRideHeight": motion_ex_state.get("front_aero_height", 0),
+        "rearRideHeight": motion_ex_state.get("rear_aero_height", 0),
+        "brakeBias": status_state.get("front_brake_bias", 0),
+        "frontWingDamage": front_wing_damage,
+        "rearWingDamage": damage_state.get("rear_wing_damage", 0),
+        "floorDamage": damage_state.get("floor_damage", 0),
+        "diffuserDamage": damage_state.get("diffuser_damage", 0),
+        "sidepodDamage": damage_state.get("sidepod_damage", 0),
+        "drsFault": bool(damage_state.get("drs_fault", 0)),
+    }
+
     return json.dumps({
         "tires": tires,
         "compound": status_state.get("tyre_compound_actual", ""),
@@ -109,6 +140,7 @@ def build_message() -> str:
         "currentLap": lap_state.get("current_lap_num", 0),
         "speed": telemetry_state.get("speed_kmh", 0),
         "powerUnit": power_unit,
+        "aero": aero,
     })
 
 
@@ -140,7 +172,7 @@ async def ws_handler(websocket):
 async def udp_reader():
     """Read F1 25 UDP packets and update shared state, broadcasting on each
     telemetry frame (packet 6)."""
-    global lap_state, status_state, damage_state, telemetry_state
+    global lap_state, status_state, damage_state, telemetry_state, setup_state, motion_ex_state
 
     loop = asyncio.get_running_loop()
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -202,6 +234,10 @@ async def udp_reader():
                 "ers_harvested_mguk": fields[21],
                 "ers_harvested_mguh": fields[22],
                 "ers_deployed_this_lap": fields[23],
+                # Aero fields from CarStatus
+                "front_brake_bias": fields[3],
+                "drs_allowed": fields[11],
+                "drs_activation_distance": fields[12],
             }
             continue
 
@@ -219,7 +255,43 @@ async def udp_reader():
             # Power unit damage fields
             new_damage["engine_damage"] = fields[25]
             new_damage["gearbox_damage"] = fields[24]
+            # Aero damage fields
+            new_damage["front_left_wing_damage"] = fields[16]
+            new_damage["front_right_wing_damage"] = fields[17]
+            new_damage["rear_wing_damage"] = fields[18]
+            new_damage["floor_damage"] = fields[19]
+            new_damage["diffuser_damage"] = fields[20]
+            new_damage["sidepod_damage"] = fields[21]
+            new_damage["drs_fault"] = fields[22]
             damage_state = new_damage
+            continue
+
+        # -- Car Setups --
+        if packet_id == PACKET_ID_CAR_SETUPS:
+            base = HEADER_SIZE + player_car_index * CAR_SETUP_SIZE
+            if len(data) < base + CAR_SETUP_SIZE:
+                continue
+            fields = CAR_SETUP_STRUCT.unpack_from(data, base)
+            setup_state = {
+                "front_wing": fields[0],
+                "rear_wing": fields[1],
+                "front_suspension_height": fields[12],
+                "rear_suspension_height": fields[13],
+                "brake_bias": fields[15],
+            }
+            continue
+
+        # -- Motion Ex (player only, no per-car offset) --
+        if packet_id == PACKET_ID_MOTION_EX:
+            if len(data) < HEADER_SIZE + MOTION_EX_SIZE:
+                continue
+            fields = MOTION_EX_STRUCT.unpack_from(data, HEADER_SIZE)
+            motion_ex_state = {
+                "front_aero_height": round(fields[47] * 1000, 1),  # m -> mm
+                "rear_aero_height": round(fields[48] * 1000, 1),
+                "front_roll_angle": round(fields[49], 4),
+                "rear_roll_angle": round(fields[50], 4),
+            }
             continue
 
         # -- Car Telemetry (main trigger) --
@@ -234,6 +306,7 @@ async def udp_reader():
                 "engine_rpm": fields[6],
                 "engine_temp": fields[22],
                 "gear": fields[5],
+                "drs": fields[7],
             }
             for i, wn in enumerate(WHEEL_NAMES):
                 telem[f"brake_temp_{wn}"] = fields[10 + i]
