@@ -9,6 +9,14 @@ const POSITIONS = [
   { key: "rr" as const, label: "RR" },
 ];
 
+const COMPOUND_COLORS: Record<string, string> = {
+  soft: "#FF3333",
+  medium: "#FFC906",
+  hard: "#FFFFFF",
+  inter: "#39B54A",
+  wet: "#0072CE",
+};
+
 export function TireTelemetry() {
   const data = useTireTelemetry();
 
@@ -30,9 +38,10 @@ export function TireTelemetry() {
   const maxTemp = Math.max(...temps);
   const status = maxTemp > 108 ? "critical" : maxTemp > 103 ? "warning" : "nominal";
 
-  const compoundLabel = data.compound
-    ? `${data.tyresAgeLaps === 0 ? "NEW " : ""}${data.compoundVisual.toUpperCase()} (${data.compound})`
+  const compoundText = data.compound
+    ? `${data.compoundVisual.toUpperCase()} (${data.compound})`
     : "—";
+  const compoundColor = COMPOUND_COLORS[data.compoundVisual] ?? undefined;
 
   return (
     <TelemetryCard
@@ -59,7 +68,7 @@ export function TireTelemetry() {
         })}
       </div>
       <div className="flex items-center justify-between pt-1 border-t border-border/50 text-[10px] text-muted-foreground uppercase tracking-wider">
-        <span>{compoundLabel}</span>
+        <span style={compoundColor ? { color: compoundColor } : undefined} className="font-bold">{compoundText}</span>
         <span>Age: {data.tyresAgeLaps} laps</span>
       </div>
     </TelemetryCard>

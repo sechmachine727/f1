@@ -37,7 +37,6 @@ const Index = () => {
 
   const sessionType = session?.sessionType ?? "—";
   const trackName = session?.trackName ?? "—";
-  const isTimedSession = session ? session.sessionDuration > 0 : false;
   const timeLeftStr = session ? formatTimeLeft(session.sessionTimeLeft) : "—";
   const position = session?.carPosition ?? 0;
   const lastLapStr = session ? formatLapTime(session.lastLapTimeMs) : "—";
@@ -57,7 +56,7 @@ const Index = () => {
           </span>
         </div>
         <div className="flex items-center gap-4 text-[10px] text-muted-foreground uppercase tracking-wider font-display">
-          {isTimedSession ? (
+          {session && session.sessionTimeLeft > 0 ? (
             <div className="flex items-center gap-1">
               <Clock className="h-3 w-3 text-warning animate-pulse" />
               <span className="text-warning">{timeLeftStr} LEFT</span>
