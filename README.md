@@ -67,7 +67,22 @@ In a separate terminal, start the web app:
 cd race_engineer_hub && npm run dev
 ```
 
-The tires panel will show "Waiting for telemetry…" until the F1 game starts sending UDP data on port 20777.
+The panels will show "Waiting for telemetry…" until the F1 game starts sending UDP data on port 20777.
+
+### Capturing telemetry
+
+Add `--capture` to save all telemetry to CSV files in `data/`. One file is created per session, named after the GP and session type:
+```shell
+python -m telemetry_server --capture
+```
+Example output: `data/f1_25_bahrain_gp_race_20260214-215852.csv`
+
+### Replaying telemetry
+
+Use `--replay` to play back a captured CSV file. The web app receives the data as if it were live:
+```shell
+python -m telemetry_server --replay data/f1_25_bahrain_gp_race_20260214-215852.csv
+```
 
 ## F1 Race Engineer Hub Concept
 
