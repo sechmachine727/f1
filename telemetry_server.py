@@ -161,6 +161,8 @@ class CsvCapture:
         print(f"CSV capture started: {path}")
 
     def write_row(self, session_uid: int, session_time: float, frame_id: int):
+        if not session_state:
+            return  # Wait until session packet provides GP/session info
         if session_uid != self._current_uid:
             self._open_file(session_uid)
 
