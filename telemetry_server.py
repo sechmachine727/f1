@@ -538,9 +538,9 @@ async def udp_reader():
 
             # Write CSV row if capture is enabled
             if csv_capture is not None:
-                session_uid = header[7]
-                session_time = header[8]
-                frame_id = header[9]
+                session_uid = header[6]   # m_sessionUID (uint64)
+                session_time = header[7]  # m_sessionTime (float)
+                frame_id = header[8]      # m_frameIdentifier
                 csv_capture.write_row(session_uid, session_time, frame_id)
 
 
