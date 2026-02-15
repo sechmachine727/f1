@@ -71,7 +71,7 @@ The tires panel will show "Waiting for telemetry…" until the F1 game starts se
 
 ## F1 Race Engineer Hub Concept
 
-![race_engineer_dashboard.png](race_engineer_dashboard.png)
+![race_engineer_hub.png](race_engineer_hub.png)
 
 1. The top 3 panels report telemetry straight from the game.
 2. Under each telemetry panel, the 'alerts' are produced by Neuro SAN

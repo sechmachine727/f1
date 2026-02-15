@@ -41,6 +41,9 @@ from tyre_logger import (
     PACKET_ID_CAR_TELEMETRY,
     PACKET_ID_LAP_DATA,
     PACKET_ID_MOTION_EX,
+    PACKET_ID_SESSION,
+    SESSION_HEADER_SIZE,
+    SESSION_HEADER_STRUCT,
     VISUAL_COMPOUND,
     WHEEL_NAMES,
 )
@@ -62,6 +65,29 @@ damage_state: dict = {}
 telemetry_state: dict = {}
 setup_state: dict = {}
 motion_ex_state: dict = {}
+session_state: dict = {}
+
+# ---------------------------------------------------------------------------
+# Lookups
+# ---------------------------------------------------------------------------
+SESSION_TYPE_LABELS = {
+    0: "UNKNOWN", 1: "P1", 2: "P2", 3: "P3", 4: "SHORT PRACTICE",
+    5: "Q1", 6: "Q2", 7: "Q3", 8: "SHORT QUALIFYING", 9: "OSQ",
+    10: "RACE", 11: "RACE 2", 12: "RACE 3", 13: "TIME TRIAL",
+    14: "SQ1", 15: "SQ2", 16: "SQ3", 17: "SPRINT",
+}
+
+TRACK_NAMES = {
+    0: "AUSTRALIAN GP", 1: "FRENCH GP", 2: "CHINESE GP", 3: "BAHRAIN GP",
+    4: "SPANISH GP", 5: "MONACO GP", 6: "CANADIAN GP", 7: "BRITISH GP",
+    8: "GERMAN GP", 9: "HUNGARIAN GP", 10: "BELGIAN GP", 11: "ITALIAN GP",
+    12: "SINGAPORE GP", 13: "JAPANESE GP", 14: "ABU DHABI GP", 15: "UNITED STATES GP",
+    16: "BRAZILIAN GP", 17: "AUSTRIAN GP", 18: "RUSSIAN GP", 19: "MEXICAN GP",
+    20: "AZERBAIJAN GP", 21: "BAHRAIN SHORT", 22: "BRITISH SHORT",
+    23: "US SHORT", 24: "JAPANESE SHORT", 25: "VIETNAMESE GP", 26: "DUTCH GP",
+    27: "EMILIA ROMAGNA GP", 28: "PORTUGUESE GP", 29: "SAUDI ARABIAN GP", 30: "MIAMI GP",
+    31: "LAS VEGAS GP", 32: "QATAR GP", 33: "QATAR GP",
+}
 
 connected_clients: set = set()
 
@@ -132,6 +158,25 @@ def build_message() -> str:
         "drsFault": bool(damage_state.get("drs_fault", 0)),
     }
 
+    # -- Session --
+    session_type = session_state.get("session_type", 0)
+    track_id = session_state.get("track_id", -1)
+    last_lap_ms = lap_state.get("last_lap_time_ms", 0)
+
+    session = {
+        "sessionType": SESSION_TYPE_LABELS.get(session_type, f"SESSION {session_type}"),
+        "trackName": TRACK_NAMES.get(track_id, f"TRACK {track_id}"),
+        "totalLaps": session_state.get("total_laps", 0),
+        "sessionTimeLeft": session_state.get("session_time_left", 0),
+        "sessionDuration": session_state.get("session_duration", 0),
+        "trackTemp": session_state.get("track_temperature", 0),
+        "airTemp": session_state.get("air_temperature", 0),
+        "weather": session_state.get("weather", 0),
+        "carPosition": lap_state.get("car_position", 0),
+        "currentLapTimeMs": lap_state.get("current_lap_time_ms", 0),
+        "lastLapTimeMs": last_lap_ms,
+    }
+
     return json.dumps({
         "tires": tires,
         "compound": status_state.get("tyre_compound_actual", ""),
@@ -141,6 +186,7 @@ def build_message() -> str:
         "speed": telemetry_state.get("speed_kmh", 0),
         "powerUnit": power_unit,
         "aero": aero,
+        "session": session,
     })
 
 
@@ -172,7 +218,7 @@ async def ws_handler(websocket):
 async def udp_reader():
     """Read F1 25 UDP packets and update shared state, broadcasting on each
     telemetry frame (packet 6)."""
-    global lap_state, status_state, damage_state, telemetry_state, setup_state, motion_ex_state
+    global lap_state, status_state, damage_state, telemetry_state, setup_state, motion_ex_state, session_state
 
     loop = asyncio.get_running_loop()
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -198,6 +244,23 @@ async def udp_reader():
         packet_id = header[5]
         player_car_index = header[10]
 
+        # -- Session (single block, not per-car) --
+        if packet_id == PACKET_ID_SESSION:
+            if len(data) < HEADER_SIZE + SESSION_HEADER_SIZE:
+                continue
+            fields = SESSION_HEADER_STRUCT.unpack_from(data, HEADER_SIZE)
+            session_state = {
+                "session_type": fields[5],
+                "track_id": fields[6],
+                "total_laps": fields[3],
+                "session_time_left": fields[8],
+                "session_duration": fields[9],
+                "track_temperature": fields[1],
+                "air_temperature": fields[2],
+                "weather": fields[0],
+            }
+            continue
+
         # -- Lap Data --
         if packet_id == PACKET_ID_LAP_DATA:
             base = HEADER_SIZE + player_car_index * LAPDATA_SIZE
@@ -207,6 +270,9 @@ async def udp_reader():
             lap_state = {
                 "current_lap_num": fields[14],
                 "lap_distance_m": round(fields[10], 2),
+                "car_position": fields[13],
+                "last_lap_time_ms": fields[0],
+                "current_lap_time_ms": fields[1],
             }
             continue
 
