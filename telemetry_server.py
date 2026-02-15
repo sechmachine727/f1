@@ -546,6 +546,144 @@ async def udp_reader():
                 csv_capture.write_row(session_uid, session_time, frame_id)
 
 
+# ---------------------------------------------------------------------------
+# CSV replay
+# ---------------------------------------------------------------------------
+REVERSE_SESSION_TYPE = {v: k for k, v in SESSION_TYPE_LABELS.items()}
+REVERSE_TRACK = {v: k for k, v in TRACK_NAMES.items()}
+
+
+def _float(val, default=0.0):
+    try:
+        return float(val)
+    except (ValueError, TypeError):
+        return default
+
+
+def _int(val, default=0):
+    try:
+        return int(float(val))
+    except (ValueError, TypeError):
+        return default
+
+
+def _populate_state_from_row(row: dict):
+    """Fill the shared state dicts from a single CSV row."""
+    global lap_state, status_state, damage_state, telemetry_state
+    global setup_state, motion_ex_state, session_state
+
+    session_state = {
+        "session_type": REVERSE_SESSION_TYPE.get(row.get("session_type", ""), 0),
+        "track_id": REVERSE_TRACK.get(row.get("track_name", ""), -1),
+        "session_time_left": _int(row.get("session_time_left")),
+        "total_laps": 0,
+        "session_duration": 0,
+        "track_temperature": 0,
+        "air_temperature": 0,
+        "weather": 0,
+    }
+
+    lap_state = {
+        "current_lap_num": _int(row.get("current_lap_num")),
+        "lap_distance_m": _float(row.get("lap_distance_m")),
+        "car_position": _int(row.get("car_position")),
+        "last_lap_time_ms": _int(row.get("last_lap_time_ms")),
+        "current_lap_time_ms": _int(row.get("current_lap_time_ms")),
+    }
+
+    status_state = {
+        "tyre_compound_actual": row.get("tyre_compound_actual", ""),
+        "tyre_compound_visual": row.get("tyre_compound_visual", ""),
+        "tyres_age_laps": _int(row.get("tyres_age_laps")),
+        "fuel_in_tank": _float(row.get("fuel_in_tank")),
+        "fuel_remaining_laps": _float(row.get("fuel_remaining_laps")),
+        "fuel_mix": _int(row.get("fuel_mix")),
+        "engine_power_ice": _float(row.get("engine_power_ice_w")),
+        "engine_power_mguk": _float(row.get("engine_power_mguk_w")),
+        "ers_store_energy": _float(row.get("ers_store_energy_j")),
+        "ers_deploy_mode": _int(row.get("ers_deploy_mode")),
+        "ers_harvested_mguk": _float(row.get("ers_harvested_mguk_j")),
+        "ers_harvested_mguh": _float(row.get("ers_harvested_mguh_j")),
+        "ers_deployed_this_lap": _float(row.get("ers_deployed_this_lap_j")),
+        "front_brake_bias": _int(row.get("brake_bias")),
+        "drs_allowed": 0,
+        "drs_activation_distance": 0,
+    }
+
+    new_damage = {}
+    for wn in WHEEL_NAMES:
+        new_damage[f"tyre_wear_{wn}"] = _float(row.get(f"tyre_wear_{wn}"))
+        new_damage[f"tyre_damage_{wn}"] = _int(row.get(f"tyre_damage_{wn}"))
+        new_damage[f"tyre_blisters_{wn}"] = _int(row.get(f"tyre_blisters_{wn}"))
+    new_damage["engine_damage"] = _int(row.get("engine_damage"))
+    new_damage["gearbox_damage"] = _int(row.get("gearbox_damage"))
+    front_wing_dmg = _int(row.get("front_wing_damage"))
+    new_damage["front_left_wing_damage"] = front_wing_dmg
+    new_damage["front_right_wing_damage"] = front_wing_dmg
+    new_damage["rear_wing_damage"] = _int(row.get("rear_wing_damage"))
+    new_damage["floor_damage"] = _int(row.get("floor_damage"))
+    new_damage["diffuser_damage"] = _int(row.get("diffuser_damage"))
+    new_damage["sidepod_damage"] = _int(row.get("sidepod_damage"))
+    new_damage["drs_fault"] = _int(row.get("drs_fault"))
+    damage_state = new_damage
+
+    telem = {
+        "speed_kmh": _int(row.get("speed_kmh")),
+        "engine_rpm": _int(row.get("engine_rpm")),
+        "engine_temp": _int(row.get("engine_temp")),
+        "gear": _int(row.get("gear")),
+        "drs": _int(row.get("drs")),
+    }
+    for wn in WHEEL_NAMES:
+        telem[f"brake_temp_{wn}"] = _int(row.get(f"brake_temp_{wn}"))
+        telem[f"tyre_surface_temp_{wn}"] = _int(row.get(f"tyre_surface_temp_{wn}"))
+        telem[f"tyre_inner_temp_{wn}"] = _int(row.get(f"tyre_inner_temp_{wn}"))
+        telem[f"tyre_pressure_{wn}"] = _float(row.get(f"tyre_pressure_{wn}"))
+    telemetry_state = telem
+
+    setup_state = {
+        "front_wing": _int(row.get("front_wing_setup")),
+        "rear_wing": _int(row.get("rear_wing_setup")),
+        "brake_bias": _int(row.get("brake_bias")),
+    }
+
+    motion_ex_state = {
+        "front_aero_height": _float(row.get("front_ride_height_mm")),
+        "rear_aero_height": _float(row.get("rear_ride_height_mm")),
+    }
+
+
+async def csv_replay(filepath: str):
+    """Replay a captured CSV file as if it were live telemetry."""
+    path = Path(filepath)
+    if not path.exists():
+        print(f"ERROR: file not found: {filepath}")
+        return
+
+    print(f"Replaying {filepath} ...")
+
+    with path.open(newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        prev_wall_time = None
+        row_count = 0
+
+        for row in reader:
+            wall_time = _float(row.get("wall_time"))
+
+            # Pace replay using original timing
+            if prev_wall_time is not None and wall_time > prev_wall_time:
+                delta = wall_time - prev_wall_time
+                # Cap to 1s to skip long pauses (e.g. game paused)
+                await asyncio.sleep(min(delta, 1.0))
+            prev_wall_time = wall_time
+
+            _populate_state_from_row(row)
+            await broadcast(build_message())
+            row_count += 1
+
+    print(f"Replay complete — {row_count} frames sent.")
+
+
 async def main():
     global csv_capture
 
@@ -555,7 +693,15 @@ async def main():
         action="store_true",
         help="Save telemetry to CSV files in the data/ folder (one file per session)",
     )
+    parser.add_argument(
+        "--replay",
+        metavar="FILE",
+        help="Replay a captured CSV file instead of listening for live UDP",
+    )
     args = parser.parse_args()
+
+    if args.capture and args.replay:
+        parser.error("--capture and --replay cannot be used together")
 
     if args.capture:
         csv_capture = CsvCapture(Path("data"))
@@ -564,7 +710,10 @@ async def main():
     print(f"Starting WebSocket server on ws://{WS_HOST}:{WS_PORT}")
     try:
         async with websockets.serve(ws_handler, WS_HOST, WS_PORT):
-            await udp_reader()
+            if args.replay:
+                await csv_replay(args.replay)
+            else:
+                await udp_reader()
     finally:
         if csv_capture is not None:
             csv_capture.close()
