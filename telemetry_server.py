@@ -9,10 +9,14 @@ server on port 8765.  The web app connects to ws://localhost:8765 and
 receives JSON frames with the latest telemetry state (tires + power unit).
 """
 
+import argparse
 import asyncio
+import csv
 import json
 import socket
 import struct
+import time
+from pathlib import Path
 
 import websockets
 
@@ -90,6 +94,154 @@ TRACK_NAMES = {
 }
 
 connected_clients: set = set()
+
+# ---------------------------------------------------------------------------
+# CSV capture
+# ---------------------------------------------------------------------------
+CSV_FIELDNAMES = [
+    "wall_time", "session_uid", "session_time", "frame_id",
+    # Session
+    "session_type", "track_name", "session_time_left",
+    # Lap
+    "current_lap_num", "car_position", "lap_distance_m",
+    "last_lap_time_ms", "current_lap_time_ms",
+    # Car dynamics
+    "speed_kmh", "gear", "drs",
+    # Tyres
+    "tyre_compound_actual", "tyre_compound_visual", "tyres_age_laps",
+]
+for _metric in (
+    "tyre_wear", "tyre_damage", "tyre_blisters",
+    "tyre_surface_temp", "tyre_inner_temp", "tyre_pressure", "brake_temp",
+):
+    for _wn in WHEEL_NAMES:
+        CSV_FIELDNAMES.append(f"{_metric}_{_wn}")
+CSV_FIELDNAMES += [
+    # Power unit
+    "engine_rpm", "engine_temp",
+    "fuel_in_tank", "fuel_remaining_laps", "fuel_mix",
+    "engine_power_ice_w", "engine_power_mguk_w",
+    "ers_store_energy_j", "ers_deploy_mode",
+    "ers_deployed_this_lap_j", "ers_harvested_mguk_j", "ers_harvested_mguh_j",
+    "engine_damage", "gearbox_damage",
+    # Aero
+    "front_wing_setup", "rear_wing_setup", "brake_bias",
+    "front_ride_height_mm", "rear_ride_height_mm",
+    "front_wing_damage", "rear_wing_damage",
+    "floor_damage", "diffuser_damage", "sidepod_damage", "drs_fault",
+]
+
+
+class CsvCapture:
+    """Manages one CSV file per session_uid."""
+
+    def __init__(self, data_dir: Path):
+        self.data_dir = data_dir
+        self.data_dir.mkdir(exist_ok=True)
+        self._current_uid: int | None = None
+        self._file = None
+        self._writer: csv.DictWriter | None = None
+
+    def _open_file(self, session_uid: int):
+        """Open a new CSV for the given session."""
+        self.close()
+        self._current_uid = session_uid
+
+        track_id = session_state.get("track_id", -1)
+        session_type = session_state.get("session_type", 0)
+        gp = TRACK_NAMES.get(track_id, f"track_{track_id}").replace(" ", "_").lower()
+        sess = SESSION_TYPE_LABELS.get(session_type, f"session_{session_type}").replace(" ", "_").lower()
+        ts = time.strftime("%Y%m%d-%H%M%S")
+
+        path = self.data_dir / f"f1_25_{gp}_{sess}_{ts}.csv"
+        self._file = path.open("w", newline="", encoding="utf-8")
+        self._writer = csv.DictWriter(self._file, fieldnames=CSV_FIELDNAMES)
+        self._writer.writeheader()
+        self._file.flush()
+        print(f"CSV capture started: {path}")
+
+    def write_row(self, session_uid: int, session_time: float, frame_id: int):
+        if session_uid != self._current_uid:
+            self._open_file(session_uid)
+
+        row = {
+            "wall_time": time.time(),
+            "session_uid": session_uid,
+            "session_time": session_time,
+            "frame_id": frame_id,
+            # Session
+            "session_type": SESSION_TYPE_LABELS.get(
+                session_state.get("session_type", 0), "unknown"
+            ),
+            "track_name": TRACK_NAMES.get(session_state.get("track_id", -1), "unknown"),
+            "session_time_left": session_state.get("session_time_left", 0),
+            # Lap
+            "current_lap_num": lap_state.get("current_lap_num", ""),
+            "car_position": lap_state.get("car_position", ""),
+            "lap_distance_m": lap_state.get("lap_distance_m", ""),
+            "last_lap_time_ms": lap_state.get("last_lap_time_ms", ""),
+            "current_lap_time_ms": lap_state.get("current_lap_time_ms", ""),
+            # Car dynamics
+            "speed_kmh": telemetry_state.get("speed_kmh", ""),
+            "gear": telemetry_state.get("gear", ""),
+            "drs": telemetry_state.get("drs", ""),
+            # Tyres
+            "tyre_compound_actual": status_state.get("tyre_compound_actual", ""),
+            "tyre_compound_visual": status_state.get("tyre_compound_visual", ""),
+            "tyres_age_laps": status_state.get("tyres_age_laps", ""),
+            # Power unit
+            "engine_rpm": telemetry_state.get("engine_rpm", ""),
+            "engine_temp": telemetry_state.get("engine_temp", ""),
+            "fuel_in_tank": status_state.get("fuel_in_tank", ""),
+            "fuel_remaining_laps": status_state.get("fuel_remaining_laps", ""),
+            "fuel_mix": status_state.get("fuel_mix", ""),
+            "engine_power_ice_w": status_state.get("engine_power_ice", ""),
+            "engine_power_mguk_w": status_state.get("engine_power_mguk", ""),
+            "ers_store_energy_j": status_state.get("ers_store_energy", ""),
+            "ers_deploy_mode": status_state.get("ers_deploy_mode", ""),
+            "ers_deployed_this_lap_j": status_state.get("ers_deployed_this_lap", ""),
+            "ers_harvested_mguk_j": status_state.get("ers_harvested_mguk", ""),
+            "ers_harvested_mguh_j": status_state.get("ers_harvested_mguh", ""),
+            "engine_damage": damage_state.get("engine_damage", ""),
+            "gearbox_damage": damage_state.get("gearbox_damage", ""),
+            # Aero
+            "front_wing_setup": setup_state.get("front_wing", ""),
+            "rear_wing_setup": setup_state.get("rear_wing", ""),
+            "brake_bias": status_state.get("front_brake_bias", ""),
+            "front_ride_height_mm": motion_ex_state.get("front_aero_height", ""),
+            "rear_ride_height_mm": motion_ex_state.get("rear_aero_height", ""),
+            "front_wing_damage": max(
+                damage_state.get("front_left_wing_damage", 0),
+                damage_state.get("front_right_wing_damage", 0),
+            ),
+            "rear_wing_damage": damage_state.get("rear_wing_damage", ""),
+            "floor_damage": damage_state.get("floor_damage", ""),
+            "diffuser_damage": damage_state.get("diffuser_damage", ""),
+            "sidepod_damage": damage_state.get("sidepod_damage", ""),
+            "drs_fault": damage_state.get("drs_fault", ""),
+        }
+        # Per-wheel tyre metrics
+        for wn in WHEEL_NAMES:
+            row[f"tyre_wear_{wn}"] = damage_state.get(f"tyre_wear_{wn}", "")
+            row[f"tyre_damage_{wn}"] = damage_state.get(f"tyre_damage_{wn}", "")
+            row[f"tyre_blisters_{wn}"] = damage_state.get(f"tyre_blisters_{wn}", "")
+            row[f"tyre_surface_temp_{wn}"] = telemetry_state.get(f"tyre_surface_temp_{wn}", "")
+            row[f"tyre_inner_temp_{wn}"] = telemetry_state.get(f"tyre_inner_temp_{wn}", "")
+            row[f"tyre_pressure_{wn}"] = telemetry_state.get(f"tyre_pressure_{wn}", "")
+            row[f"brake_temp_{wn}"] = telemetry_state.get(f"brake_temp_{wn}", "")
+
+        self._writer.writerow(row)
+        self._file.flush()
+
+    def close(self):
+        if self._file:
+            self._file.close()
+            self._file = None
+            self._writer = None
+            self._current_uid = None
+
+
+csv_capture: CsvCapture | None = None
 
 
 def build_message() -> str:
@@ -384,11 +536,36 @@ async def udp_reader():
             # Broadcast merged state to all WS clients
             await broadcast(build_message())
 
+            # Write CSV row if capture is enabled
+            if csv_capture is not None:
+                session_uid = header[7]
+                session_time = header[8]
+                frame_id = header[9]
+                csv_capture.write_row(session_uid, session_time, frame_id)
+
 
 async def main():
+    global csv_capture
+
+    parser = argparse.ArgumentParser(description="F1 25 telemetry WebSocket bridge")
+    parser.add_argument(
+        "--capture",
+        action="store_true",
+        help="Save telemetry to CSV files in the data/ folder (one file per session)",
+    )
+    args = parser.parse_args()
+
+    if args.capture:
+        csv_capture = CsvCapture(Path("data"))
+        print("CSV capture enabled → data/")
+
     print(f"Starting WebSocket server on ws://{WS_HOST}:{WS_PORT}")
-    async with websockets.serve(ws_handler, WS_HOST, WS_PORT):
-        await udp_reader()
+    try:
+        async with websockets.serve(ws_handler, WS_HOST, WS_PORT):
+            await udp_reader()
+    finally:
+        if csv_capture is not None:
+            csv_capture.close()
 
 
 if __name__ == "__main__":
