@@ -9,6 +9,7 @@ UDP_IP = "0.0.0.0"
 UDP_PORT = 20777
 
 # ---- Packet constants (F1 25 spec) ----
+PACKET_ID_SESSION = 1
 PACKET_ID_LAP_DATA = 2
 PACKET_ID_CAR_SETUPS = 5
 PACKET_ID_CAR_TELEMETRY = 6
@@ -24,6 +25,22 @@ NUM_CARS = 22
 
 # Wheel order in all arrays: 0=RL, 1=RR, 2=FL, 3=FR
 WHEEL_NAMES = ("rl", "rr", "fl", "fr")
+
+# ---- SessionData – first 13 bytes of the packet body (before marshal zones) ----
+SESSION_HEADER_STRUCT = struct.Struct(
+    "<"
+    "B"      # m_weather
+    "b"      # m_trackTemperature
+    "b"      # m_airTemperature
+    "B"      # m_totalLaps
+    "H"      # m_trackLength
+    "B"      # m_sessionType
+    "b"      # m_trackId
+    "B"      # m_formula
+    "H"      # m_sessionTimeLeft
+    "H"      # m_sessionDuration
+)
+SESSION_HEADER_SIZE = SESSION_HEADER_STRUCT.size  # 13
 
 # ---- LapData struct (57 bytes) – only used for lap context ----
 LAPDATA_STRUCT = struct.Struct(

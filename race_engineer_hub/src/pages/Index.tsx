@@ -3,6 +3,7 @@ import { EngineTelemetry } from "@/components/EngineTelemetry";
 import { AeroTelemetry } from "@/components/AeroTelemetry";
 import { AlertBox, type Alert } from "@/components/AlertBox";
 import { EngineerReport, type Instruction } from "@/components/EngineerReport";
+import { useSessionTelemetry, formatLapTime, formatTimeLeft } from "@/hooks/useSessionTelemetry";
 import { Flag, Timer, Gauge, Clock } from "lucide-react";
 
 const tireAlerts: Alert[] = [
@@ -32,6 +33,16 @@ const instructions: Instruction[] = [
 ];
 
 const Index = () => {
+  const session = useSessionTelemetry();
+
+  const sessionType = session?.sessionType ?? "—";
+  const trackName = session?.trackName ?? "—";
+  const isTimedSession = session ? session.sessionDuration > 0 : false;
+  const timeLeftStr = session ? formatTimeLeft(session.sessionTimeLeft) : "—";
+  const position = session?.carPosition ?? 0;
+  const lastLapStr = session ? formatLapTime(session.lastLapTimeMs) : "—";
+  const totalLaps = session?.totalLaps ?? 0;
+
   return (
     <div className="h-screen overflow-hidden bg-background p-3 flex flex-col">
       {/* Header */}
@@ -39,24 +50,31 @@ const Index = () => {
         <div className="flex items-center gap-3">
           <Flag className="h-4 w-4 text-accent" />
           <h1 className="font-display text-sm md:text-base font-bold tracking-wider text-foreground">
-            QUALIFYING — PIT WALL
+            {trackName} — PIT WALL
           </h1>
           <span className="font-display text-[10px] font-bold tracking-wider text-accent bg-accent/10 border border-accent/30 px-2 py-0.5 rounded">
-            Q3
+            {sessionType}
           </span>
         </div>
         <div className="flex items-center gap-4 text-[10px] text-muted-foreground uppercase tracking-wider font-display">
-          <div className="flex items-center gap-1">
-            <Clock className="h-3 w-3 text-warning animate-pulse" />
-            <span className="text-warning">02:34 LEFT</span>
-          </div>
+          {isTimedSession ? (
+            <div className="flex items-center gap-1">
+              <Clock className="h-3 w-3 text-warning animate-pulse" />
+              <span className="text-warning">{timeLeftStr} LEFT</span>
+            </div>
+          ) : totalLaps > 0 ? (
+            <div className="flex items-center gap-1">
+              <Clock className="h-3 w-3 text-primary" />
+              <span>{totalLaps} LAPS</span>
+            </div>
+          ) : null}
           <div className="flex items-center gap-1">
             <Gauge className="h-3 w-3 text-primary" />
-            <span>P2 — PROVISIONAL</span>
+            <span>P{position || "—"}</span>
           </div>
           <div className="flex items-center gap-1">
             <Timer className="h-3 w-3 text-primary" />
-            <span className="text-primary font-bold">1:23.812</span>
+            <span className="text-primary font-bold">{lastLapStr}</span>
           </div>
         </div>
       </header>
