@@ -84,6 +84,11 @@ Use `--replay` to play back a captured CSV file. The web app receives the data a
 python -m telemetry_server --replay data/f1_25_bahrain_gp_race_20260214-215852.csv
 ```
 
+Add `--speed` to fast-forward the replay:
+```shell
+python -m telemetry_server --replay data/f1_25_bahrain_gp_race_20260214-215852.csv --speed 10x
+```
+
 ## F1 Race Engineer Hub Concept
 
 ![race_engineer_hub.png](race_engineer_hub.png)

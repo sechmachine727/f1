@@ -653,14 +653,14 @@ def _populate_state_from_row(row: dict):
     }
 
 
-async def csv_replay(filepath: str):
+async def csv_replay(filepath: str, speed: int = 1):
     """Replay a captured CSV file as if it were live telemetry."""
     path = Path(filepath)
     if not path.exists():
         print(f"ERROR: file not found: {filepath}")
         return
 
-    print(f"Replaying {filepath} ...")
+    print(f"Replaying {filepath} ({speed}x) ...")
 
     with path.open(newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
@@ -670,9 +670,9 @@ async def csv_replay(filepath: str):
         for row in reader:
             wall_time = _float(row.get("wall_time"))
 
-            # Pace replay using original timing
+            # Pace replay using original timing, scaled by speed
             if prev_wall_time is not None and wall_time > prev_wall_time:
-                delta = wall_time - prev_wall_time
+                delta = (wall_time - prev_wall_time) / speed
                 # Cap to 1s to skip long pauses (e.g. game paused)
                 await asyncio.sleep(min(delta, 1.0))
             prev_wall_time = wall_time
@@ -698,10 +698,19 @@ async def main():
         metavar="FILE",
         help="Replay a captured CSV file instead of listening for live UDP",
     )
+    parser.add_argument(
+        "--speed",
+        metavar="Nx",
+        default="1x",
+        help="Replay speed multiplier, e.g. 2x, 10x (default: 1x)",
+    )
     args = parser.parse_args()
 
     if args.capture and args.replay:
         parser.error("--capture and --replay cannot be used together")
+
+    if args.speed != "1x" and not args.replay:
+        parser.error("--speed can only be used with --replay")
 
     if args.capture:
         csv_capture = CsvCapture(Path("data"))
@@ -711,7 +720,12 @@ async def main():
     try:
         async with websockets.serve(ws_handler, WS_HOST, WS_PORT):
             if args.replay:
-                await csv_replay(args.replay)
+                speed_str = args.speed.rstrip("x")
+                try:
+                    speed = int(speed_str)
+                except ValueError:
+                    parser.error(f"invalid --speed value: {args.speed} (expected Nx, e.g. 2x, 10x)")
+                await csv_replay(args.replay, speed)
             else:
                 await udp_reader()
     finally:
