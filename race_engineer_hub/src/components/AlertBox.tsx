@@ -26,7 +26,7 @@ export function AlertBox({ alerts }: { alerts: Alert[] }) {
         <span className="font-display text-[10px] font-bold tracking-widest uppercase text-muted-foreground">Alerts</span>
         <span className="ml-auto font-display text-[10px] text-muted-foreground">{alerts.length}</span>
       </div>
-      <div className="max-h-36 overflow-y-auto">
+      <div className="h-36 overflow-y-auto">
         {alerts.map((a, i) => (
           <div key={i} className={`flex items-start gap-2 px-3 py-2 border-b last:border-b-0 ${rowStyles[a.level]}`}>
             {icons[a.level]}
