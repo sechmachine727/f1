@@ -57,10 +57,8 @@ export function TireTelemetry() {
             <div key={p.key} className="bg-secondary/50 rounded p-2 flex flex-col gap-1 border border-border/50">
               <div className="flex items-center justify-between">
                 <span className="font-display text-[10px] font-bold tracking-wider text-foreground">{p.label}</span>
+                <span className="text-[9px] text-muted-foreground">{t.pressure.toFixed(1)} bar</span>
                 <span className={`font-display text-sm font-bold ${t.surfaceTemp > 108 ? "text-accent" : t.surfaceTemp > 103 ? "text-warning" : "text-primary"}`}>{t.surfaceTemp}°</span>
-              </div>
-              <div className="flex items-center justify-between text-[9px] text-muted-foreground">
-                <span>{t.pressure.toFixed(1)} bar</span>
               </div>
               <BarGauge value={life} max={100} label="Life" warn={40} critical={25} invertThresholds />
               <BarGauge value={t.damage} max={255} label="Damage" warn={50} critical={150} />
