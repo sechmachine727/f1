@@ -13,34 +13,40 @@ function timestamp(): string {
   return `${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}:${d.getSeconds().toString().padStart(2, "0")}`;
 }
 
-/** Human-readable labels and category tags for cleared-condition messages. */
-const CLEAR_MESSAGES: Record<string, { msg: (label: string) => string; tag: string }> = {
-  temp_crit: { msg: (l) => `${l} temp back to normal`, tag: "TEMP" },
-  temp_warn: { msg: (l) => `${l} temp back to normal`, tag: "TEMP" },
-  wear_crit: { msg: (l) => `${l} tyre wear stabilised`, tag: "WEAR" },
-  wear_warn: { msg: (l) => `${l} tyre wear stabilised`, tag: "WEAR" },
-  dmg_crit: { msg: (l) => `${l} tyre damage stabilised`, tag: "DMG" },
-  dmg_warn: { msg: (l) => `${l} tyre damage stabilised`, tag: "DMG" },
-  blst_crit: { msg: (l) => `${l} blistering subsided`, tag: "BLST" },
-  blst_warn: { msg: (l) => `${l} blistering subsided`, tag: "BLST" },
+type Level = "warn" | "crit";
+
+interface Condition {
+  level: Level;
+  tag: string;
+  warnMsg: string;
+  critMsg: string;
+  clearMsg: string;
+}
+
+const CLEAR_LABELS: Record<string, string> = {
+  temp: "temp back to normal",
+  wear: "tyre wear stabilised",
+  dmg: "tyre damage stabilised",
+  blst: "blistering subsided",
 };
 
 /**
- * Accumulates tire alerts over time. Each condition fires once when it first
- * triggers, and won't fire again until the condition clears and re-triggers.
- * When a condition clears, an info alert is added.
+ * Accumulates tire alerts over time. Uses one key per wheel+metric
+ * (e.g. "fl_temp") so "back to normal" only fires when the condition
+ * fully clears, not on de-escalation from crit to warn.
  */
 export function useTireAlerts(data: TireTelemetryData | null): { alerts: Alert[]; activeCount: number } {
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [activeCount, setActiveCount] = useState(0);
-  const activeConditions = useRef<Set<string>>(new Set());
+  // Maps "fl_temp" → current level
+  const activeConditions = useRef<Map<string, Level>>(new Map());
   const prevCompound = useRef<string>("");
 
   useEffect(() => {
     if (!data) return;
 
     const newAlerts: Alert[] = [];
-    const currentConditions = new Set<string>();
+    const currentConditions = new Map<string, Level>();
     const ts = timestamp();
 
     for (const wn of WHEELS) {
@@ -50,71 +56,94 @@ export function useTireAlerts(data: TireTelemetryData | null): { alerts: Alert[]
 
       // Surface temperature
       if (t.surfaceTemp > 108) {
-        currentConditions.add(`${wn}_temp_crit`);
-        currentConditions.add(`${wn}_temp_warn`);
-        if (!activeConditions.current.has(`${wn}_temp_crit`)) {
-          newAlerts.push({ level: "critical", message: `${label} surface temp ${t.surfaceTemp}°C — overheating`, time: `${ts} TEMP` });
-        }
+        currentConditions.set(`${wn}_temp`, "crit");
       } else if (t.surfaceTemp > 103) {
-        currentConditions.add(`${wn}_temp_warn`);
-        if (!activeConditions.current.has(`${wn}_temp_warn`)) {
-          newAlerts.push({ level: "warning", message: `${label} surface temp ${t.surfaceTemp}°C — approaching limit`, time: `${ts} TEMP` });
-        }
+        currentConditions.set(`${wn}_temp`, "warn");
       }
 
       // Wear
       if (life <= 10) {
-        currentConditions.add(`${wn}_wear_crit`);
-        currentConditions.add(`${wn}_wear_warn`);
-        if (!activeConditions.current.has(`${wn}_wear_crit`)) {
-          newAlerts.push({ level: "critical", message: `${label} tyre life critically low at ${life}%`, time: `${ts} WEAR` });
-        }
+        currentConditions.set(`${wn}_wear`, "crit");
       } else if (life <= 25) {
-        currentConditions.add(`${wn}_wear_warn`);
-        if (!activeConditions.current.has(`${wn}_wear_warn`)) {
-          newAlerts.push({ level: "warning", message: `${label} tyre life low at ${life}%`, time: `${ts} WEAR` });
-        }
+        currentConditions.set(`${wn}_wear`, "warn");
       }
 
       // Damage
       if (t.damage > 150) {
-        currentConditions.add(`${wn}_dmg_crit`);
-        currentConditions.add(`${wn}_dmg_warn`);
-        if (!activeConditions.current.has(`${wn}_dmg_crit`)) {
-          newAlerts.push({ level: "critical", message: `${label} tyre damage critical (${t.damage}/255)`, time: `${ts} DMG` });
-        }
+        currentConditions.set(`${wn}_dmg`, "crit");
       } else if (t.damage > 50) {
-        currentConditions.add(`${wn}_dmg_warn`);
-        if (!activeConditions.current.has(`${wn}_dmg_warn`)) {
-          newAlerts.push({ level: "warning", message: `${label} tyre damage detected (${t.damage}/255)`, time: `${ts} DMG` });
-        }
+        currentConditions.set(`${wn}_dmg`, "warn");
       }
 
       // Blisters
       if (t.blisters > 150) {
-        currentConditions.add(`${wn}_blst_crit`);
-        currentConditions.add(`${wn}_blst_warn`);
-        if (!activeConditions.current.has(`${wn}_blst_crit`)) {
-          newAlerts.push({ level: "critical", message: `${label} severe blistering (${t.blisters}/255)`, time: `${ts} BLST` });
-        }
+        currentConditions.set(`${wn}_blst`, "crit");
       } else if (t.blisters > 50) {
-        currentConditions.add(`${wn}_blst_warn`);
-        if (!activeConditions.current.has(`${wn}_blst_warn`)) {
-          newAlerts.push({ level: "warning", message: `${label} blistering detected (${t.blisters}/255)`, time: `${ts} BLST` });
-        }
+        currentConditions.set(`${wn}_blst`, "warn");
       }
     }
 
-    // Detect cleared conditions
-    for (const prevKey of activeConditions.current) {
-      if (!currentConditions.has(prevKey)) {
-        const underscoreIdx = prevKey.indexOf("_");
-        const wn = prevKey.substring(0, underscoreIdx);
-        const condType = prevKey.substring(underscoreIdx + 1);
+    // Fire alerts for new or escalated conditions
+    for (const [key, level] of currentConditions) {
+      const prev = activeConditions.current.get(key);
+      const underscoreIdx = key.indexOf("_");
+      const wn = key.substring(0, underscoreIdx) as typeof WHEELS[number];
+      const metric = key.substring(underscoreIdx + 1);
+      const label = WHEEL_LABELS[wn];
+      const t = data.tires[wn];
+      const life = Math.round(100 - t.wear);
+      const tag = metric.toUpperCase();
+
+      // New condition or escalation from warn to crit
+      if (!prev || (prev === "warn" && level === "crit")) {
+        if (metric === "temp") {
+          newAlerts.push({
+            level: level === "crit" ? "critical" : "warning",
+            message: level === "crit"
+              ? `${label} surface temp ${t.surfaceTemp}°C — overheating`
+              : `${label} surface temp ${t.surfaceTemp}°C — approaching limit`,
+            time: `${ts} ${tag}`,
+          });
+        } else if (metric === "wear") {
+          newAlerts.push({
+            level: level === "crit" ? "critical" : "warning",
+            message: level === "crit"
+              ? `${label} tyre life critically low at ${life}%`
+              : `${label} tyre life low at ${life}%`,
+            time: `${ts} ${tag}`,
+          });
+        } else if (metric === "dmg") {
+          newAlerts.push({
+            level: level === "crit" ? "critical" : "warning",
+            message: level === "crit"
+              ? `${label} tyre damage critical (${t.damage}/255)`
+              : `${label} tyre damage detected (${t.damage}/255)`,
+            time: `${ts} ${tag}`,
+          });
+        } else if (metric === "blst") {
+          newAlerts.push({
+            level: level === "crit" ? "critical" : "warning",
+            message: level === "crit"
+              ? `${label} severe blistering (${t.blisters}/255)`
+              : `${label} blistering detected (${t.blisters}/255)`,
+            time: `${ts} ${tag}`,
+          });
+        }
+      }
+      // De-escalation (crit → warn): no alert
+    }
+
+    // Detect fully cleared conditions
+    for (const [key] of activeConditions.current) {
+      if (!currentConditions.has(key)) {
+        const underscoreIdx = key.indexOf("_");
+        const wn = key.substring(0, underscoreIdx);
+        const metric = key.substring(underscoreIdx + 1);
         const label = WHEEL_LABELS[wn] ?? wn.toUpperCase();
-        const clear = CLEAR_MESSAGES[condType];
-        if (clear) {
-          newAlerts.push({ level: "info", message: clear.msg(label), time: `${ts} ${clear.tag}` });
+        const tag = metric.toUpperCase();
+        const clearMsg = CLEAR_LABELS[metric];
+        if (clearMsg) {
+          newAlerts.push({ level: "info", message: `${label} ${clearMsg}`, time: `${ts} ${tag}` });
         }
       }
     }
