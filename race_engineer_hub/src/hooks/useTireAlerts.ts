@@ -43,9 +43,19 @@ export function useTireAlerts(data: TireTelemetryData | null): { alerts: Alert[]
   // Maps "fl_temp" → current level
   const activeConditions = useRef<Map<string, Level>>(new Map());
   const prevCompound = useRef<string>("");
+  const prevSessionTime = useRef<number>(0);
 
   useEffect(() => {
     if (!data) return;
+
+    // Detect new session (session time resets)
+    if (data.sessionTime < prevSessionTime.current) {
+      setAlerts([]);
+      setActiveCount(0);
+      activeConditions.current = new Map();
+      prevCompound.current = "";
+    }
+    prevSessionTime.current = data.sessionTime;
 
     const newAlerts: Alert[] = [];
     const currentConditions = new Map<string, Level>();
