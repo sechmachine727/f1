@@ -17,6 +17,7 @@ export interface PowerUnitData {
   ersHarvestedMGUH: number;
   engineDamage: number;
   gearboxDamage: number;
+  sessionTime: number;
 }
 
 const WS_URL = "ws://localhost:8765";
@@ -40,7 +41,7 @@ export function usePowerUnitTelemetry(): PowerUnitData | null {
         try {
           const msg = JSON.parse(event.data);
           if (msg.powerUnit) {
-            setData(msg.powerUnit);
+            setData({ ...msg.powerUnit, sessionTime: msg.sessionTime ?? 0 });
           }
         } catch {
           // ignore malformed messages
