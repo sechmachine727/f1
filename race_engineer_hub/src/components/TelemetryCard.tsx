@@ -72,9 +72,11 @@ export function BarGauge({ value, max, label, warn, critical, invertThresholds }
   const isCrit = critical !== undefined && (invertThresholds ? value <= critical : value >= critical);
   const barColor = isCrit ? "bg-accent" : isWarn ? "bg-warning" : "bg-primary";
 
+  const textColor = isCrit ? "text-accent" : isWarn ? "text-warning" : "text-muted-foreground";
+
   return (
     <div className="flex flex-col gap-0.5">
-      <div className="flex justify-between text-[9px] uppercase tracking-wider text-muted-foreground">
+      <div className={`flex justify-between text-[9px] uppercase tracking-wider ${textColor}`}>
         <span>{label}</span>
         <span>{value}/{max}</span>
       </div>
