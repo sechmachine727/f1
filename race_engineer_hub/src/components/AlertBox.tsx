@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { AlertTriangle, Info, CheckCircle } from "lucide-react";
 
 export interface Alert {
@@ -19,6 +20,14 @@ const rowStyles = {
 };
 
 export function AlertBox({ alerts }: { alerts: Alert[] }) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [alerts.length]);
+
   return (
     <div className="bg-card border border-border/50 rounded-md overflow-hidden">
       <div className="flex items-center gap-1.5 px-3 py-2 border-b border-border/50 bg-secondary/30">
@@ -26,7 +35,7 @@ export function AlertBox({ alerts }: { alerts: Alert[] }) {
         <span className="font-display text-[10px] font-bold tracking-widest uppercase text-muted-foreground">Alerts</span>
         <span className="ml-auto font-display text-[10px] text-muted-foreground">{alerts.length}</span>
       </div>
-      <div className="h-36 overflow-y-auto">
+      <div ref={scrollRef} className="h-36 overflow-y-auto">
         {alerts.map((a, i) => (
           <div key={i} className={`flex items-start gap-2 px-3 py-2 border-b last:border-b-0 ${rowStyles[a.level]}`}>
             {icons[a.level]}
