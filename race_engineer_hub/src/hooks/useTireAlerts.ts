@@ -49,60 +49,56 @@ export function useTireAlerts(data: TireTelemetryData | null): Alert[] {
 
       // Surface temperature
       if (t.surfaceTemp > 108) {
-        const key = `${wn}_temp_crit`;
-        currentConditions.add(key);
-        if (!activeConditions.current.has(key)) {
+        currentConditions.add(`${wn}_temp_crit`);
+        currentConditions.add(`${wn}_temp_warn`);
+        if (!activeConditions.current.has(`${wn}_temp_crit`)) {
           newAlerts.push({ level: "critical", message: `${label} surface temp ${t.surfaceTemp}°C — overheating`, time: `${ts} TEMP` });
         }
       } else if (t.surfaceTemp > 103) {
-        const key = `${wn}_temp_warn`;
-        currentConditions.add(key);
-        if (!activeConditions.current.has(key)) {
+        currentConditions.add(`${wn}_temp_warn`);
+        if (!activeConditions.current.has(`${wn}_temp_warn`)) {
           newAlerts.push({ level: "warning", message: `${label} surface temp ${t.surfaceTemp}°C — approaching limit`, time: `${ts} TEMP` });
         }
       }
 
       // Wear
       if (life <= 10) {
-        const key = `${wn}_wear_crit`;
-        currentConditions.add(key);
-        if (!activeConditions.current.has(key)) {
+        currentConditions.add(`${wn}_wear_crit`);
+        currentConditions.add(`${wn}_wear_warn`);
+        if (!activeConditions.current.has(`${wn}_wear_crit`)) {
           newAlerts.push({ level: "critical", message: `${label} tyre life critically low at ${life}%`, time: `${ts} WEAR` });
         }
       } else if (life <= 25) {
-        const key = `${wn}_wear_warn`;
-        currentConditions.add(key);
-        if (!activeConditions.current.has(key)) {
+        currentConditions.add(`${wn}_wear_warn`);
+        if (!activeConditions.current.has(`${wn}_wear_warn`)) {
           newAlerts.push({ level: "warning", message: `${label} tyre life low at ${life}%`, time: `${ts} WEAR` });
         }
       }
 
       // Damage
       if (t.damage > 150) {
-        const key = `${wn}_dmg_crit`;
-        currentConditions.add(key);
-        if (!activeConditions.current.has(key)) {
+        currentConditions.add(`${wn}_dmg_crit`);
+        currentConditions.add(`${wn}_dmg_warn`);
+        if (!activeConditions.current.has(`${wn}_dmg_crit`)) {
           newAlerts.push({ level: "critical", message: `${label} tyre damage critical (${t.damage}/255)`, time: `${ts} DMG` });
         }
       } else if (t.damage > 50) {
-        const key = `${wn}_dmg_warn`;
-        currentConditions.add(key);
-        if (!activeConditions.current.has(key)) {
+        currentConditions.add(`${wn}_dmg_warn`);
+        if (!activeConditions.current.has(`${wn}_dmg_warn`)) {
           newAlerts.push({ level: "warning", message: `${label} tyre damage detected (${t.damage}/255)`, time: `${ts} DMG` });
         }
       }
 
       // Blisters
       if (t.blisters > 150) {
-        const key = `${wn}_blst_crit`;
-        currentConditions.add(key);
-        if (!activeConditions.current.has(key)) {
+        currentConditions.add(`${wn}_blst_crit`);
+        currentConditions.add(`${wn}_blst_warn`);
+        if (!activeConditions.current.has(`${wn}_blst_crit`)) {
           newAlerts.push({ level: "critical", message: `${label} severe blistering (${t.blisters}/255)`, time: `${ts} BLST` });
         }
       } else if (t.blisters > 50) {
-        const key = `${wn}_blst_warn`;
-        currentConditions.add(key);
-        if (!activeConditions.current.has(key)) {
+        currentConditions.add(`${wn}_blst_warn`);
+        if (!activeConditions.current.has(`${wn}_blst_warn`)) {
           newAlerts.push({ level: "warning", message: `${label} blistering detected (${t.blisters}/255)`, time: `${ts} BLST` });
         }
       }
