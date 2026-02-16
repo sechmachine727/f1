@@ -79,7 +79,7 @@ SESSION_TYPE_LABELS = {
     0: "UNKNOWN", 1: "P1", 2: "P2", 3: "P3", 4: "SHORT PRACTICE",
     5: "Q1", 6: "Q2", 7: "Q3", 8: "SHORT QUALIFYING", 9: "OSQ",
     10: "RACE", 11: "RACE 2", 12: "RACE 3", 13: "TIME TRIAL",
-    14: "SQ1", 15: "SQ2", 16: "SQ3", 17: "SPRINT",
+    14: "SQ1", 15: "RACE SHORT", 16: "SQ3", 17: "SPRINT",
 }
 
 TRACK_NAMES = {
