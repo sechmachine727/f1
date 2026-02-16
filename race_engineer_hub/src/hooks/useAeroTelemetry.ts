@@ -10,7 +10,8 @@ export interface AeroData {
   frontRideHeight: number;
   rearRideHeight: number;
   brakeBias: number;
-  frontWingDamage: number;
+  frontLeftWingDamage: number;
+  frontRightWingDamage: number;
   rearWingDamage: number;
   floorDamage: number;
   diffuserDamage: number;

@@ -127,7 +127,7 @@ CSV_FIELDNAMES += [
     # Aero
     "front_wing_setup", "rear_wing_setup", "brake_bias",
     "front_ride_height_mm", "rear_ride_height_mm",
-    "front_wing_damage", "rear_wing_damage",
+    "front_left_wing_damage", "front_right_wing_damage", "rear_wing_damage",
     "floor_damage", "diffuser_damage", "sidepod_damage", "drs_fault",
 ]
 
@@ -212,10 +212,8 @@ class CsvCapture:
             "brake_bias": status_state.get("front_brake_bias", ""),
             "front_ride_height_mm": motion_ex_state.get("front_aero_height", ""),
             "rear_ride_height_mm": motion_ex_state.get("rear_aero_height", ""),
-            "front_wing_damage": max(
-                damage_state.get("front_left_wing_damage", 0),
-                damage_state.get("front_right_wing_damage", 0),
-            ),
+            "front_left_wing_damage": damage_state.get("front_left_wing_damage", ""),
+            "front_right_wing_damage": damage_state.get("front_right_wing_damage", ""),
             "rear_wing_damage": damage_state.get("rear_wing_damage", ""),
             "floor_damage": damage_state.get("floor_damage", ""),
             "diffuser_damage": damage_state.get("diffuser_damage", ""),
@@ -290,10 +288,6 @@ def build_message() -> str:
     }
 
     # -- Aero --
-    fl_wing_dmg = damage_state.get("front_left_wing_damage", 0)
-    fr_wing_dmg = damage_state.get("front_right_wing_damage", 0)
-    front_wing_damage = max(fl_wing_dmg, fr_wing_dmg)
-
     aero = {
         "speed": telemetry_state.get("speed_kmh", 0),
         "drs": bool(telemetry_state.get("drs", 0)),
@@ -304,7 +298,8 @@ def build_message() -> str:
         "frontRideHeight": motion_ex_state.get("front_aero_height", 0),
         "rearRideHeight": motion_ex_state.get("rear_aero_height", 0),
         "brakeBias": status_state.get("front_brake_bias", 0),
-        "frontWingDamage": front_wing_damage,
+        "frontLeftWingDamage": damage_state.get("front_left_wing_damage", 0),
+        "frontRightWingDamage": damage_state.get("front_right_wing_damage", 0),
         "rearWingDamage": damage_state.get("rear_wing_damage", 0),
         "floorDamage": damage_state.get("floor_damage", 0),
         "diffuserDamage": damage_state.get("diffuser_damage", 0),
@@ -617,9 +612,8 @@ def _populate_state_from_row(row: dict):
         new_damage[f"tyre_blisters_{wn}"] = _int(row.get(f"tyre_blisters_{wn}"))
     new_damage["engine_damage"] = _int(row.get("engine_damage"))
     new_damage["gearbox_damage"] = _int(row.get("gearbox_damage"))
-    front_wing_dmg = _int(row.get("front_wing_damage"))
-    new_damage["front_left_wing_damage"] = front_wing_dmg
-    new_damage["front_right_wing_damage"] = front_wing_dmg
+    new_damage["front_left_wing_damage"] = _int(row.get("front_left_wing_damage"))
+    new_damage["front_right_wing_damage"] = _int(row.get("front_right_wing_damage"))
     new_damage["rear_wing_damage"] = _int(row.get("rear_wing_damage"))
     new_damage["floor_damage"] = _int(row.get("floor_damage"))
     new_damage["diffuser_damage"] = _int(row.get("diffuser_damage"))

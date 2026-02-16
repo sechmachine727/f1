@@ -20,7 +20,7 @@ export function AeroTelemetry() {
   }
 
   const maxDamage = Math.max(
-    data.frontWingDamage, data.rearWingDamage,
+    data.frontLeftWingDamage, data.frontRightWingDamage, data.rearWingDamage,
     data.floorDamage, data.diffuserDamage, data.sidepodDamage,
   );
   const status = data.drsFault || maxDamage > 50
@@ -55,13 +55,12 @@ export function AeroTelemetry() {
       </div>
 
       <div className="grid grid-cols-2 gap-2">
-        <BarGauge value={100 - data.frontWingDamage} max={100} label="Front Wing %" warn={40} critical={25} invertThresholds />
+        <BarGauge value={100 - data.frontLeftWingDamage} max={100} label="Front Wing L %" warn={40} critical={25} invertThresholds />
+        <BarGauge value={100 - data.frontRightWingDamage} max={100} label="Front Wing R %" warn={40} critical={25} invertThresholds />
         <BarGauge value={100 - data.rearWingDamage} max={100} label="Rear Wing %" warn={40} critical={25} invertThresholds />
-      </div>
-
-      <div className="flex items-center justify-between pt-2 border-t border-border/50 text-[10px] text-muted-foreground uppercase tracking-wider">
-        <span>Floor: {data.floorDamage > 0 ? `${data.floorDamage}% DMG` : "OK"}</span>
-        <span>Diffuser: {data.diffuserDamage > 0 ? `${data.diffuserDamage}% DMG` : "OK"}</span>
+        <BarGauge value={100 - data.floorDamage} max={100} label="Floor %" warn={40} critical={25} invertThresholds />
+        <BarGauge value={100 - data.diffuserDamage} max={100} label="Diffuser %" warn={40} critical={25} invertThresholds />
+        <BarGauge value={100 - data.sidepodDamage} max={100} label="Sidepod %" warn={40} critical={25} invertThresholds />
       </div>
     </TelemetryCard>
   );
