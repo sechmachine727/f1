@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { AlertTriangle, Info, CheckCircle } from "lucide-react";
 
 export interface Alert {
@@ -18,15 +19,23 @@ const rowStyles = {
   critical: "border-accent/20 bg-accent/5",
 };
 
-export function AlertBox({ alerts }: { alerts: Alert[] }) {
+export function AlertBox({ alerts, activeCount }: { alerts: Alert[]; activeCount?: number }) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [alerts.length]);
+
   return (
     <div className="bg-card border border-border/50 rounded-md overflow-hidden">
       <div className="flex items-center gap-1.5 px-3 py-2 border-b border-border/50 bg-secondary/30">
         <AlertTriangle className="h-3 w-3 text-muted-foreground" />
         <span className="font-display text-[10px] font-bold tracking-widest uppercase text-muted-foreground">Alerts</span>
-        <span className="ml-auto font-display text-[10px] text-muted-foreground">{alerts.length}</span>
+        <span className="ml-auto font-display text-[10px] text-muted-foreground">{activeCount ?? alerts.length}</span>
       </div>
-      <div className="max-h-36 overflow-y-auto">
+      <div ref={scrollRef} className="h-36 overflow-y-auto">
         {alerts.map((a, i) => (
           <div key={i} className={`flex items-start gap-2 px-3 py-2 border-b last:border-b-0 ${rowStyles[a.level]}`}>
             {icons[a.level]}

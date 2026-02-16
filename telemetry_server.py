@@ -70,6 +70,7 @@ telemetry_state: dict = {}
 setup_state: dict = {}
 motion_ex_state: dict = {}
 session_state: dict = {}
+session_time: float = 0.0
 
 # ---------------------------------------------------------------------------
 # Lookups
@@ -333,6 +334,7 @@ def build_message() -> str:
         "tyresAgeLaps": status_state.get("tyres_age_laps", 0),
         "currentLap": lap_state.get("current_lap_num", 0),
         "speed": telemetry_state.get("speed_kmh", 0),
+        "sessionTime": session_time,
         "powerUnit": power_unit,
         "aero": aero,
         "session": session,
@@ -367,7 +369,7 @@ async def ws_handler(websocket):
 async def udp_reader():
     """Read F1 25 UDP packets and update shared state, broadcasting on each
     telemetry frame (packet 6)."""
-    global lap_state, status_state, damage_state, telemetry_state, setup_state, motion_ex_state, session_state
+    global lap_state, status_state, damage_state, telemetry_state, setup_state, motion_ex_state, session_state, session_time
 
     loop = asyncio.get_running_loop()
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -529,6 +531,7 @@ async def udp_reader():
                 telem[f"tyre_inner_temp_{wn}"] = fields[18 + i]
                 telem[f"tyre_pressure_{wn}"] = round(fields[23 + i], 2)
             telemetry_state = telem
+            session_time = header[7]  # m_sessionTime (float)
 
             # Broadcast merged state to all WS clients
             await broadcast(build_message())
@@ -536,7 +539,6 @@ async def udp_reader():
             # Write CSV row if capture is enabled
             if csv_capture is not None:
                 session_uid = header[6]   # m_sessionUID (uint64)
-                session_time = header[7]  # m_sessionTime (float)
                 frame_id = header[8]      # m_frameIdentifier
                 csv_capture.write_row(session_uid, session_time, frame_id)
 
@@ -565,7 +567,9 @@ def _int(val, default=0):
 def _populate_state_from_row(row: dict):
     """Fill the shared state dicts from a single CSV row."""
     global lap_state, status_state, damage_state, telemetry_state
-    global setup_state, motion_ex_state, session_state
+    global setup_state, motion_ex_state, session_state, session_time
+
+    session_time = _float(row.get("session_time"))
 
     session_state = {
         "session_type": REVERSE_SESSION_TYPE.get(row.get("session_type", ""), 0),
