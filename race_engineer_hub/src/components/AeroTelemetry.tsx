@@ -60,6 +60,7 @@ export function AeroTelemetry() {
         <BarGauge value={100 - data.rearWingDamage} max={100} label="Rear Wing %" warn={40} critical={25} invertThresholds />
         <BarGauge value={100 - data.floorDamage} max={100} label="Floor %" warn={40} critical={25} invertThresholds />
         <BarGauge value={100 - data.diffuserDamage} max={100} label="Diffuser %" warn={40} critical={25} invertThresholds />
+        <BarGauge value={100 - data.sidepodDamage} max={100} label="Sidepod %" warn={40} critical={25} invertThresholds />
       </div>
     </TelemetryCard>
   );
