@@ -63,6 +63,8 @@ export function TireTelemetry() {
                 <span>{t.pressure.toFixed(1)} bar</span>
               </div>
               <BarGauge value={life} max={100} label="Life" warn={40} critical={25} invertThresholds />
+              <BarGauge value={t.damage} max={255} label="Damage" warn={50} critical={150} />
+              <BarGauge value={t.blisters} max={255} label="Blisters" warn={50} critical={150} />
             </div>
           );
         })}
