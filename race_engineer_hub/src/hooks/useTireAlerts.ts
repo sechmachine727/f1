@@ -8,9 +8,11 @@ const WHEEL_LABELS: Record<string, string> = {
 
 const WHEELS = ["fl", "fr", "rl", "rr"] as const;
 
-function timestamp(): string {
-  const d = new Date();
-  return `${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}:${d.getSeconds().toString().padStart(2, "0")}`;
+function formatSessionTime(seconds: number): string {
+  const totalSec = Math.floor(seconds);
+  const m = Math.floor(totalSec / 60);
+  const s = totalSec % 60;
+  return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
 }
 
 type Level = "warn" | "crit";
@@ -47,7 +49,7 @@ export function useTireAlerts(data: TireTelemetryData | null): { alerts: Alert[]
 
     const newAlerts: Alert[] = [];
     const currentConditions = new Map<string, Level>();
-    const ts = timestamp();
+    const ts = formatSessionTime(data.sessionTime);
 
     for (const wn of WHEELS) {
       const t = data.tires[wn];

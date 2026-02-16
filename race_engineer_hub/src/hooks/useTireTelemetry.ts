@@ -17,6 +17,7 @@ export interface TireTelemetryData {
   tyresAgeLaps: number;
   currentLap: number;
   speed: number;
+  sessionTime: number;
 }
 
 const WS_URL = "ws://localhost:8765";
