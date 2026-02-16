@@ -11,6 +11,14 @@ function formatSessionTime(seconds: number): string {
 
 type Level = "warn" | "crit";
 
+interface ConditionState {
+  level: Level;
+  value: number;
+}
+
+const DAMAGE_REFIRE_STEP = 10; // re-alert every 10% worsening
+const DAMAGE_KEYS = new Set(["eng_dmg", "gbx_dmg"]);
+
 const ALERT_DEFS: Record<string, { tag: string; clearMsg: string }> = {
   eng_temp: { tag: "TEMP", clearMsg: "engine temp back to normal" },
   eng_dmg: { tag: "ICE", clearMsg: "engine damage stabilised" },
@@ -27,7 +35,7 @@ const ALERT_DEFS: Record<string, { tag: string; clearMsg: string }> = {
 export function usePowerUnitAlerts(data: PowerUnitData | null): { alerts: Alert[]; activeCount: number } {
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [activeCount, setActiveCount] = useState(0);
-  const activeConditions = useRef<Map<string, Level>>(new Map());
+  const activeConditions = useRef<Map<string, ConditionState>>(new Map());
   const prevSessionTime = useRef<number>(0);
   const prevErsMode = useRef<string>("");
   const prevFuelMix = useRef<string>("");
@@ -46,57 +54,62 @@ export function usePowerUnitAlerts(data: PowerUnitData | null): { alerts: Alert[
     prevSessionTime.current = data.sessionTime;
 
     const newAlerts: Alert[] = [];
-    const currentConditions = new Map<string, Level>();
+    const currentConditions = new Map<string, ConditionState>();
     const ts = formatSessionTime(data.sessionTime);
 
     // Engine temperature
     if (data.engineTemp > 130) {
-      currentConditions.set("eng_temp", "crit");
+      currentConditions.set("eng_temp", { level: "crit", value: data.engineTemp });
     } else if (data.engineTemp > 120) {
-      currentConditions.set("eng_temp", "warn");
+      currentConditions.set("eng_temp", { level: "warn", value: data.engineTemp });
     }
 
     // Engine damage (0-100)
     if (data.engineDamage > 20) {
-      currentConditions.set("eng_dmg", "crit");
+      currentConditions.set("eng_dmg", { level: "crit", value: data.engineDamage });
     } else if (data.engineDamage > 5) {
-      currentConditions.set("eng_dmg", "warn");
+      currentConditions.set("eng_dmg", { level: "warn", value: data.engineDamage });
     }
 
     // Gearbox damage (0-100)
     if (data.gearboxDamage > 20) {
-      currentConditions.set("gbx_dmg", "crit");
+      currentConditions.set("gbx_dmg", { level: "crit", value: data.gearboxDamage });
     } else if (data.gearboxDamage > 5) {
-      currentConditions.set("gbx_dmg", "warn");
+      currentConditions.set("gbx_dmg", { level: "warn", value: data.gearboxDamage });
     }
 
     // Fuel remaining laps
     if (data.fuelRemainingLaps < 1) {
-      currentConditions.set("fuel", "crit");
+      currentConditions.set("fuel", { level: "crit", value: data.fuelRemainingLaps });
     } else if (data.fuelRemainingLaps < 3) {
-      currentConditions.set("fuel", "warn");
+      currentConditions.set("fuel", { level: "warn", value: data.fuelRemainingLaps });
     }
 
     // Battery SOC
     if (data.batteryPct < 15) {
-      currentConditions.set("battery", "crit");
+      currentConditions.set("battery", { level: "crit", value: data.batteryPct });
     } else if (data.batteryPct < 30) {
-      currentConditions.set("battery", "warn");
+      currentConditions.set("battery", { level: "warn", value: data.batteryPct });
     }
 
-    // Fire alerts for new or escalated conditions
-    for (const [key, level] of currentConditions) {
+    // Fire alerts for new, escalated, or worsened conditions
+    for (const [key, cur] of currentConditions) {
       const prev = activeConditions.current.get(key);
       const def = ALERT_DEFS[key];
       if (!def) continue;
 
-      if (!prev || (prev === "warn" && level === "crit")) {
-        const alertLevel = level === "crit" ? "critical" : "warning";
+      const isNew = !prev;
+      const isEscalation = prev && prev.level === "warn" && cur.level === "crit";
+      const isWorsened = DAMAGE_KEYS.has(key) && prev
+        && prev.level === cur.level && cur.value >= prev.value + DAMAGE_REFIRE_STEP;
+
+      if (isNew || isEscalation || isWorsened) {
+        const alertLevel = cur.level === "crit" ? "critical" : "warning";
 
         if (key === "eng_temp") {
           newAlerts.push({
             level: alertLevel,
-            message: level === "crit"
+            message: cur.level === "crit"
               ? `Engine temp ${data.engineTemp}°C — overheating`
               : `Engine temp ${data.engineTemp}°C — running hot`,
             time: `${ts} ${def.tag}`,
@@ -104,7 +117,7 @@ export function usePowerUnitAlerts(data: PowerUnitData | null): { alerts: Alert[
         } else if (key === "eng_dmg") {
           newAlerts.push({
             level: alertLevel,
-            message: level === "crit"
+            message: cur.level === "crit"
               ? `Engine damage critical (${data.engineDamage}%)`
               : `Engine damage detected (${data.engineDamage}%)`,
             time: `${ts} ${def.tag}`,
@@ -112,7 +125,7 @@ export function usePowerUnitAlerts(data: PowerUnitData | null): { alerts: Alert[
         } else if (key === "gbx_dmg") {
           newAlerts.push({
             level: alertLevel,
-            message: level === "crit"
+            message: cur.level === "crit"
               ? `Gearbox damage critical (${data.gearboxDamage}%)`
               : `Gearbox damage detected (${data.gearboxDamage}%)`,
             time: `${ts} ${def.tag}`,
@@ -120,7 +133,7 @@ export function usePowerUnitAlerts(data: PowerUnitData | null): { alerts: Alert[
         } else if (key === "fuel") {
           newAlerts.push({
             level: alertLevel,
-            message: level === "crit"
+            message: cur.level === "crit"
               ? `Fuel critically low — ${data.fuelRemainingLaps.toFixed(1)} laps remaining`
               : `Fuel running low — ${data.fuelRemainingLaps.toFixed(1)} laps remaining`,
             time: `${ts} ${def.tag}`,
@@ -128,12 +141,15 @@ export function usePowerUnitAlerts(data: PowerUnitData | null): { alerts: Alert[
         } else if (key === "battery") {
           newAlerts.push({
             level: alertLevel,
-            message: level === "crit"
+            message: cur.level === "crit"
               ? `Battery SOC critically low at ${data.batteryPct}%`
               : `Battery SOC low at ${data.batteryPct}%`,
             time: `${ts} ${def.tag}`,
           });
         }
+      } else if (prev) {
+        // Keep the previous alerted value as baseline
+        cur.value = prev.value;
       }
     }
 
