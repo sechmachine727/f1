@@ -1,19 +1,16 @@
 import { TireTelemetry } from "@/components/TireTelemetry";
 import { EngineTelemetry } from "@/components/EngineTelemetry";
 import { AeroTelemetry } from "@/components/AeroTelemetry";
-import { AlertBox, type Alert } from "@/components/AlertBox";
+import { AlertBox } from "@/components/AlertBox";
 import { EngineerReport, type Instruction } from "@/components/EngineerReport";
 import { useSessionTelemetry, formatLapTime, formatTimeLeft } from "@/hooks/useSessionTelemetry";
 import { useTireTelemetry } from "@/hooks/useTireTelemetry";
 import { useTireAlerts } from "@/hooks/useTireAlerts";
 import { usePowerUnitTelemetry } from "@/hooks/usePowerUnitTelemetry";
 import { usePowerUnitAlerts } from "@/hooks/usePowerUnitAlerts";
+import { useAeroTelemetry } from "@/hooks/useAeroTelemetry";
+import { useAeroAlerts } from "@/hooks/useAeroAlerts";
 import { Flag, Timer, Gauge, Clock } from "lucide-react";
-
-const aeroAlerts: Alert[] = [
-  { level: "info", message: "Low downforce qualifying trim — beam wing open", time: "Q3 OUT" },
-  { level: "info", message: "DRS detection point in 400m — maintain gap to car ahead", time: "Q3 HOT" },
-];
 
 const instructions: Instruction[] = [
   { priority: "high", message: "This is the final run. Push lap is NOW. Everything on the table. Maximum attack.", category: "QUALI" },
@@ -30,6 +27,8 @@ const Index = () => {
   const { alerts: tireAlerts, activeCount: tireActiveCount } = useTireAlerts(tireData);
   const puData = usePowerUnitTelemetry();
   const { alerts: puAlerts, activeCount: puActiveCount } = usePowerUnitAlerts(puData);
+  const aeroData = useAeroTelemetry();
+  const { alerts: aeroAlerts, activeCount: aeroActiveCount } = useAeroAlerts(aeroData);
 
   const sessionType = session?.sessionType ?? "—";
   const trackName = session?.trackName ?? "—";
@@ -86,7 +85,7 @@ const Index = () => {
         </div>
         <div className="flex flex-col gap-2">
           <AeroTelemetry />
-          <AlertBox alerts={aeroAlerts} />
+          <AlertBox alerts={aeroAlerts} activeCount={aeroActiveCount} />
         </div>
       </div>
 

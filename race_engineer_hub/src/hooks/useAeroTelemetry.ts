@@ -17,6 +17,7 @@ export interface AeroData {
   diffuserDamage: number;
   sidepodDamage: number;
   drsFault: boolean;
+  sessionTime: number;
 }
 
 const WS_URL = "ws://localhost:8765";
@@ -40,7 +41,7 @@ export function useAeroTelemetry(): AeroData | null {
         try {
           const msg = JSON.parse(event.data);
           if (msg.aero) {
-            setData(msg.aero);
+            setData({ ...msg.aero, sessionTime: msg.sessionTime ?? 0 });
           }
         } catch {
           // ignore malformed messages
