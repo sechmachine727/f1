@@ -30,8 +30,9 @@ const CLEAR_MESSAGES: Record<string, { msg: (label: string) => string; tag: stri
  * triggers, and won't fire again until the condition clears and re-triggers.
  * When a condition clears, an info alert is added.
  */
-export function useTireAlerts(data: TireTelemetryData | null): Alert[] {
+export function useTireAlerts(data: TireTelemetryData | null): { alerts: Alert[]; activeCount: number } {
   const [alerts, setAlerts] = useState<Alert[]>([]);
+  const [activeCount, setActiveCount] = useState(0);
   const activeConditions = useRef<Set<string>>(new Set());
   const prevCompound = useRef<string>("");
 
@@ -130,11 +131,12 @@ export function useTireAlerts(data: TireTelemetryData | null): Alert[] {
     }
 
     activeConditions.current = currentConditions;
+    setActiveCount(currentConditions.size);
 
     if (newAlerts.length > 0) {
       setAlerts((prev) => [...prev, ...newAlerts]);
     }
   }, [data]);
 
-  return alerts;
+  return { alerts, activeCount };
 }

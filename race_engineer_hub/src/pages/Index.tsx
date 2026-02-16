@@ -31,7 +31,7 @@ const instructions: Instruction[] = [
 const Index = () => {
   const session = useSessionTelemetry();
   const tireData = useTireTelemetry();
-  const tireAlerts = useTireAlerts(tireData);
+  const { alerts: tireAlerts, activeCount: tireActiveCount } = useTireAlerts(tireData);
 
   const sessionType = session?.sessionType ?? "—";
   const trackName = session?.trackName ?? "—";
@@ -80,7 +80,7 @@ const Index = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 mb-3 shrink-0">
         <div className="flex flex-col gap-2">
           <TireTelemetry />
-          <AlertBox alerts={tireAlerts} />
+          <AlertBox alerts={tireAlerts} activeCount={tireActiveCount} />
         </div>
         <div className="flex flex-col gap-2">
           <EngineTelemetry />
