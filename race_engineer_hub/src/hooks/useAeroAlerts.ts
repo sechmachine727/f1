@@ -11,6 +11,13 @@ function formatSessionTime(seconds: number): string {
 
 type Level = "warn" | "crit";
 
+interface ConditionState {
+  level: Level;
+  value: number;
+}
+
+const DAMAGE_REFIRE_STEP = 10; // re-alert every 10% worsening
+
 const DAMAGE_PARTS: { key: keyof AeroData; label: string; tag: string; clearMsg: string }[] = [
   { key: "frontLeftWingDamage", label: "Front left wing", tag: "FL WING", clearMsg: "front left wing damage stabilised" },
   { key: "frontRightWingDamage", label: "Front right wing", tag: "FR WING", clearMsg: "front right wing damage stabilised" },
@@ -34,7 +41,7 @@ const BRAKE_TEMPS: { key: keyof AeroData; label: string; tag: string }[] = [
 export function useAeroAlerts(data: AeroData | null): { alerts: Alert[]; activeCount: number } {
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [activeCount, setActiveCount] = useState(0);
-  const activeConditions = useRef<Map<string, Level>>(new Map());
+  const activeConditions = useRef<Map<string, ConditionState>>(new Map());
   const prevSessionTime = useRef<number>(0);
   const prevDrsFault = useRef<boolean>(false);
 
@@ -51,16 +58,16 @@ export function useAeroAlerts(data: AeroData | null): { alerts: Alert[]; activeC
     prevSessionTime.current = data.sessionTime;
 
     const newAlerts: Alert[] = [];
-    const currentConditions = new Map<string, Level>();
+    const currentConditions = new Map<string, ConditionState>();
     const ts = formatSessionTime(data.sessionTime);
 
     // Damage conditions for each aero part
     for (const part of DAMAGE_PARTS) {
       const val = data[part.key] as number;
       if (val > 50) {
-        currentConditions.set(part.key, "crit");
+        currentConditions.set(part.key, { level: "crit", value: val });
       } else if (val > 20) {
-        currentConditions.set(part.key, "warn");
+        currentConditions.set(part.key, { level: "warn", value: val });
       }
     }
 
@@ -68,23 +75,28 @@ export function useAeroAlerts(data: AeroData | null): { alerts: Alert[]; activeC
     for (const brk of BRAKE_TEMPS) {
       const val = data[brk.key] as number;
       if (val > 1000) {
-        currentConditions.set(brk.key, "crit");
+        currentConditions.set(brk.key, { level: "crit", value: val });
       } else if (val > 800) {
-        currentConditions.set(brk.key, "warn");
+        currentConditions.set(brk.key, { level: "warn", value: val });
       }
     }
 
     // DRS fault
     if (data.drsFault) {
-      currentConditions.set("drsFault", "crit");
+      currentConditions.set("drsFault", { level: "crit", value: 1 });
     }
 
-    // Fire alerts for new or escalated conditions
-    for (const [key, level] of currentConditions) {
+    // Fire alerts for new, escalated, or worsened conditions
+    for (const [key, cur] of currentConditions) {
       const prev = activeConditions.current.get(key);
+      const isNew = !prev;
+      const isEscalation = prev && prev.level === "warn" && cur.level === "crit";
+      const part = DAMAGE_PARTS.find((p) => p.key === key);
+      const isWorsened = part && prev && prev.level === cur.level
+        && cur.value >= prev.value + DAMAGE_REFIRE_STEP;
 
-      if (!prev || (prev === "warn" && level === "crit")) {
-        const alertLevel = level === "crit" ? "critical" : "warning";
+      if (isNew || isEscalation || isWorsened) {
+        const alertLevel = cur.level === "crit" ? "critical" : "warning";
 
         if (key === "drsFault") {
           newAlerts.push({
@@ -92,31 +104,31 @@ export function useAeroAlerts(data: AeroData | null): { alerts: Alert[]; activeC
             message: "DRS system fault detected",
             time: `${ts} DRS`,
           });
+        } else if (part) {
+          newAlerts.push({
+            level: alertLevel,
+            message: cur.level === "crit"
+              ? `${part.label} damage critical (${cur.value}%)`
+              : `${part.label} damage detected (${cur.value}%)`,
+            time: `${ts} ${part.tag}`,
+          });
+          // Update stored value so next re-fire uses new baseline
+          cur.value = cur.value;
         } else {
-          const part = DAMAGE_PARTS.find((p) => p.key === key);
-          if (part) {
-            const val = data[part.key] as number;
+          const brk = BRAKE_TEMPS.find((b) => b.key === key);
+          if (brk) {
             newAlerts.push({
               level: alertLevel,
-              message: level === "crit"
-                ? `${part.label} damage critical (${val}%)`
-                : `${part.label} damage detected (${val}%)`,
-              time: `${ts} ${part.tag}`,
+              message: cur.level === "crit"
+                ? `${brk.label} temp ${cur.value}°C — overheating`
+                : `${brk.label} temp ${cur.value}°C — running hot`,
+              time: `${ts} ${brk.tag}`,
             });
-          } else {
-            const brk = BRAKE_TEMPS.find((b) => b.key === key);
-            if (brk) {
-              const val = data[brk.key] as number;
-              newAlerts.push({
-                level: alertLevel,
-                message: level === "crit"
-                  ? `${brk.label} temp ${val}°C — overheating`
-                  : `${brk.label} temp ${val}°C — running hot`,
-                time: `${ts} ${brk.tag}`,
-              });
-            }
           }
         }
+      } else if (prev) {
+        // Keep the previous alerted value as baseline when no alert fires
+        cur.value = prev.value;
       }
     }
 

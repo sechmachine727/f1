@@ -17,13 +17,13 @@ function formatSessionTime(seconds: number): string {
 
 type Level = "warn" | "crit";
 
-interface Condition {
+interface ConditionState {
   level: Level;
-  tag: string;
-  warnMsg: string;
-  critMsg: string;
-  clearMsg: string;
+  value: number;
 }
+
+// Damage metrics re-alert every step when worsening (0-255 scale)
+const DAMAGE_REFIRE_STEP = 25;
 
 const CLEAR_LABELS: Record<string, string> = {
   temp: "temp back to normal",
@@ -40,8 +40,8 @@ const CLEAR_LABELS: Record<string, string> = {
 export function useTireAlerts(data: TireTelemetryData | null): { alerts: Alert[]; activeCount: number } {
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [activeCount, setActiveCount] = useState(0);
-  // Maps "fl_temp" → current level
-  const activeConditions = useRef<Map<string, Level>>(new Map());
+  // Maps "fl_temp" → current level + last alerted value
+  const activeConditions = useRef<Map<string, ConditionState>>(new Map());
   const prevCompound = useRef<string>("");
   const prevSessionTime = useRef<number>(0);
 
@@ -58,45 +58,46 @@ export function useTireAlerts(data: TireTelemetryData | null): { alerts: Alert[]
     prevSessionTime.current = data.sessionTime;
 
     const newAlerts: Alert[] = [];
-    const currentConditions = new Map<string, Level>();
+    const currentConditions = new Map<string, ConditionState>();
     const ts = formatSessionTime(data.sessionTime);
 
     for (const wn of WHEELS) {
       const t = data.tires[wn];
-      const label = WHEEL_LABELS[wn];
       const life = Math.round(100 - t.wear);
 
       // Surface temperature
       if (t.surfaceTemp > 108) {
-        currentConditions.set(`${wn}_temp`, "crit");
+        currentConditions.set(`${wn}_temp`, { level: "crit", value: t.surfaceTemp });
       } else if (t.surfaceTemp > 103) {
-        currentConditions.set(`${wn}_temp`, "warn");
+        currentConditions.set(`${wn}_temp`, { level: "warn", value: t.surfaceTemp });
       }
 
-      // Wear
+      // Wear (value = damage amount, higher = worse)
       if (life <= 10) {
-        currentConditions.set(`${wn}_wear`, "crit");
+        currentConditions.set(`${wn}_wear`, { level: "crit", value: t.wear });
       } else if (life <= 25) {
-        currentConditions.set(`${wn}_wear`, "warn");
+        currentConditions.set(`${wn}_wear`, { level: "warn", value: t.wear });
       }
 
       // Damage
       if (t.damage > 150) {
-        currentConditions.set(`${wn}_dmg`, "crit");
+        currentConditions.set(`${wn}_dmg`, { level: "crit", value: t.damage });
       } else if (t.damage > 50) {
-        currentConditions.set(`${wn}_dmg`, "warn");
+        currentConditions.set(`${wn}_dmg`, { level: "warn", value: t.damage });
       }
 
       // Blisters
       if (t.blisters > 150) {
-        currentConditions.set(`${wn}_blst`, "crit");
+        currentConditions.set(`${wn}_blst`, { level: "crit", value: t.blisters });
       } else if (t.blisters > 50) {
-        currentConditions.set(`${wn}_blst`, "warn");
+        currentConditions.set(`${wn}_blst`, { level: "warn", value: t.blisters });
       }
     }
 
-    // Fire alerts for new or escalated conditions
-    for (const [key, level] of currentConditions) {
+    // Fire alerts for new, escalated, or worsened conditions
+    const DAMAGE_METRICS = new Set(["dmg", "blst", "wear"]);
+
+    for (const [key, cur] of currentConditions) {
       const prev = activeConditions.current.get(key);
       const underscoreIdx = key.indexOf("_");
       const wn = key.substring(0, underscoreIdx) as typeof WHEELS[number];
@@ -106,43 +107,51 @@ export function useTireAlerts(data: TireTelemetryData | null): { alerts: Alert[]
       const life = Math.round(100 - t.wear);
       const tag = metric.toUpperCase();
 
-      // New condition or escalation from warn to crit
-      if (!prev || (prev === "warn" && level === "crit")) {
+      const isNew = !prev;
+      const isEscalation = prev && prev.level === "warn" && cur.level === "crit";
+      const isWorsened = DAMAGE_METRICS.has(metric) && prev
+        && prev.level === cur.level && cur.value >= prev.value + DAMAGE_REFIRE_STEP;
+
+      if (isNew || isEscalation || isWorsened) {
+        const alertLevel = cur.level === "crit" ? "critical" : "warning";
+
         if (metric === "temp") {
           newAlerts.push({
-            level: level === "crit" ? "critical" : "warning",
-            message: level === "crit"
+            level: alertLevel,
+            message: cur.level === "crit"
               ? `${label} surface temp ${t.surfaceTemp}°C — overheating`
               : `${label} surface temp ${t.surfaceTemp}°C — approaching limit`,
             time: `${ts} ${tag}`,
           });
         } else if (metric === "wear") {
           newAlerts.push({
-            level: level === "crit" ? "critical" : "warning",
-            message: level === "crit"
+            level: alertLevel,
+            message: cur.level === "crit"
               ? `${label} tyre life critically low at ${life}%`
               : `${label} tyre life low at ${life}%`,
             time: `${ts} ${tag}`,
           });
         } else if (metric === "dmg") {
           newAlerts.push({
-            level: level === "crit" ? "critical" : "warning",
-            message: level === "crit"
+            level: alertLevel,
+            message: cur.level === "crit"
               ? `${label} tyre damage critical (${t.damage}/255)`
               : `${label} tyre damage detected (${t.damage}/255)`,
             time: `${ts} ${tag}`,
           });
         } else if (metric === "blst") {
           newAlerts.push({
-            level: level === "crit" ? "critical" : "warning",
-            message: level === "crit"
+            level: alertLevel,
+            message: cur.level === "crit"
               ? `${label} severe blistering (${t.blisters}/255)`
               : `${label} blistering detected (${t.blisters}/255)`,
             time: `${ts} ${tag}`,
           });
         }
+      } else if (prev) {
+        // Keep the previous alerted value as baseline
+        cur.value = prev.value;
       }
-      // De-escalation (crit → warn): no alert
     }
 
     // Detect fully cleared conditions
