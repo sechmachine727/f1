@@ -6,13 +6,9 @@ import { EngineerReport, type Instruction } from "@/components/EngineerReport";
 import { useSessionTelemetry, formatLapTime, formatTimeLeft } from "@/hooks/useSessionTelemetry";
 import { useTireTelemetry } from "@/hooks/useTireTelemetry";
 import { useTireAlerts } from "@/hooks/useTireAlerts";
+import { usePowerUnitTelemetry } from "@/hooks/usePowerUnitTelemetry";
+import { usePowerUnitAlerts } from "@/hooks/usePowerUnitAlerts";
 import { Flag, Timer, Gauge, Clock } from "lucide-react";
-
-const engineAlerts: Alert[] = [
-  { level: "info", message: "Engine mode QUALI — max power deployment enabled", time: "Q3 OUT" },
-  { level: "info", message: "Full ERS harvest completed on out-lap", time: "Q3 OUT" },
-  { level: "info", message: "Battery SOC 98% — ready for push lap", time: "Q3 HOT" },
-];
 
 const aeroAlerts: Alert[] = [
   { level: "info", message: "Low downforce qualifying trim — beam wing open", time: "Q3 OUT" },
@@ -32,6 +28,8 @@ const Index = () => {
   const session = useSessionTelemetry();
   const tireData = useTireTelemetry();
   const { alerts: tireAlerts, activeCount: tireActiveCount } = useTireAlerts(tireData);
+  const puData = usePowerUnitTelemetry();
+  const { alerts: puAlerts, activeCount: puActiveCount } = usePowerUnitAlerts(puData);
 
   const sessionType = session?.sessionType ?? "—";
   const trackName = session?.trackName ?? "—";
@@ -84,7 +82,7 @@ const Index = () => {
         </div>
         <div className="flex flex-col gap-2">
           <EngineTelemetry />
-          <AlertBox alerts={engineAlerts} />
+          <AlertBox alerts={puAlerts} activeCount={puActiveCount} />
         </div>
         <div className="flex flex-col gap-2">
           <AeroTelemetry />
