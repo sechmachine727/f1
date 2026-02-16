@@ -20,6 +20,13 @@ const DAMAGE_PARTS: { key: keyof AeroData; label: string; tag: string; clearMsg:
   { key: "sidepodDamage", label: "Sidepod", tag: "SIDEPOD", clearMsg: "sidepod damage stabilised" },
 ];
 
+const BRAKE_TEMPS: { key: keyof AeroData; label: string; tag: string }[] = [
+  { key: "brakeTempFL", label: "FL brake", tag: "BRK FL" },
+  { key: "brakeTempFR", label: "FR brake", tag: "BRK FR" },
+  { key: "brakeTempRL", label: "RL brake", tag: "BRK RL" },
+  { key: "brakeTempRR", label: "RR brake", tag: "BRK RR" },
+];
+
 /**
  * Accumulates aero alerts over time. Same edge-detection approach as
  * the tire and power-unit hooks.
@@ -57,6 +64,16 @@ export function useAeroAlerts(data: AeroData | null): { alerts: Alert[]; activeC
       }
     }
 
+    // Brake temperatures
+    for (const brk of BRAKE_TEMPS) {
+      const val = data[brk.key] as number;
+      if (val > 1000) {
+        currentConditions.set(brk.key, "crit");
+      } else if (val > 800) {
+        currentConditions.set(brk.key, "warn");
+      }
+    }
+
     // DRS fault
     if (data.drsFault) {
       currentConditions.set("drsFault", "crit");
@@ -86,6 +103,18 @@ export function useAeroAlerts(data: AeroData | null): { alerts: Alert[]; activeC
                 : `${part.label} damage detected (${val}%)`,
               time: `${ts} ${part.tag}`,
             });
+          } else {
+            const brk = BRAKE_TEMPS.find((b) => b.key === key);
+            if (brk) {
+              const val = data[brk.key] as number;
+              newAlerts.push({
+                level: alertLevel,
+                message: level === "crit"
+                  ? `${brk.label} temp ${val}°C — overheating`
+                  : `${brk.label} temp ${val}°C — running hot`,
+                time: `${ts} ${brk.tag}`,
+              });
+            }
           }
         }
       }
@@ -100,6 +129,11 @@ export function useAeroAlerts(data: AeroData | null): { alerts: Alert[]; activeC
           const part = DAMAGE_PARTS.find((p) => p.key === key);
           if (part) {
             newAlerts.push({ level: "info", message: part.clearMsg, time: `${ts} ${part.tag}` });
+          } else {
+            const brk = BRAKE_TEMPS.find((b) => b.key === key);
+            if (brk) {
+              newAlerts.push({ level: "info", message: `${brk.label} temp back to normal`, time: `${ts} ${brk.tag}` });
+            }
           }
         }
       }

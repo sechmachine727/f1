@@ -55,6 +55,13 @@ export function AeroTelemetry() {
       </div>
 
       <div className="grid grid-cols-2 gap-2">
+        <BarGauge value={data.brakeTempFL} max={1200} label="Brake FL" warn={800} critical={1000} />
+        <BarGauge value={data.brakeTempFR} max={1200} label="Brake FR" warn={800} critical={1000} />
+        <BarGauge value={data.brakeTempRL} max={1200} label="Brake RL" warn={800} critical={1000} />
+        <BarGauge value={data.brakeTempRR} max={1200} label="Brake RR" warn={800} critical={1000} />
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
         <BarGauge value={100 - data.frontLeftWingDamage} max={100} label="Front Wing L %" warn={40} critical={25} invertThresholds />
         <BarGauge value={100 - data.frontRightWingDamage} max={100} label="Front Wing R %" warn={40} critical={25} invertThresholds />
         <BarGauge value={100 - data.rearWingDamage} max={100} label="Rear Wing %" warn={40} critical={25} invertThresholds />

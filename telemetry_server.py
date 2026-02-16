@@ -306,6 +306,10 @@ def build_message() -> str:
         "diffuserDamage": damage_state.get("diffuser_damage", 0),
         "sidepodDamage": damage_state.get("sidepod_damage", 0),
         "drsFault": bool(damage_state.get("drs_fault", 0)),
+        "brakeTempFL": telemetry_state.get("brake_temp_fl", 0),
+        "brakeTempFR": telemetry_state.get("brake_temp_fr", 0),
+        "brakeTempRL": telemetry_state.get("brake_temp_rl", 0),
+        "brakeTempRR": telemetry_state.get("brake_temp_rr", 0),
     }
 
     # -- Session --
