@@ -4,13 +4,9 @@ import { AeroTelemetry } from "@/components/AeroTelemetry";
 import { AlertBox, type Alert } from "@/components/AlertBox";
 import { EngineerReport, type Instruction } from "@/components/EngineerReport";
 import { useSessionTelemetry, formatLapTime, formatTimeLeft } from "@/hooks/useSessionTelemetry";
+import { useTireTelemetry } from "@/hooks/useTireTelemetry";
+import { useTireAlerts } from "@/hooks/useTireAlerts";
 import { Flag, Timer, Gauge, Clock } from "lucide-react";
-
-const tireAlerts: Alert[] = [
-  { level: "warning", message: "FR surface temp 101°C — approaching optimal window ceiling", time: "Q3 OUT" },
-  { level: "info", message: "Tyre prep lap completed — target window 95-105°C", time: "Q3 OUT" },
-  { level: "info", message: "New set of softs fitted — 2 sets remaining", time: "Q3 PIT" },
-];
 
 const engineAlerts: Alert[] = [
   { level: "info", message: "Engine mode QUALI — max power deployment enabled", time: "Q3 OUT" },
@@ -34,6 +30,8 @@ const instructions: Instruction[] = [
 
 const Index = () => {
   const session = useSessionTelemetry();
+  const tireData = useTireTelemetry();
+  const tireAlerts = useTireAlerts(tireData);
 
   const sessionType = session?.sessionType ?? "—";
   const trackName = session?.trackName ?? "—";
