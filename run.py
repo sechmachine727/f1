@@ -48,9 +48,7 @@ class NeuroSanRunner:
         # Default Configuration
         self.args: Dict[str, Any] = {
             "server_host": os.getenv("NEURO_SAN_SERVER_HOST", "localhost"),
-            "server_grpc_port": int(os.getenv("NEURO_SAN_SERVER_GRPC_PORT", "30011")),
             "server_http_port": int(os.getenv("NEURO_SAN_SERVER_HTTP_PORT", "8080")),
-            "server_connection": str(os.getenv("NEURO_SAN_SERVER_CONNECTION", "http")),
             "manifest_update_period_seconds": int(os.getenv("AGENT_MANIFEST_UPDATE_PERIOD_SECONDS", "5")),
             "default_sly_data": str(os.getenv("DEFAULT_SLY_DATA", "")),
             "nsflow_host": os.getenv("NSFLOW_HOST", "localhost"),
@@ -106,12 +104,6 @@ class NeuroSanRunner:
             "--server-host", type=str, default=self.args["server_host"], help="Host address for the Neuro SAN server"
         )
         parser.add_argument(
-            "--server-grpc-port",
-            type=int,
-            default=self.args["server_grpc_port"],
-            help="Port number for the Neuro SAN server grpc endpoint",
-        )
-        parser.add_argument(
             "--server-http-port",
             type=int,
             default=self.args["server_http_port"],
@@ -141,9 +133,9 @@ class NeuroSanRunner:
         explicitly_passed_args = {arg for arg in sys.argv[1:] if arg.startswith("--")}
         # Check for mutually exclusive arguments
         if args.client_only and (
-            "--server-host" in explicitly_passed_args or "--server-port" in explicitly_passed_args
+            "--server-host" in explicitly_passed_args or "--server-http-port" in explicitly_passed_args
         ):
-            parser.error("[x] You cannot specify --server-host or --server-port when using --client-only mode.")
+            parser.error("[x] You cannot specify --server-host or --server-http-port when using --client-only mode.")
         if args.server_only and (
             "--nsflow-host" in explicitly_passed_args or "--nsflow-port" in explicitly_passed_args
         ):
@@ -163,7 +155,6 @@ class NeuroSanRunner:
         os.environ["AGENT_TOOL_PATH"] = self.args["agent_tool_path"]
         os.environ["AGENT_TOOLBOX_INFO_FILE"] = self.args["agent_toolbox_info_file"]
         os.environ["MCP_SERVERS_INFO_FILE"] = self.args["mcp_servers_info_file"]
-        os.environ["NEURO_SAN_SERVER_CONNECTION"] = self.args["server_connection"]
         os.environ["AGENT_MANIFEST_UPDATE_PERIOD_SECONDS"] = str(self.args["manifest_update_period_seconds"])
         os.environ["LOG_LEVEL"] = self.args["log_level"]
         print(f"PYTHONPATH set to: {os.environ['PYTHONPATH']}")
@@ -171,7 +162,6 @@ class NeuroSanRunner:
         print(f"AGENT_TOOL_PATH set to: {os.environ['AGENT_TOOL_PATH']}")
         print(f"AGENT_TOOLBOX_INFO_FILE set to: {os.environ['AGENT_TOOLBOX_INFO_FILE']}")
         print(f"MCP_SERVERS_INFO_FILE set to: {os.environ['MCP_SERVERS_INFO_FILE']}")
-        print(f"NEURO_SAN_SERVER_CONNECTION set to: {os.environ['NEURO_SAN_SERVER_CONNECTION']}")
         print(f"AGENT_MANIFEST_UPDATE_PERIOD_SECONDS set to: {os.environ['AGENT_MANIFEST_UPDATE_PERIOD_SECONDS']}")
         print(f"LOG_LEVEL set to: {os.environ['LOG_LEVEL']}\n")
 
@@ -199,11 +189,9 @@ class NeuroSanRunner:
         # Server-only env variables
         if not self.args["client_only"]:
             os.environ["NEURO_SAN_SERVER_HOST"] = self.args["server_host"]
-            os.environ["NEURO_SAN_SERVER_GRPC_PORT"] = str(self.args["server_grpc_port"])
             os.environ["NEURO_SAN_SERVER_HTTP_PORT"] = str(self.args["server_http_port"])
 
             print(f"NEURO_SAN_SERVER_HOST set to: {os.environ['NEURO_SAN_SERVER_HOST']}")
-            print(f"NEURO_SAN_SERVER_GRPC_PORT set to: {os.environ['NEURO_SAN_SERVER_GRPC_PORT']}\n")
             print(f"NEURO_SAN_SERVER_HTTP_PORT set to: {os.environ['NEURO_SAN_SERVER_HTTP_PORT']}\n")
 
         print("\n" + "=" * 50 + "\n")
@@ -265,13 +253,10 @@ class NeuroSanRunner:
             "-u",
             "-m",
             "neuro_san.service.main_loop.server_main_loop",
-            "--port",
-            str(self.args["server_grpc_port"]),
             "--http_port",
             str(self.args["server_http_port"]),
         ]
         self.server_process = self.start_process(command, "NeuroSan", "logs/server.log")
-        print("NeuroSan server grpc started on port: ", self.args["server_grpc_port"])
         print("NeuroSan server http started on port: ", self.args["server_http_port"])
 
     def start_nsflow(self):
@@ -339,10 +324,6 @@ class NeuroSanRunner:
                 conflicting_ports.append(self.args["nsflow_port"])
 
         if not self.args["client_only"] and self.args["server_host"] == "localhost":
-            if self.is_port_open(self.args["server_host"], self.args["server_grpc_port"]):
-                port_conflicts.append(f"Neuro-San server grpc port {self.args['server_grpc_port']} is already in use.")
-                conflicting_ports.append(self.args["server_grpc_port"])
-
             if self.is_port_open(self.args["server_host"], self.args["server_http_port"]):
                 port_conflicts.append(f"Neuro-San server http port {self.args['server_http_port']} is already in use.")
                 conflicting_ports.append(self.args["server_http_port"])
