@@ -77,6 +77,8 @@ Telemetry CSV files are stored as GitHub release assets (too large for git). Dow
 ```
 This pulls all CSV files from the `test-data-v1` release into `data/`.
 
+You can also download them manually from the [test-data-v1 release](https://github.com/cognizant-ai-lab/f1/releases/tag/test-data-v1) and place them in `data/`.
+
 ### Capturing telemetry
 
 Add `--capture` to save all telemetry to CSV files in `data/`. One file is created per session, named after the GP and session type:
