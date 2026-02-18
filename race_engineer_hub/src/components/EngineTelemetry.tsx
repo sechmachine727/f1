@@ -42,7 +42,7 @@ export function EngineTelemetry() {
         <Metric label="RPM" value={data.rpm.toLocaleString()} />
         <Metric label="Engine Temp" value={data.engineTemp} unit="°C" warn={engineTempWarn} critical={engineTempCrit} />
         <Metric label="Gear" value={data.gear <= 0 ? (data.gear === 0 ? "N" : "R") : data.gear} />
-        <Metric label="Fuel" value={data.fuelInTank} unit="kg" warn={data.fuelRemainingLaps < 3} critical={data.fuelRemainingLaps < 1} />
+        <Metric label="Fuel" value={data.fuelInTank} unit="kg" warn={data.fuelInTank < 16.5} critical={data.fuelInTank < 5.5} />
         <Metric label="Fuel +/- Laps" value={data.fuelRemainingLaps > 0 ? `+${data.fuelRemainingLaps}` : data.fuelRemainingLaps} />
         <Metric label="Fuel Mix" value={data.fuelMix} />
       </div>
@@ -53,8 +53,8 @@ export function EngineTelemetry() {
       </div>
 
       <div className="grid grid-cols-2 gap-2">
-        <BarGauge value={data.batteryPct} max={100} label="Battery SOC %" warn={30} critical={15} />
-        <BarGauge value={data.fuelInTank} max={110} label="Fuel (kg)" warn={3} critical={1} />
+        <BarGauge value={data.batteryPct} max={100} label="Battery SOC %" warn={30} critical={15} invertThresholds />
+        <BarGauge value={data.fuelInTank} max={110} label="Fuel (kg)" warn={16.5} critical={5.5} invertThresholds />
       </div>
 
       <div className="flex items-center justify-between pt-2 border-t border-border/50 text-[10px] text-muted-foreground uppercase tracking-wider">
