@@ -42,7 +42,7 @@ export function EngineTelemetry() {
         <Metric label="RPM" value={data.rpm.toLocaleString()} />
         <Metric label="Engine Temp" value={data.engineTemp} unit="°C" warn={engineTempWarn} critical={engineTempCrit} />
         <Metric label="Gear" value={data.gear <= 0 ? (data.gear === 0 ? "N" : "R") : data.gear} />
-        <Metric label="Fuel" value={data.fuelInTank} unit="kg" warn={data.fuelRemainingLaps < 3} critical={data.fuelRemainingLaps < 1} />
+        <Metric label="Fuel" value={data.fuelInTank} unit="kg" warn={data.fuelInTank < 16.5} critical={data.fuelInTank < 5.5} />
         <Metric label="Fuel +/- Laps" value={data.fuelRemainingLaps > 0 ? `+${data.fuelRemainingLaps}` : data.fuelRemainingLaps} />
         <Metric label="Fuel Mix" value={data.fuelMix} />
       </div>
