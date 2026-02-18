@@ -69,6 +69,14 @@ cd race_engineer_hub && npm run dev
 
 The panels will show "Waiting for telemetry…" until the F1 game starts sending UDP data on port 20777.
 
+### Test data
+
+Telemetry CSV files are stored as GitHub release assets (too large for git). Download them with:
+```shell
+./scripts/download_test_data.sh
+```
+This pulls all CSV files from the `test-data-v1` release into `data/`.
+
 ### Capturing telemetry
 
 Add `--capture` to save all telemetry to CSV files in `data/`. One file is created per session, named after the GP and session type:
