@@ -19,4 +19,5 @@
     # https://github.com/cognizant-ai-lab/neuro-san/blob/main/docs/manifest_hocon_reference.md
 
     "formula_1_racing_team.hocon": true,
+    "damage_engineer.hocon": true,
 }
