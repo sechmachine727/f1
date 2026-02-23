@@ -14,7 +14,7 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
+/lib/
 lib64/
 parts/
 sdist/
@@ -207,6 +207,9 @@ marimo/_lsp/
 __marimo__/
 
 .DS_Store
+
+# Node
+node_modules/
 
 # Vite cache
 .vite/
