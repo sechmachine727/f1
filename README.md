@@ -64,7 +64,9 @@ python -m telemetry_server
 
 In a separate terminal, start the web app:
 ```shell
-cd race_engineer_hub && npm run dev
+cd race_engineer_hub
+npm install
+npm run dev
 ```
 
 The panels will show "Waiting for telemetry…" until the F1 game starts sending UDP data on port 20777.
