@@ -22,6 +22,7 @@ from pathlib import Path
 import websockets
 
 from telemetry_server.damage_agent import DamageAgent
+from telemetry_server.tires_agent import TiresAgent
 
 # ---------------------------------------------------------------------------
 # Re-use constants and struct definitions from tyre_logger.py
@@ -98,6 +99,14 @@ damage_agent_in_flight: bool = False
 damage_agent_pending: list[str] = []
 damage_agent_batch_handle: asyncio.TimerHandle | None = None
 DAMAGE_AGENT_BATCH_DELAY: float = 1.0  # seconds to wait before flushing
+
+# TiresAgent state
+tires_agent: TiresAgent | None = None
+tires_agent_response: str | None = None
+tires_agent_in_flight: bool = False
+tires_agent_pending: list[str] = []
+tires_agent_batch_handle: asyncio.TimerHandle | None = None
+TIRES_AGENT_BATCH_DELAY: float = 1.0  # seconds to wait before flushing
 
 # ---------------------------------------------------------------------------
 # Lookups
@@ -420,6 +429,7 @@ TIRE_CLEAR_LABELS = {
 def _process_tire_alerts(tire_snapshot: dict) -> None:
     """Port of useTireAlerts.ts — accumulates alerts into tire_alerts_log."""
     global tire_alert_conditions, tire_alerts_log, prev_tire_session_time, prev_tire_compound
+    global tires_agent_response
 
     st = tire_snapshot.get("sessionTime", 0.0)
 
@@ -428,6 +438,7 @@ def _process_tire_alerts(tire_snapshot: dict) -> None:
         tire_alert_conditions = {}
         tire_alerts_log = []
         prev_tire_compound = ""
+        tires_agent_response = None
     prev_tire_session_time = st
 
     new_alerts: list[dict] = []
@@ -548,6 +559,7 @@ def _process_tire_alerts(tire_snapshot: dict) -> None:
 
     tire_alert_conditions = current_conditions
     tire_alerts_log.extend(new_alerts)
+    return new_alerts
 
 
 # ---------------------------------------------------------------------------
@@ -767,7 +779,52 @@ async def _flush_damage_agent() -> None:
         await _flush_damage_agent()
 
 
-def build_message() -> tuple[str, list[dict]]:
+def _queue_tires_alerts(alert_texts: list[str]) -> None:
+    """Add alert texts to the pending list and (re)start the batch timer."""
+    global tires_agent_batch_handle
+
+    tires_agent_pending.extend(alert_texts)
+
+    if tires_agent_batch_handle is not None:
+        tires_agent_batch_handle.cancel()
+
+    loop = asyncio.get_running_loop()
+    tires_agent_batch_handle = loop.call_later(
+        TIRES_AGENT_BATCH_DELAY,
+        lambda: asyncio.ensure_future(_flush_tires_agent()),
+    )
+
+
+async def _flush_tires_agent() -> None:
+    """Drain the pending list and send the batch to the TiresAgent."""
+    global tires_agent_response, tires_agent_in_flight, tires_agent_pending
+    global tires_agent_batch_handle
+
+    tires_agent_batch_handle = None
+
+    if tires_agent is None or not tires_agent_pending:
+        return
+
+    if tires_agent_in_flight:
+        return
+
+    batch = tires_agent_pending
+    tires_agent_pending = []
+
+    tires_agent_in_flight = True
+    try:
+        response = await asyncio.to_thread(tires_agent.process_messages, batch)
+        tires_agent_response = response
+    except Exception as exc:
+        print(f"TiresAgent error: {exc}")
+    finally:
+        tires_agent_in_flight = False
+
+    if tires_agent_pending:
+        await _flush_tires_agent()
+
+
+def build_message() -> tuple[str, list[dict], list[dict]]:
     """Build a JSON message from the latest merged state."""
 
     # -- Aero alerts (must run before we build the aero dict) --
@@ -802,7 +859,7 @@ def build_message() -> tuple[str, list[dict]]:
         }
 
     # -- Tire alerts --
-    _process_tire_alerts({
+    new_tire_alerts = _process_tire_alerts({
         "sessionTime": session_time,
         "tires": tires,
         "compound": status_state.get("tyre_compound_actual", ""),
@@ -910,8 +967,11 @@ def build_message() -> tuple[str, list[dict]]:
         "damageReport": {
             "response": damage_agent_response,
         },
+        "tiresReport": {
+            "response": tires_agent_response,
+        },
     })
-    return msg, new_aero_alerts
+    return msg, new_aero_alerts, new_tire_alerts
 
 
 async def broadcast(message: str):
@@ -930,7 +990,7 @@ async def ws_handler(websocket):
     print(f"Client connected ({len(connected_clients)} total)")
     try:
         # Send current state immediately so the UI isn't blank
-        msg, _new_alerts = build_message()
+        msg, _new_aero_alerts, _new_tire_alerts = build_message()
         await websocket.send(msg)
         # Keep connection alive – we only push, client doesn't send
         async for _ in websocket:
@@ -1108,7 +1168,7 @@ async def udp_reader():
             session_time = header[7]  # m_sessionTime (float)
 
             # Broadcast merged state to all WS clients
-            msg, new_aero_alerts = build_message()
+            msg, new_aero_alerts, new_tire_alerts = build_message()
             await broadcast(msg)
 
             # Dispatch new aero alerts to DamageAgent
@@ -1118,6 +1178,14 @@ async def udp_reader():
                     for a in new_aero_alerts
                 ]
                 _queue_damage_alerts(alert_texts)
+
+            # Dispatch new tire alerts to TiresAgent
+            if new_tire_alerts:
+                alert_texts = [
+                    f"ALERT {a['level'].upper()} {a['message']} {a['time']}"
+                    for a in new_tire_alerts
+                ]
+                _queue_tires_alerts(alert_texts)
 
             # Write CSV row if capture is enabled
             if csv_capture is not None:
@@ -1259,7 +1327,7 @@ async def csv_replay(filepath: str, speed: int = 1):
             prev_wall_time = wall_time
 
             _populate_state_from_row(row)
-            msg, new_aero_alerts = build_message()
+            msg, new_aero_alerts, new_tire_alerts = build_message()
             await broadcast(msg)
 
             # Dispatch new aero alerts to DamageAgent
@@ -1270,13 +1338,21 @@ async def csv_replay(filepath: str, speed: int = 1):
                 ]
                 _queue_damage_alerts(alert_texts)
 
+            # Dispatch new tire alerts to TiresAgent
+            if new_tire_alerts:
+                alert_texts = [
+                    f"ALERT {a['level'].upper()} {a['message']} {a['time']}"
+                    for a in new_tire_alerts
+                ]
+                _queue_tires_alerts(alert_texts)
+
             row_count += 1
 
     print(f"Replay complete — {row_count} frames sent.")
 
 
 async def main():
-    global csv_capture, damage_agent
+    global csv_capture, damage_agent, tires_agent
 
     parser = argparse.ArgumentParser(description="F1 25 telemetry WebSocket bridge")
     parser.add_argument(
@@ -1313,6 +1389,12 @@ async def main():
         print("DamageAgent initialized")
     except Exception as exc:
         print(f"DamageAgent unavailable: {exc}")
+
+    try:
+        tires_agent = TiresAgent()
+        print("TiresAgent initialized")
+    except Exception as exc:
+        print(f"TiresAgent unavailable: {exc}")
 
     print(f"Starting WebSocket server on ws://{WS_HOST}:{WS_PORT}")
     try:
