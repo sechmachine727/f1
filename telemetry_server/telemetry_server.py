@@ -13,12 +13,15 @@ import argparse
 import asyncio
 import csv
 import json
+import os
 import socket
 import struct
 import time
 from pathlib import Path
 
 import websockets
+
+from telemetry_server.damage_agent import DamageAgent
 
 # ---------------------------------------------------------------------------
 # Re-use constants and struct definitions from tyre_logger.py
@@ -87,6 +90,14 @@ pu_alerts_log: list = []
 prev_pu_session_time: float = 0.0
 prev_pu_ers_mode: str = ""
 prev_pu_fuel_mix: str = ""
+
+# DamageAgent state
+damage_agent: DamageAgent | None = None
+damage_agent_response: str | None = None
+damage_agent_in_flight: bool = False
+damage_agent_pending: list[str] = []
+damage_agent_batch_handle: asyncio.TimerHandle | None = None
+DAMAGE_AGENT_BATCH_DELAY: float = 1.0  # seconds to wait before flushing
 
 # ---------------------------------------------------------------------------
 # Lookups
@@ -292,7 +303,7 @@ def _format_session_time(seconds: float) -> str:
 
 def _process_aero_alerts(aero: dict) -> None:
     """Port of useAeroAlerts.ts — accumulates alerts into aero_alerts_log."""
-    global aero_alert_conditions, aero_alerts_log, prev_aero_session_time
+    global aero_alert_conditions, aero_alerts_log, prev_aero_session_time, damage_agent_response
 
     st = aero.get("sessionTime", 0.0)
 
@@ -300,6 +311,7 @@ def _process_aero_alerts(aero: dict) -> None:
     if st < prev_aero_session_time:
         aero_alert_conditions = {}
         aero_alerts_log = []
+        damage_agent_response = None
     prev_aero_session_time = st
 
     new_alerts: list[dict] = []
@@ -385,6 +397,7 @@ def _process_aero_alerts(aero: dict) -> None:
 
     aero_alert_conditions = current_conditions
     aero_alerts_log.extend(new_alerts)
+    return new_alerts
 
 
 # ---------------------------------------------------------------------------
@@ -697,7 +710,64 @@ def _process_pu_alerts(pu: dict) -> None:
     pu_alerts_log.extend(new_alerts)
 
 
-def build_message() -> str:
+def _queue_damage_alerts(alert_texts: list[str]) -> None:
+    """Add alert texts to the pending list and (re)start the batch timer.
+
+    Alerts that arrive within DAMAGE_AGENT_BATCH_DELAY seconds of each
+    other are grouped into a single DamageAgent call.
+    """
+    global damage_agent_batch_handle
+
+    damage_agent_pending.extend(alert_texts)
+
+    # Reset the debounce timer so we keep waiting for more alerts
+    if damage_agent_batch_handle is not None:
+        damage_agent_batch_handle.cancel()
+
+    loop = asyncio.get_running_loop()
+    damage_agent_batch_handle = loop.call_later(
+        DAMAGE_AGENT_BATCH_DELAY,
+        lambda: asyncio.ensure_future(_flush_damage_agent()),
+    )
+
+
+async def _flush_damage_agent() -> None:
+    """Drain the pending list and send the batch to the DamageAgent.
+
+    Uses an in-flight guard so only one agent call runs at a time.
+    If new alerts accumulate while the agent is busy, they are
+    dispatched when the current call completes.
+    """
+    global damage_agent_response, damage_agent_in_flight, damage_agent_pending
+    global damage_agent_batch_handle
+
+    damage_agent_batch_handle = None
+
+    if damage_agent is None or not damage_agent_pending:
+        return
+
+    if damage_agent_in_flight:
+        # The in-flight call's finally-block will re-flush.
+        return
+
+    batch = damage_agent_pending
+    damage_agent_pending = []
+
+    damage_agent_in_flight = True
+    try:
+        response = await asyncio.to_thread(damage_agent.process_messages, batch)
+        damage_agent_response = response
+    except Exception as exc:
+        print(f"DamageAgent error: {exc}")
+    finally:
+        damage_agent_in_flight = False
+
+    # If more alerts arrived while we were busy, flush again
+    if damage_agent_pending:
+        await _flush_damage_agent()
+
+
+def build_message() -> tuple[str, list[dict]]:
     """Build a JSON message from the latest merged state."""
 
     # -- Aero alerts (must run before we build the aero dict) --
@@ -717,7 +787,7 @@ def build_message() -> str:
         "brakeTempRL": telemetry_state.get("brake_temp_rl", 0),
         "brakeTempRR": telemetry_state.get("brake_temp_rr", 0),
     }
-    _process_aero_alerts(aero_snapshot)
+    new_aero_alerts = _process_aero_alerts(aero_snapshot)
 
     tires = {}
     for wn in WHEEL_NAMES:
@@ -814,7 +884,7 @@ def build_message() -> str:
         "lastLapTimeMs": last_lap_ms,
     }
 
-    return json.dumps({
+    msg = json.dumps({
         "tires": tires,
         "compound": status_state.get("tyre_compound_actual", ""),
         "compoundVisual": status_state.get("tyre_compound_visual", ""),
@@ -837,7 +907,11 @@ def build_message() -> str:
             "alerts": aero_alerts_log,
             "activeCount": len(aero_alert_conditions),
         },
+        "damageReport": {
+            "response": damage_agent_response,
+        },
     })
+    return msg, new_aero_alerts
 
 
 async def broadcast(message: str):
@@ -856,7 +930,8 @@ async def ws_handler(websocket):
     print(f"Client connected ({len(connected_clients)} total)")
     try:
         # Send current state immediately so the UI isn't blank
-        await websocket.send(build_message())
+        msg, _new_alerts = build_message()
+        await websocket.send(msg)
         # Keep connection alive – we only push, client doesn't send
         async for _ in websocket:
             pass
@@ -1033,7 +1108,16 @@ async def udp_reader():
             session_time = header[7]  # m_sessionTime (float)
 
             # Broadcast merged state to all WS clients
-            await broadcast(build_message())
+            msg, new_aero_alerts = build_message()
+            await broadcast(msg)
+
+            # Dispatch new aero alerts to DamageAgent
+            if new_aero_alerts:
+                alert_texts = [
+                    f"ALERT {a['level'].upper()} {a['message']} {a['time']}"
+                    for a in new_aero_alerts
+                ]
+                _queue_damage_alerts(alert_texts)
 
             # Write CSV row if capture is enabled
             if csv_capture is not None:
@@ -1175,14 +1259,24 @@ async def csv_replay(filepath: str, speed: int = 1):
             prev_wall_time = wall_time
 
             _populate_state_from_row(row)
-            await broadcast(build_message())
+            msg, new_aero_alerts = build_message()
+            await broadcast(msg)
+
+            # Dispatch new aero alerts to DamageAgent
+            if new_aero_alerts:
+                alert_texts = [
+                    f"ALERT {a['level'].upper()} {a['message']} {a['time']}"
+                    for a in new_aero_alerts
+                ]
+                _queue_damage_alerts(alert_texts)
+
             row_count += 1
 
     print(f"Replay complete — {row_count} frames sent.")
 
 
 async def main():
-    global csv_capture
+    global csv_capture, damage_agent
 
     parser = argparse.ArgumentParser(description="F1 25 telemetry WebSocket bridge")
     parser.add_argument(
@@ -1212,6 +1306,13 @@ async def main():
     if args.capture:
         csv_capture = CsvCapture(Path("data"))
         print("CSV capture enabled → data/")
+
+    os.environ.setdefault("AGENT_MANIFEST_FILE", "registries/manifest.hocon")
+    try:
+        damage_agent = DamageAgent()
+        print("DamageAgent initialized")
+    except Exception as exc:
+        print(f"DamageAgent unavailable: {exc}")
 
     print(f"Starting WebSocket server on ws://{WS_HOST}:{WS_PORT}")
     try:
