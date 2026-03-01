@@ -1,5 +1,7 @@
 import argparse
 import os
+import time
+from pathlib import Path
 
 from neuro_san.client.agent_session_factory import AgentSessionFactory
 from neuro_san.client.streaming_input_processor import StreamingInputProcessor
@@ -12,13 +14,15 @@ class DamageAgent:
     SESSION_TYPE = "direct"
     AGENT_NETWORK_NAME = "damage_engineer"
     THINKING_DIR = "logs/agents"
-    THINKING_FILE = "damage_agent.txt"
+    THINKING_FILE = "damage_engineer"  # Must match the agent name?
     DEFAULT_INPUT = "DEFAULT"
 
     def __init__(self):
         factory = AgentSessionFactory()
         # Create log folders if they don't exist
         os.makedirs(self.THINKING_DIR, exist_ok=True)
+        # Roll the existing log file so previous sessions are preserved
+        self._roll_log()
         self.session = factory.create_session(session_type=self.SESSION_TYPE,
                                               agent_name=self.AGENT_NETWORK_NAME)
         # Initialize any conversation state here
@@ -31,6 +35,16 @@ class DamageAgent:
             "sly_data": None,
             "chat_filter": {"chat_filter_type": "MAXIMAL"},
         }
+
+    def _roll_log(self):
+        """Rename the existing log file with a timestamp suffix."""
+        log_path = Path(self.THINKING_DIR) / self.THINKING_FILE
+        if log_path.exists() and log_path.stat().st_size > 0:
+            ts = time.strftime("%Y%m%d-%H%M%S")
+            stem = log_path.stem
+            rolled = log_path.with_name(f"{stem}_{ts}{log_path.suffix}")
+            log_path.rename(rolled)
+            print(f"Rolled log to {rolled}")
 
     def process_message(self, message):
         print(f"Received message: {message}")
