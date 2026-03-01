@@ -3,6 +3,7 @@ import { EngineTelemetry } from "@/components/EngineTelemetry";
 import { AeroTelemetry } from "@/components/AeroTelemetry";
 import { AlertBox } from "@/components/AlertBox";
 import { DamageReportPanel } from "@/components/DamageReportPanel";
+import { TiresReportPanel } from "@/components/TiresReportPanel";
 import { EngineerReport, type Instruction } from "@/components/EngineerReport";
 import { useSessionTelemetry, formatLapTime, formatTimeLeft } from "@/hooks/useSessionTelemetry";
 import { useTireTelemetry } from "@/hooks/useTireTelemetry";
@@ -21,7 +22,7 @@ const instructions: Instruction[] = [
 
 const Index = () => {
   const session = useSessionTelemetry();
-  const { tireAlerts: { alerts: tireAlerts, activeCount: tireActiveCount } } = useTireTelemetry();
+  const { tireAlerts: { alerts: tireAlerts, activeCount: tireActiveCount }, tiresReport } = useTireTelemetry();
   const { puAlerts: { alerts: puAlerts, activeCount: puActiveCount } } = usePowerUnitTelemetry();
   const { aeroAlerts: { alerts: aeroAlerts, activeCount: aeroActiveCount }, damageReport } = useAeroTelemetry();
 
@@ -69,10 +70,11 @@ const Index = () => {
       </header>
 
       {/* Telemetry Grid + Alerts */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 mb-3 shrink-0">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 mb-3 min-h-0 overflow-auto">
         <div className="flex flex-col gap-2">
           <TireTelemetry />
           <AlertBox alerts={tireAlerts} activeCount={tireActiveCount} />
+          <TiresReportPanel report={tiresReport} />
         </div>
         <div className="flex flex-col gap-2">
           <EngineTelemetry />

@@ -26,14 +26,20 @@ interface TireAlerts {
   activeCount: number;
 }
 
+export interface TiresReport {
+  responses: string[];
+}
+
 const WS_URL = "ws://localhost:8765";
 const RECONNECT_INTERVAL_MS = 2000;
 
 const EMPTY_ALERTS: TireAlerts = { alerts: [], activeCount: 0 };
 
-export function useTireTelemetry(): { data: TireTelemetryData | null; tireAlerts: TireAlerts } {
+export function useTireTelemetry(): { data: TireTelemetryData | null; tireAlerts: TireAlerts; tiresReport: TiresReport } {
   const [data, setData] = useState<TireTelemetryData | null>(null);
   const [tireAlerts, setTireAlerts] = useState<TireAlerts>(EMPTY_ALERTS);
+  const [tiresReport, setTiresReport] = useState<TiresReport>({ responses: [] });
+  const lastTiresResponse = useRef<string | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout>>();
 
@@ -52,6 +58,17 @@ export function useTireTelemetry(): { data: TireTelemetryData | null; tireAlerts
           setData(msg);
           if (msg.tireAlerts) {
             setTireAlerts(msg.tireAlerts);
+          }
+          if (msg.tiresReport) {
+            if (msg.tiresReport.response === null) {
+              lastTiresResponse.current = null;
+              setTiresReport({ responses: [] });
+            } else if (msg.tiresReport.response !== lastTiresResponse.current) {
+              lastTiresResponse.current = msg.tiresReport.response;
+              setTiresReport((prev) => ({
+                responses: [...prev.responses, msg.tiresReport.response],
+              }));
+            }
           }
         } catch {
           // ignore malformed messages
@@ -78,5 +95,5 @@ export function useTireTelemetry(): { data: TireTelemetryData | null; tireAlerts
     };
   }, []);
 
-  return { data, tireAlerts };
+  return { data, tireAlerts, tiresReport };
 }
