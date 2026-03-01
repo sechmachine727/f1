@@ -26,14 +26,20 @@ interface PuAlerts {
   activeCount: number;
 }
 
+export interface PuReport {
+  responses: string[];
+}
+
 const WS_URL = "ws://localhost:8765";
 const RECONNECT_INTERVAL_MS = 2000;
 
 const EMPTY_ALERTS: PuAlerts = { alerts: [], activeCount: 0 };
 
-export function usePowerUnitTelemetry(): { data: PowerUnitData | null; puAlerts: PuAlerts } {
+export function usePowerUnitTelemetry(): { data: PowerUnitData | null; puAlerts: PuAlerts; puReport: PuReport } {
   const [data, setData] = useState<PowerUnitData | null>(null);
   const [puAlerts, setPuAlerts] = useState<PuAlerts>(EMPTY_ALERTS);
+  const [puReport, setPuReport] = useState<PuReport>({ responses: [] });
+  const lastPuResponse = useRef<string | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout>>();
 
@@ -54,6 +60,17 @@ export function usePowerUnitTelemetry(): { data: PowerUnitData | null; puAlerts:
           }
           if (msg.puAlerts) {
             setPuAlerts(msg.puAlerts);
+          }
+          if (msg.puReport) {
+            if (msg.puReport.response === null) {
+              lastPuResponse.current = null;
+              setPuReport({ responses: [] });
+            } else if (msg.puReport.response !== lastPuResponse.current) {
+              lastPuResponse.current = msg.puReport.response;
+              setPuReport((prev) => ({
+                responses: [...prev.responses, msg.puReport.response],
+              }));
+            }
           }
         } catch {
           // ignore malformed messages
@@ -80,5 +97,5 @@ export function usePowerUnitTelemetry(): { data: PowerUnitData | null; puAlerts:
     };
   }, []);
 
-  return { data, puAlerts };
+  return { data, puAlerts, puReport };
 }

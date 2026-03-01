@@ -22,6 +22,7 @@ from pathlib import Path
 import websockets
 
 from telemetry_server.damage_agent import DamageAgent
+from telemetry_server.power_unit_agent import PowerUnitAgent
 from telemetry_server.tires_agent import TiresAgent
 
 # ---------------------------------------------------------------------------
@@ -107,6 +108,14 @@ tires_agent_in_flight: bool = False
 tires_agent_pending: list[str] = []
 tires_agent_batch_handle: asyncio.TimerHandle | None = None
 TIRES_AGENT_BATCH_DELAY: float = 1.0  # seconds to wait before flushing
+
+# PowerUnitAgent state
+pu_agent: PowerUnitAgent | None = None
+pu_agent_response: str | None = None
+pu_agent_in_flight: bool = False
+pu_agent_pending: list[str] = []
+pu_agent_batch_handle: asyncio.TimerHandle | None = None
+PU_AGENT_BATCH_DELAY: float = 1.0  # seconds to wait before flushing
 
 # ---------------------------------------------------------------------------
 # Lookups
@@ -580,7 +589,7 @@ PU_ALERT_DEFS = {
 def _process_pu_alerts(pu: dict) -> None:
     """Port of usePowerUnitAlerts.ts — accumulates alerts into pu_alerts_log."""
     global pu_alert_conditions, pu_alerts_log, prev_pu_session_time
-    global prev_pu_ers_mode, prev_pu_fuel_mix
+    global prev_pu_ers_mode, prev_pu_fuel_mix, pu_agent_response
 
     st = pu.get("sessionTime", 0.0)
 
@@ -590,6 +599,7 @@ def _process_pu_alerts(pu: dict) -> None:
         pu_alerts_log = []
         prev_pu_ers_mode = ""
         prev_pu_fuel_mix = ""
+        pu_agent_response = None
     prev_pu_session_time = st
 
     new_alerts: list[dict] = []
@@ -720,6 +730,7 @@ def _process_pu_alerts(pu: dict) -> None:
 
     pu_alert_conditions = current_conditions
     pu_alerts_log.extend(new_alerts)
+    return new_alerts
 
 
 def _queue_damage_alerts(alert_texts: list[str]) -> None:
@@ -824,7 +835,52 @@ async def _flush_tires_agent() -> None:
         await _flush_tires_agent()
 
 
-def build_message() -> tuple[str, list[dict], list[dict]]:
+def _queue_pu_alerts(alert_texts: list[str]) -> None:
+    """Add alert texts to the pending list and (re)start the batch timer."""
+    global pu_agent_batch_handle
+
+    pu_agent_pending.extend(alert_texts)
+
+    if pu_agent_batch_handle is not None:
+        pu_agent_batch_handle.cancel()
+
+    loop = asyncio.get_running_loop()
+    pu_agent_batch_handle = loop.call_later(
+        PU_AGENT_BATCH_DELAY,
+        lambda: asyncio.ensure_future(_flush_pu_agent()),
+    )
+
+
+async def _flush_pu_agent() -> None:
+    """Drain the pending list and send the batch to the PowerUnitAgent."""
+    global pu_agent_response, pu_agent_in_flight, pu_agent_pending
+    global pu_agent_batch_handle
+
+    pu_agent_batch_handle = None
+
+    if pu_agent is None or not pu_agent_pending:
+        return
+
+    if pu_agent_in_flight:
+        return
+
+    batch = pu_agent_pending
+    pu_agent_pending = []
+
+    pu_agent_in_flight = True
+    try:
+        response = await asyncio.to_thread(pu_agent.process_messages, batch)
+        pu_agent_response = response
+    except Exception as exc:
+        print(f"PowerUnitAgent error: {exc}")
+    finally:
+        pu_agent_in_flight = False
+
+    if pu_agent_pending:
+        await _flush_pu_agent()
+
+
+def build_message() -> tuple[str, list[dict], list[dict], list[dict]]:
     """Build a JSON message from the latest merged state."""
 
     # -- Aero alerts (must run before we build the aero dict) --
@@ -896,7 +952,7 @@ def build_message() -> tuple[str, list[dict], list[dict]]:
     }
 
     # -- Power unit alerts --
-    _process_pu_alerts({**power_unit, "sessionTime": session_time})
+    new_pu_alerts = _process_pu_alerts({**power_unit, "sessionTime": session_time})
 
     # -- Aero --
     aero = {
@@ -970,8 +1026,11 @@ def build_message() -> tuple[str, list[dict], list[dict]]:
         "tiresReport": {
             "response": tires_agent_response,
         },
+        "puReport": {
+            "response": pu_agent_response,
+        },
     })
-    return msg, new_aero_alerts, new_tire_alerts
+    return msg, new_aero_alerts, new_tire_alerts, new_pu_alerts
 
 
 async def broadcast(message: str):
@@ -990,7 +1049,7 @@ async def ws_handler(websocket):
     print(f"Client connected ({len(connected_clients)} total)")
     try:
         # Send current state immediately so the UI isn't blank
-        msg, _new_aero_alerts, _new_tire_alerts = build_message()
+        msg, _new_aero_alerts, _new_tire_alerts, _new_pu_alerts = build_message()
         await websocket.send(msg)
         # Keep connection alive – we only push, client doesn't send
         async for _ in websocket:
@@ -1168,7 +1227,7 @@ async def udp_reader():
             session_time = header[7]  # m_sessionTime (float)
 
             # Broadcast merged state to all WS clients
-            msg, new_aero_alerts, new_tire_alerts = build_message()
+            msg, new_aero_alerts, new_tire_alerts, new_pu_alerts = build_message()
             await broadcast(msg)
 
             # Dispatch new aero alerts to DamageAgent
@@ -1186,6 +1245,14 @@ async def udp_reader():
                     for a in new_tire_alerts
                 ]
                 _queue_tires_alerts(alert_texts)
+
+            # Dispatch new PU alerts to PowerUnitAgent
+            if new_pu_alerts:
+                alert_texts = [
+                    f"ALERT {a['level'].upper()} {a['message']} {a['time']}"
+                    for a in new_pu_alerts
+                ]
+                _queue_pu_alerts(alert_texts)
 
             # Write CSV row if capture is enabled
             if csv_capture is not None:
@@ -1327,7 +1394,7 @@ async def csv_replay(filepath: str, speed: int = 1):
             prev_wall_time = wall_time
 
             _populate_state_from_row(row)
-            msg, new_aero_alerts, new_tire_alerts = build_message()
+            msg, new_aero_alerts, new_tire_alerts, new_pu_alerts = build_message()
             await broadcast(msg)
 
             # Dispatch new aero alerts to DamageAgent
@@ -1346,13 +1413,21 @@ async def csv_replay(filepath: str, speed: int = 1):
                 ]
                 _queue_tires_alerts(alert_texts)
 
+            # Dispatch new PU alerts to PowerUnitAgent
+            if new_pu_alerts:
+                alert_texts = [
+                    f"ALERT {a['level'].upper()} {a['message']} {a['time']}"
+                    for a in new_pu_alerts
+                ]
+                _queue_pu_alerts(alert_texts)
+
             row_count += 1
 
     print(f"Replay complete — {row_count} frames sent.")
 
 
 async def main():
-    global csv_capture, damage_agent, tires_agent
+    global csv_capture, damage_agent, tires_agent, pu_agent
 
     parser = argparse.ArgumentParser(description="F1 25 telemetry WebSocket bridge")
     parser.add_argument(
@@ -1395,6 +1470,12 @@ async def main():
         print("TiresAgent initialized")
     except Exception as exc:
         print(f"TiresAgent unavailable: {exc}")
+
+    try:
+        pu_agent = PowerUnitAgent()
+        print("PowerUnitAgent initialized")
+    except Exception as exc:
+        print(f"PowerUnitAgent unavailable: {exc}")
 
     print(f"Starting WebSocket server on ws://{WS_HOST}:{WS_PORT}")
     try:

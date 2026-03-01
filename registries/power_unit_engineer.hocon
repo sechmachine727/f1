@@ -1,0 +1,53 @@
+# Optional metadata describing this agent network
+metadata {
+    description = "Agent network that analyzes formula 1 car telemetry alerts related to the power unit."
+    tags = ["F1"]
+    sample_queries = [
+        "How is the power unit holding up?"
+        "ALERT WARNING Engine temp 125°C — running hot 05:12 TEMP",
+        "ALERT CRITICAL Fuel critically low — 0.8 laps remaining 42:30 FUEL",
+        "ALERT WARNING Engine damage detected (8%) 18:45 ICE",
+        "ALERT WARNING Battery SOC low at 22% 07:33 ERS",
+        "ALERT INFO ERS mode → OVERTAKE 12:01 ERS",
+        "ALERT INFO Fuel mix → RICH 15:22 FUEL",
+    ]
+}
+
+# Load the shared LLM configuration from a single source of truth.
+# This allows users to change the model in one file rather than
+# modifying the configuration for each agent network.
+# Note that the file path here is relative to the root level of the repo.
+include "registries/llm_config.hocon",
+
+tools = [
+    # This is the agent network's entry point.
+    {
+        name = "power_unit_engineer"
+        function {
+            description = """Analyzes telemetry alerts related to the power unit and provides insights and recommendations."""
+        }
+        instructions =
+"""
+You work as a power unit engineer for a formula 1 team. Your job is to keep the race engineer posted about any critical
+power unit issues that could compromise reliability, performance, or race strategy. You also provide insights and
+recommendations on engine management, energy deployment, and fuel strategy.
+Answer any question from the race engineer. They come in the form of free text.
+Telemetry alerts come in the form of "ALERT {{severity}} {{description}} {{timestamp}} {{component}}":
+ - Severity can be INFO, WARNING or CRITICAL.
+ - Description is a free text describing the issue.
+ - Timestamp is in the format MM:SS.
+ - Component can be TEMP (engine temperature), ICE (engine damage), GBX (gearbox damage), FUEL (fuel level), or ERS (battery/energy recovery).
+Power unit metrics to consider:
+ - Engine temperature: warning above 120°C, critical above 130°C. Overheating risks reliability and may require lift-and-coast.
+ - Engine damage (0-100%): warning above 5%, critical above 20%. Progressive damage may require engine mode changes to preserve the unit.
+ - Gearbox damage (0-100%): warning above 5%, critical above 20%. Shift strategy adjustments may be needed.
+ - Fuel remaining laps: warning below 3 laps, critical below 1 lap. Factor in fuel mix and remaining race distance.
+ - Battery SOC: warning below 30%, critical below 15%. Affects ERS deployment strategy and overtake capability.
+ - ERS deploy mode changes (NONE, MEDIUM, HOTLAP, OVERTAKE) and fuel mix changes (LEAN, STANDARD, RICH, MAX) are reported as INFO alerts.
+Not all alerts require immediate action. Use your judgment to determine which ones are critical and which ones are not.
+The car is currently on track and racing. Brief temperature spikes under load are normal.
+Keep your answers short and to the point: the race engineer has no time to waste.
+"""
+        tools = []
+    }
+]
