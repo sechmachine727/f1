@@ -65,11 +65,17 @@ export function useAeroTelemetry(): { data: AeroData | null; aeroAlerts: AeroAle
           if (msg.aeroAlerts) {
             setAeroAlerts(msg.aeroAlerts);
           }
-          if (msg.damageReport?.response && msg.damageReport.response !== lastDamageResponse.current) {
-            lastDamageResponse.current = msg.damageReport.response;
-            setDamageReport((prev) => ({
-              responses: [...prev.responses, msg.damageReport.response],
-            }));
+          if (msg.damageReport) {
+            if (msg.damageReport.response === null) {
+              // Session reset — clear accumulated responses
+              lastDamageResponse.current = null;
+              setDamageReport({ responses: [] });
+            } else if (msg.damageReport.response !== lastDamageResponse.current) {
+              lastDamageResponse.current = msg.damageReport.response;
+              setDamageReport((prev) => ({
+                responses: [...prev.responses, msg.damageReport.response],
+              }));
+            }
           }
         } catch {
           // ignore malformed messages

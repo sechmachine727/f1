@@ -96,6 +96,8 @@ damage_agent: DamageAgent | None = None
 damage_agent_response: str | None = None
 damage_agent_in_flight: bool = False
 damage_agent_pending: list[str] = []
+damage_agent_batch_handle: asyncio.TimerHandle | None = None
+DAMAGE_AGENT_BATCH_DELAY: float = 1.0  # seconds to wait before flushing
 
 # ---------------------------------------------------------------------------
 # Lookups
@@ -301,7 +303,7 @@ def _format_session_time(seconds: float) -> str:
 
 def _process_aero_alerts(aero: dict) -> None:
     """Port of useAeroAlerts.ts — accumulates alerts into aero_alerts_log."""
-    global aero_alert_conditions, aero_alerts_log, prev_aero_session_time
+    global aero_alert_conditions, aero_alerts_log, prev_aero_session_time, damage_agent_response
 
     st = aero.get("sessionTime", 0.0)
 
@@ -309,6 +311,7 @@ def _process_aero_alerts(aero: dict) -> None:
     if st < prev_aero_session_time:
         aero_alert_conditions = {}
         aero_alerts_log = []
+        damage_agent_response = None
     prev_aero_session_time = st
 
     new_alerts: list[dict] = []
@@ -707,36 +710,61 @@ def _process_pu_alerts(pu: dict) -> None:
     pu_alerts_log.extend(new_alerts)
 
 
-async def _dispatch_damage_agent(alert_texts: list[str]) -> None:
-    """Send alert texts to the DamageAgent in a background thread.
+def _queue_damage_alerts(alert_texts: list[str]) -> None:
+    """Add alert texts to the pending list and (re)start the batch timer.
+
+    Alerts that arrive within DAMAGE_AGENT_BATCH_DELAY seconds of each
+    other are grouped into a single DamageAgent call.
+    """
+    global damage_agent_batch_handle
+
+    damage_agent_pending.extend(alert_texts)
+
+    # Reset the debounce timer so we keep waiting for more alerts
+    if damage_agent_batch_handle is not None:
+        damage_agent_batch_handle.cancel()
+
+    loop = asyncio.get_running_loop()
+    damage_agent_batch_handle = loop.call_later(
+        DAMAGE_AGENT_BATCH_DELAY,
+        lambda: asyncio.ensure_future(_flush_damage_agent()),
+    )
+
+
+async def _flush_damage_agent() -> None:
+    """Drain the pending list and send the batch to the DamageAgent.
 
     Uses an in-flight guard so only one agent call runs at a time.
-    If new alerts arrive while the agent is busy, they are queued
-    in a pending list and dispatched when the current call completes.
+    If new alerts accumulate while the agent is busy, they are
+    dispatched when the current call completes.
     """
     global damage_agent_response, damage_agent_in_flight, damage_agent_pending
+    global damage_agent_batch_handle
 
-    if damage_agent is None:
+    damage_agent_batch_handle = None
+
+    if damage_agent is None or not damage_agent_pending:
         return
 
     if damage_agent_in_flight:
-        damage_agent_pending.extend(alert_texts)
+        # The in-flight call's finally-block will re-flush.
         return
+
+    batch = damage_agent_pending
+    damage_agent_pending = []
 
     damage_agent_in_flight = True
     try:
-        response = await asyncio.to_thread(damage_agent.process_messages, alert_texts)
+        response = await asyncio.to_thread(damage_agent.process_messages, batch)
         damage_agent_response = response
     except Exception as exc:
         print(f"DamageAgent error: {exc}")
     finally:
         damage_agent_in_flight = False
 
-    # If alerts arrived while we were busy, fire again
+    # If more alerts arrived while we were busy, flush again
     if damage_agent_pending:
-        pending = damage_agent_pending
-        damage_agent_pending = []
-        await _dispatch_damage_agent(pending)
+        await _flush_damage_agent()
 
 
 def build_message() -> tuple[str, list[dict]]:
@@ -1089,7 +1117,7 @@ async def udp_reader():
                     f"ALERT {a['level'].upper()} {a['message']} {a['time']}"
                     for a in new_aero_alerts
                 ]
-                asyncio.create_task(_dispatch_damage_agent(alert_texts))
+                _queue_damage_alerts(alert_texts)
 
             # Write CSV row if capture is enabled
             if csv_capture is not None:
@@ -1240,7 +1268,7 @@ async def csv_replay(filepath: str, speed: int = 1):
                     f"ALERT {a['level'].upper()} {a['message']} {a['time']}"
                     for a in new_aero_alerts
                 ]
-                asyncio.create_task(_dispatch_damage_agent(alert_texts))
+                _queue_damage_alerts(alert_texts)
 
             row_count += 1
 
