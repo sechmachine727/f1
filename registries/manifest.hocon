@@ -20,4 +20,5 @@
 
     "formula_1_racing_team.hocon": true,
     "damage_engineer.hocon": true,
+    "tires_engineer.hocon": true,
 }
