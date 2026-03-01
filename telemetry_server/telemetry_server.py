@@ -23,7 +23,7 @@ import websockets
 # ---------------------------------------------------------------------------
 # Re-use constants and struct definitions from tyre_logger.py
 # ---------------------------------------------------------------------------
-from tyre_logger import (
+from telemetry_server.tyre_logger import (
     ACTUAL_COMPOUND,
     CAR_DAMAGE_SIZE,
     CAR_DAMAGE_STRUCT,

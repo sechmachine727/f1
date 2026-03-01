@@ -48,7 +48,7 @@ python -m test_udp
 
 Run a sample script to capture telemetry:
 ```shell
-python -m lag_logger
+python -m telemetry_server.tyre_logger
 ```
 
 ## Reinforcement Learning
