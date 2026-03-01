@@ -3,7 +3,7 @@ import { TelemetryCard, Metric, BarGauge } from "./TelemetryCard";
 import { useAeroTelemetry } from "@/hooks/useAeroTelemetry";
 
 export function AeroTelemetry() {
-  const data = useAeroTelemetry();
+  const { data } = useAeroTelemetry();
 
   if (!data) {
     return (

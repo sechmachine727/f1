@@ -5,11 +5,8 @@ import { AlertBox } from "@/components/AlertBox";
 import { EngineerReport, type Instruction } from "@/components/EngineerReport";
 import { useSessionTelemetry, formatLapTime, formatTimeLeft } from "@/hooks/useSessionTelemetry";
 import { useTireTelemetry } from "@/hooks/useTireTelemetry";
-import { useTireAlerts } from "@/hooks/useTireAlerts";
 import { usePowerUnitTelemetry } from "@/hooks/usePowerUnitTelemetry";
-import { usePowerUnitAlerts } from "@/hooks/usePowerUnitAlerts";
 import { useAeroTelemetry } from "@/hooks/useAeroTelemetry";
-import { useAeroAlerts } from "@/hooks/useAeroAlerts";
 import { Flag, Timer, Gauge, Clock } from "lucide-react";
 
 const instructions: Instruction[] = [
@@ -23,12 +20,9 @@ const instructions: Instruction[] = [
 
 const Index = () => {
   const session = useSessionTelemetry();
-  const tireData = useTireTelemetry();
-  const { alerts: tireAlerts, activeCount: tireActiveCount } = useTireAlerts(tireData);
-  const puData = usePowerUnitTelemetry();
-  const { alerts: puAlerts, activeCount: puActiveCount } = usePowerUnitAlerts(puData);
-  const aeroData = useAeroTelemetry();
-  const { alerts: aeroAlerts, activeCount: aeroActiveCount } = useAeroAlerts(aeroData);
+  const { tireAlerts: { alerts: tireAlerts, activeCount: tireActiveCount } } = useTireTelemetry();
+  const { puAlerts: { alerts: puAlerts, activeCount: puActiveCount } } = usePowerUnitTelemetry();
+  const { aeroAlerts: { alerts: aeroAlerts, activeCount: aeroActiveCount } } = useAeroTelemetry();
 
   const sessionType = session?.sessionType ?? "—";
   const trackName = session?.trackName ?? "—";

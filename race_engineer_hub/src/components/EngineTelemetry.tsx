@@ -5,7 +5,7 @@ import { usePowerUnitTelemetry } from "@/hooks/usePowerUnitTelemetry";
 const ERS_MAX_ENERGY_J = 4_000_000; // 4 MJ per F1 regulations
 
 export function EngineTelemetry() {
-  const data = usePowerUnitTelemetry();
+  const { data } = usePowerUnitTelemetry();
 
   if (!data) {
     return (

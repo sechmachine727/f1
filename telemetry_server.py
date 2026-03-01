@@ -72,6 +72,22 @@ motion_ex_state: dict = {}
 session_state: dict = {}
 session_time: float = 0.0
 
+# Alert state – computed server-side and sent pre-computed via WebSocket
+aero_alert_conditions: dict = {}   # key -> {"level": "warn"|"crit", "value": float}
+aero_alerts_log: list = []         # accumulated alerts
+prev_aero_session_time: float = 0.0
+
+tire_alert_conditions: dict = {}
+tire_alerts_log: list = []
+prev_tire_session_time: float = 0.0
+prev_tire_compound: str = ""
+
+pu_alert_conditions: dict = {}
+pu_alerts_log: list = []
+prev_pu_session_time: float = 0.0
+prev_pu_ers_mode: str = ""
+prev_pu_fuel_mix: str = ""
+
 # ---------------------------------------------------------------------------
 # Lookups
 # ---------------------------------------------------------------------------
@@ -245,8 +261,464 @@ class CsvCapture:
 csv_capture: CsvCapture | None = None
 
 
+# ---------------------------------------------------------------------------
+# Aero alert constants & processing
+# ---------------------------------------------------------------------------
+DAMAGE_REFIRE_STEP = 10  # re-alert every 10 % worsening
+
+DAMAGE_PARTS = [
+    {"key": "frontLeftWingDamage",  "label": "Front left wing",  "tag": "FL WING",  "clearMsg": "front left wing damage stabilised"},
+    {"key": "frontRightWingDamage", "label": "Front right wing", "tag": "FR WING",  "clearMsg": "front right wing damage stabilised"},
+    {"key": "rearWingDamage",       "label": "Rear wing",        "tag": "RR WING",  "clearMsg": "rear wing damage stabilised"},
+    {"key": "floorDamage",          "label": "Floor",            "tag": "FLOOR",    "clearMsg": "floor damage stabilised"},
+    {"key": "diffuserDamage",       "label": "Diffuser",         "tag": "DIFF",     "clearMsg": "diffuser damage stabilised"},
+    {"key": "sidepodDamage",        "label": "Sidepod",          "tag": "SIDEPOD",  "clearMsg": "sidepod damage stabilised"},
+]
+
+BRAKE_TEMPS = [
+    {"key": "brakeTempFL", "label": "FL brake", "tag": "BRK FL"},
+    {"key": "brakeTempFR", "label": "FR brake", "tag": "BRK FR"},
+    {"key": "brakeTempRL", "label": "RL brake", "tag": "BRK RL"},
+    {"key": "brakeTempRR", "label": "RR brake", "tag": "BRK RR"},
+]
+
+
+def _format_session_time(seconds: float) -> str:
+    total = int(seconds)
+    m = total // 60
+    s = total % 60
+    return f"{m:02d}:{s:02d}"
+
+
+def _process_aero_alerts(aero: dict) -> None:
+    """Port of useAeroAlerts.ts — accumulates alerts into aero_alerts_log."""
+    global aero_alert_conditions, aero_alerts_log, prev_aero_session_time
+
+    st = aero.get("sessionTime", 0.0)
+
+    # Detect new session (session time resets)
+    if st < prev_aero_session_time:
+        aero_alert_conditions = {}
+        aero_alerts_log = []
+    prev_aero_session_time = st
+
+    new_alerts: list[dict] = []
+    current_conditions: dict = {}
+    ts = _format_session_time(st)
+
+    # Damage conditions
+    for part in DAMAGE_PARTS:
+        val = aero.get(part["key"], 0)
+        if val > 50:
+            current_conditions[part["key"]] = {"level": "crit", "value": val}
+        elif val > 20:
+            current_conditions[part["key"]] = {"level": "warn", "value": val}
+
+    # Brake temperatures
+    for brk in BRAKE_TEMPS:
+        val = aero.get(brk["key"], 0)
+        if val > 1000:
+            current_conditions[brk["key"]] = {"level": "crit", "value": val}
+        elif val > 800:
+            current_conditions[brk["key"]] = {"level": "warn", "value": val}
+
+    # DRS fault
+    if aero.get("drsFault"):
+        current_conditions["drsFault"] = {"level": "crit", "value": 1}
+
+    # Fire alerts for new, escalated, or worsened conditions
+    for key, cur in current_conditions.items():
+        prev = aero_alert_conditions.get(key)
+        is_new = prev is None
+        is_escalation = prev is not None and prev["level"] == "warn" and cur["level"] == "crit"
+
+        part = next((p for p in DAMAGE_PARTS if p["key"] == key), None)
+        is_worsened = (
+            part is not None
+            and prev is not None
+            and prev["level"] == cur["level"]
+            and cur["value"] >= prev["value"] + DAMAGE_REFIRE_STEP
+        )
+
+        if is_new or is_escalation or is_worsened:
+            alert_level = "critical" if cur["level"] == "crit" else "warning"
+
+            if key == "drsFault":
+                new_alerts.append({
+                    "level": "critical",
+                    "message": "DRS system fault detected",
+                    "time": f"{ts} DRS",
+                })
+            elif part is not None:
+                msg = (
+                    f"{part['label']} damage critical ({cur['value']}%)"
+                    if cur["level"] == "crit"
+                    else f"{part['label']} damage detected ({cur['value']}%)"
+                )
+                new_alerts.append({"level": alert_level, "message": msg, "time": f"{ts} {part['tag']}"})
+            else:
+                brk = next((b for b in BRAKE_TEMPS if b["key"] == key), None)
+                if brk is not None:
+                    msg = (
+                        f"{brk['label']} temp {cur['value']}\u00b0C \u2014 overheating"
+                        if cur["level"] == "crit"
+                        else f"{brk['label']} temp {cur['value']}\u00b0C \u2014 running hot"
+                    )
+                    new_alerts.append({"level": alert_level, "message": msg, "time": f"{ts} {brk['tag']}"})
+        elif prev is not None:
+            # Keep the previous alerted value as baseline when no alert fires
+            cur["value"] = prev["value"]
+
+    # Detect fully cleared conditions
+    for key in aero_alert_conditions:
+        if key not in current_conditions:
+            if key == "drsFault":
+                new_alerts.append({"level": "info", "message": "DRS fault cleared", "time": f"{ts} DRS"})
+            else:
+                part = next((p for p in DAMAGE_PARTS if p["key"] == key), None)
+                if part is not None:
+                    new_alerts.append({"level": "info", "message": part["clearMsg"], "time": f"{ts} {part['tag']}"})
+                else:
+                    brk = next((b for b in BRAKE_TEMPS if b["key"] == key), None)
+                    if brk is not None:
+                        new_alerts.append({"level": "info", "message": f"{brk['label']} temp back to normal", "time": f"{ts} {brk['tag']}"})
+
+    aero_alert_conditions = current_conditions
+    aero_alerts_log.extend(new_alerts)
+
+
+# ---------------------------------------------------------------------------
+# Tire alert constants & processing
+# ---------------------------------------------------------------------------
+TIRE_DAMAGE_REFIRE_STEP = 25  # re-alert every step when worsening (0-255 scale)
+
+TIRE_WHEEL_LABELS = {"fl": "FL", "fr": "FR", "rl": "RL", "rr": "RR"}
+TIRE_WHEELS = ("fl", "fr", "rl", "rr")
+TIRE_DAMAGE_METRICS = {"dmg", "blst", "wear"}
+
+TIRE_CLEAR_LABELS = {
+    "temp": "temp back to normal",
+    "wear": "tyre wear stabilised",
+    "dmg": "tyre damage stabilised",
+    "blst": "blistering subsided",
+}
+
+
+def _process_tire_alerts(tire_snapshot: dict) -> None:
+    """Port of useTireAlerts.ts — accumulates alerts into tire_alerts_log."""
+    global tire_alert_conditions, tire_alerts_log, prev_tire_session_time, prev_tire_compound
+
+    st = tire_snapshot.get("sessionTime", 0.0)
+
+    # Detect new session (session time resets)
+    if st < prev_tire_session_time:
+        tire_alert_conditions = {}
+        tire_alerts_log = []
+        prev_tire_compound = ""
+    prev_tire_session_time = st
+
+    new_alerts: list[dict] = []
+    current_conditions: dict = {}
+    ts = _format_session_time(st)
+    tires = tire_snapshot.get("tires", {})
+
+    for wn in TIRE_WHEELS:
+        t = tires.get(wn, {})
+        surface_temp = t.get("surfaceTemp", 0)
+        wear = t.get("wear", 0)
+        damage = t.get("damage", 0)
+        blisters = t.get("blisters", 0)
+        life = round(100 - wear)
+
+        # Surface temperature
+        if surface_temp > 108:
+            current_conditions[f"{wn}_temp"] = {"level": "crit", "value": surface_temp}
+        elif surface_temp > 103:
+            current_conditions[f"{wn}_temp"] = {"level": "warn", "value": surface_temp}
+
+        # Wear (value = wear amount, higher = worse)
+        if life <= 10:
+            current_conditions[f"{wn}_wear"] = {"level": "crit", "value": wear}
+        elif life <= 25:
+            current_conditions[f"{wn}_wear"] = {"level": "warn", "value": wear}
+
+        # Damage
+        if damage > 150:
+            current_conditions[f"{wn}_dmg"] = {"level": "crit", "value": damage}
+        elif damage > 50:
+            current_conditions[f"{wn}_dmg"] = {"level": "warn", "value": damage}
+
+        # Blisters
+        if blisters > 150:
+            current_conditions[f"{wn}_blst"] = {"level": "crit", "value": blisters}
+        elif blisters > 50:
+            current_conditions[f"{wn}_blst"] = {"level": "warn", "value": blisters}
+
+    # Fire alerts for new, escalated, or worsened conditions
+    for key, cur in current_conditions.items():
+        prev = tire_alert_conditions.get(key)
+        underscore_idx = key.index("_")
+        wn = key[:underscore_idx]
+        metric = key[underscore_idx + 1:]
+        label = TIRE_WHEEL_LABELS[wn]
+        t = tires.get(wn, {})
+        life = round(100 - t.get("wear", 0))
+        tag = metric.upper()
+
+        is_new = prev is None
+        is_escalation = prev is not None and prev["level"] == "warn" and cur["level"] == "crit"
+        is_worsened = (
+            metric in TIRE_DAMAGE_METRICS
+            and prev is not None
+            and prev["level"] == cur["level"]
+            and cur["value"] >= prev["value"] + TIRE_DAMAGE_REFIRE_STEP
+        )
+
+        if is_new or is_escalation or is_worsened:
+            alert_level = "critical" if cur["level"] == "crit" else "warning"
+
+            if metric == "temp":
+                msg = (
+                    f"{label} surface temp {t.get('surfaceTemp', 0)}\u00b0C \u2014 overheating"
+                    if cur["level"] == "crit"
+                    else f"{label} surface temp {t.get('surfaceTemp', 0)}\u00b0C \u2014 approaching limit"
+                )
+                new_alerts.append({"level": alert_level, "message": msg, "time": f"{ts} {tag}"})
+            elif metric == "wear":
+                msg = (
+                    f"{label} tyre life critically low at {life}%"
+                    if cur["level"] == "crit"
+                    else f"{label} tyre life low at {life}%"
+                )
+                new_alerts.append({"level": alert_level, "message": msg, "time": f"{ts} {tag}"})
+            elif metric == "dmg":
+                msg = (
+                    f"{label} tyre damage critical ({t.get('damage', 0)}/255)"
+                    if cur["level"] == "crit"
+                    else f"{label} tyre damage detected ({t.get('damage', 0)}/255)"
+                )
+                new_alerts.append({"level": alert_level, "message": msg, "time": f"{ts} {tag}"})
+            elif metric == "blst":
+                msg = (
+                    f"{label} severe blistering ({t.get('blisters', 0)}/255)"
+                    if cur["level"] == "crit"
+                    else f"{label} blistering detected ({t.get('blisters', 0)}/255)"
+                )
+                new_alerts.append({"level": alert_level, "message": msg, "time": f"{ts} {tag}"})
+        elif prev is not None:
+            # Keep the previous alerted value as baseline
+            cur["value"] = prev["value"]
+
+    # Detect fully cleared conditions
+    for key in tire_alert_conditions:
+        if key not in current_conditions:
+            underscore_idx = key.index("_")
+            wn = key[:underscore_idx]
+            metric = key[underscore_idx + 1:]
+            label = TIRE_WHEEL_LABELS.get(wn, wn.upper())
+            tag = metric.upper()
+            clear_msg = TIRE_CLEAR_LABELS.get(metric)
+            if clear_msg:
+                new_alerts.append({"level": "info", "message": f"{label} {clear_msg}", "time": f"{ts} {tag}"})
+
+    # Compound change
+    compound = tire_snapshot.get("compound", "")
+    compound_visual = tire_snapshot.get("compoundVisual", "")
+    compound_key = f"{compound}_{compound_visual}"
+    if compound and compound_key != prev_tire_compound:
+        prev_tire_compound = compound_key
+        new_alerts.append({
+            "level": "info",
+            "message": f"{compound_visual.upper()} ({compound}) fitted",
+            "time": f"{ts} TYRE",
+        })
+
+    tire_alert_conditions = current_conditions
+    tire_alerts_log.extend(new_alerts)
+
+
+# ---------------------------------------------------------------------------
+# Power unit alert constants & processing
+# ---------------------------------------------------------------------------
+PU_DAMAGE_REFIRE_STEP = 10  # re-alert every 10% worsening
+PU_DAMAGE_KEYS = {"eng_dmg", "gbx_dmg"}
+
+PU_ALERT_DEFS = {
+    "eng_temp": {"tag": "TEMP", "clearMsg": "engine temp back to normal"},
+    "eng_dmg":  {"tag": "ICE",  "clearMsg": "engine damage stabilised"},
+    "gbx_dmg":  {"tag": "GBX",  "clearMsg": "gearbox damage stabilised"},
+    "fuel":     {"tag": "FUEL", "clearMsg": "fuel delta recovered"},
+    "battery":  {"tag": "ERS",  "clearMsg": "battery SOC recovered"},
+}
+
+
+def _process_pu_alerts(pu: dict) -> None:
+    """Port of usePowerUnitAlerts.ts — accumulates alerts into pu_alerts_log."""
+    global pu_alert_conditions, pu_alerts_log, prev_pu_session_time
+    global prev_pu_ers_mode, prev_pu_fuel_mix
+
+    st = pu.get("sessionTime", 0.0)
+
+    # Detect new session (session time resets)
+    if st < prev_pu_session_time:
+        pu_alert_conditions = {}
+        pu_alerts_log = []
+        prev_pu_ers_mode = ""
+        prev_pu_fuel_mix = ""
+    prev_pu_session_time = st
+
+    new_alerts: list[dict] = []
+    current_conditions: dict = {}
+    ts = _format_session_time(st)
+
+    engine_temp = pu.get("engineTemp", 0)
+    engine_damage = pu.get("engineDamage", 0)
+    gearbox_damage = pu.get("gearboxDamage", 0)
+    fuel_remaining_laps = pu.get("fuelRemainingLaps", 0)
+    battery_pct = pu.get("batteryPct", 0)
+
+    # Engine temperature
+    if engine_temp > 130:
+        current_conditions["eng_temp"] = {"level": "crit", "value": engine_temp}
+    elif engine_temp > 120:
+        current_conditions["eng_temp"] = {"level": "warn", "value": engine_temp}
+
+    # Engine damage (0-100)
+    if engine_damage > 20:
+        current_conditions["eng_dmg"] = {"level": "crit", "value": engine_damage}
+    elif engine_damage > 5:
+        current_conditions["eng_dmg"] = {"level": "warn", "value": engine_damage}
+
+    # Gearbox damage (0-100)
+    if gearbox_damage > 20:
+        current_conditions["gbx_dmg"] = {"level": "crit", "value": gearbox_damage}
+    elif gearbox_damage > 5:
+        current_conditions["gbx_dmg"] = {"level": "warn", "value": gearbox_damage}
+
+    # Fuel remaining laps
+    if fuel_remaining_laps < 1:
+        current_conditions["fuel"] = {"level": "crit", "value": fuel_remaining_laps}
+    elif fuel_remaining_laps < 3:
+        current_conditions["fuel"] = {"level": "warn", "value": fuel_remaining_laps}
+
+    # Battery SOC
+    if battery_pct < 15:
+        current_conditions["battery"] = {"level": "crit", "value": battery_pct}
+    elif battery_pct < 30:
+        current_conditions["battery"] = {"level": "warn", "value": battery_pct}
+
+    # Fire alerts for new, escalated, or worsened conditions
+    for key, cur in current_conditions.items():
+        prev = pu_alert_conditions.get(key)
+        defn = PU_ALERT_DEFS.get(key)
+        if not defn:
+            continue
+
+        is_new = prev is None
+        is_escalation = prev is not None and prev["level"] == "warn" and cur["level"] == "crit"
+        is_worsened = (
+            key in PU_DAMAGE_KEYS
+            and prev is not None
+            and prev["level"] == cur["level"]
+            and cur["value"] >= prev["value"] + PU_DAMAGE_REFIRE_STEP
+        )
+
+        if is_new or is_escalation or is_worsened:
+            alert_level = "critical" if cur["level"] == "crit" else "warning"
+
+            if key == "eng_temp":
+                msg = (
+                    f"Engine temp {engine_temp}\u00b0C \u2014 overheating"
+                    if cur["level"] == "crit"
+                    else f"Engine temp {engine_temp}\u00b0C \u2014 running hot"
+                )
+            elif key == "eng_dmg":
+                msg = (
+                    f"Engine damage critical ({engine_damage}%)"
+                    if cur["level"] == "crit"
+                    else f"Engine damage detected ({engine_damage}%)"
+                )
+            elif key == "gbx_dmg":
+                msg = (
+                    f"Gearbox damage critical ({gearbox_damage}%)"
+                    if cur["level"] == "crit"
+                    else f"Gearbox damage detected ({gearbox_damage}%)"
+                )
+            elif key == "fuel":
+                msg = (
+                    f"Fuel critically low \u2014 {fuel_remaining_laps:.1f} laps remaining"
+                    if cur["level"] == "crit"
+                    else f"Fuel running low \u2014 {fuel_remaining_laps:.1f} laps remaining"
+                )
+            elif key == "battery":
+                msg = (
+                    f"Battery SOC critically low at {battery_pct}%"
+                    if cur["level"] == "crit"
+                    else f"Battery SOC low at {battery_pct}%"
+                )
+            else:
+                continue
+
+            new_alerts.append({"level": alert_level, "message": msg, "time": f"{ts} {defn['tag']}"})
+        elif prev is not None:
+            # Keep the previous alerted value as baseline
+            cur["value"] = prev["value"]
+
+    # Detect fully cleared conditions
+    for key in pu_alert_conditions:
+        if key not in current_conditions:
+            defn = PU_ALERT_DEFS.get(key)
+            if defn:
+                new_alerts.append({"level": "info", "message": defn["clearMsg"], "time": f"{ts} {defn['tag']}"})
+
+    # ERS deploy mode change
+    ers_mode = pu.get("ersDeployMode", "")
+    if ers_mode and ers_mode != prev_pu_ers_mode:
+        if prev_pu_ers_mode:
+            new_alerts.append({
+                "level": "info",
+                "message": f"ERS mode \u2192 {ers_mode.upper()}",
+                "time": f"{ts} ERS",
+            })
+        prev_pu_ers_mode = ers_mode
+
+    # Fuel mix change
+    fuel_mix = pu.get("fuelMix", "")
+    if fuel_mix and fuel_mix != prev_pu_fuel_mix:
+        if prev_pu_fuel_mix:
+            new_alerts.append({
+                "level": "info",
+                "message": f"Fuel mix \u2192 {fuel_mix.upper()}",
+                "time": f"{ts} FUEL",
+            })
+        prev_pu_fuel_mix = fuel_mix
+
+    pu_alert_conditions = current_conditions
+    pu_alerts_log.extend(new_alerts)
+
+
 def build_message() -> str:
     """Build a JSON message from the latest merged state."""
+
+    # -- Aero alerts (must run before we build the aero dict) --
+    # We build the aero snapshot first so _process_aero_alerts can read it,
+    # then include it in the final payload.
+    aero_snapshot = {
+        "sessionTime": session_time,
+        "frontLeftWingDamage": damage_state.get("front_left_wing_damage", 0),
+        "frontRightWingDamage": damage_state.get("front_right_wing_damage", 0),
+        "rearWingDamage": damage_state.get("rear_wing_damage", 0),
+        "floorDamage": damage_state.get("floor_damage", 0),
+        "diffuserDamage": damage_state.get("diffuser_damage", 0),
+        "sidepodDamage": damage_state.get("sidepod_damage", 0),
+        "drsFault": bool(damage_state.get("drs_fault", 0)),
+        "brakeTempFL": telemetry_state.get("brake_temp_fl", 0),
+        "brakeTempFR": telemetry_state.get("brake_temp_fr", 0),
+        "brakeTempRL": telemetry_state.get("brake_temp_rl", 0),
+        "brakeTempRR": telemetry_state.get("brake_temp_rr", 0),
+    }
+    _process_aero_alerts(aero_snapshot)
+
     tires = {}
     for wn in WHEEL_NAMES:
         tires[wn] = {
@@ -258,6 +730,14 @@ def build_message() -> str:
             "blisters": damage_state.get(f"tyre_blisters_{wn}", 0),
             "brakeTemp": telemetry_state.get(f"brake_temp_{wn}", 0),
         }
+
+    # -- Tire alerts --
+    _process_tire_alerts({
+        "sessionTime": session_time,
+        "tires": tires,
+        "compound": status_state.get("tyre_compound_actual", ""),
+        "compoundVisual": status_state.get("tyre_compound_visual", ""),
+    })
 
     # -- Power Unit --
     ERS_MAX_ENERGY_J = 4_000_000  # 4 MJ per F1 regulations
@@ -287,6 +767,9 @@ def build_message() -> str:
         "engineDamage": damage_state.get("engine_damage", 0),
         "gearboxDamage": damage_state.get("gearbox_damage", 0),
     }
+
+    # -- Power unit alerts --
+    _process_pu_alerts({**power_unit, "sessionTime": session_time})
 
     # -- Aero --
     aero = {
@@ -342,6 +825,18 @@ def build_message() -> str:
         "powerUnit": power_unit,
         "aero": aero,
         "session": session,
+        "tireAlerts": {
+            "alerts": tire_alerts_log,
+            "activeCount": len(tire_alert_conditions),
+        },
+        "puAlerts": {
+            "alerts": pu_alerts_log,
+            "activeCount": len(pu_alert_conditions),
+        },
+        "aeroAlerts": {
+            "alerts": aero_alerts_log,
+            "activeCount": len(aero_alert_conditions),
+        },
     })
 
 

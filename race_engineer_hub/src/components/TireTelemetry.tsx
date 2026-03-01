@@ -18,7 +18,7 @@ const COMPOUND_COLORS: Record<string, string> = {
 };
 
 export function TireTelemetry() {
-  const data = useTireTelemetry();
+  const { data } = useTireTelemetry();
 
   if (!data) {
     return (
