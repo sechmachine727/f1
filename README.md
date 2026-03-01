@@ -48,7 +48,7 @@ python -m test_udp
 
 Run a sample script to capture telemetry:
 ```shell
-python -m lag_logger
+python telemetry_server/tyre_logger.py
 ```
 
 ## Reinforcement Learning
@@ -59,7 +59,7 @@ python -m lag_logger
 
 Start the telemetry WebSocket bridge (streams live F1 25 UDP data to the web app):
 ```shell
-python -m telemetry_server
+python telemetry_server/telemetry_server.py
 ```
 
 In a separate terminal, start the web app:
@@ -85,7 +85,7 @@ You can also download them manually from the [test-data-v1 release](https://gith
 
 Add `--capture` to save all telemetry to CSV files in `data/`. One file is created per session, named after the GP and session type:
 ```shell
-python -m telemetry_server --capture
+python telemetry_server/telemetry_server.py --capture
 ```
 Example output: `data/f1_25_bahrain_gp_race_20260214-215852.csv`
 
@@ -93,12 +93,12 @@ Example output: `data/f1_25_bahrain_gp_race_20260214-215852.csv`
 
 Use `--replay` to play back a captured CSV file. The web app receives the data as if it were live:
 ```shell
-python -m telemetry_server --replay data/f1_25_bahrain_gp_race_20260214-215852.csv
+python telemetry_server/telemetry_server.py --replay data/f1_25_bahrain_gp_race_20260214-215852.csv
 ```
 
 Add `--speed` to fast-forward the replay:
 ```shell
-python -m telemetry_server --replay data/f1_25_bahrain_gp_race_20260214-215852.csv --speed 10x
+python telemetry_server/telemetry_server.py --replay data/f1_25_bahrain_gp_race_20260214-215852.csv --speed 10x
 ```
 
 ## F1 Race Engineer Hub Concept
