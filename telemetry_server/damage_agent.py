@@ -1,8 +1,10 @@
+import argparse
 import os
 
 from neuro_san.client.agent_session_factory import AgentSessionFactory
 from neuro_san.client.streaming_input_processor import StreamingInputProcessor
-from timedinput import timedinput
+
+TEST_INPUT = "ALERT WARNING FL brake temp 803°C — running hot 02:33 BRK FL"
 
 
 class DamageAgent:
@@ -46,13 +48,26 @@ class DamageAgent:
         return last_chat_response
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Damage engineer agent")
+    parser.add_argument(
+        "--interactive",
+        action="store_true",
+        help="Prompt for input interactively (uses timedinput); otherwise uses TEST_INPUT",
+    )
+    args = parser.parse_args()
+
     # Set env variables
     os.environ["AGENT_MANIFEST_FILE"] = "registries/manifest.hocon"
     # Instantiate the agent
     agent = DamageAgent()
-    # Prompt user for input
-    user_input = timedinput("Input message:\n",
-                            timeout=60.0, # 1 minute
-                            default="<===TIMEOUT===>")
+
+    if args.interactive:
+        from timedinput import timedinput
+        user_input = timedinput("Input message:\n",
+                                timeout=60.0, # 1 minute
+                                default="<===TIMEOUT===>")
+    else:
+        user_input = TEST_INPUT
+
     response = agent.process_message(user_input)
     print(f"Response:\n {response}")
