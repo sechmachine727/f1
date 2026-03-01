@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import type { Alert } from "@/components/AlertBox";
 
 export interface TireData {
   surfaceTemp: number;
@@ -20,11 +21,19 @@ export interface TireTelemetryData {
   sessionTime: number;
 }
 
+interface TireAlerts {
+  alerts: Alert[];
+  activeCount: number;
+}
+
 const WS_URL = "ws://localhost:8765";
 const RECONNECT_INTERVAL_MS = 2000;
 
-export function useTireTelemetry(): TireTelemetryData | null {
+const EMPTY_ALERTS: TireAlerts = { alerts: [], activeCount: 0 };
+
+export function useTireTelemetry(): { data: TireTelemetryData | null; tireAlerts: TireAlerts } {
   const [data, setData] = useState<TireTelemetryData | null>(null);
+  const [tireAlerts, setTireAlerts] = useState<TireAlerts>(EMPTY_ALERTS);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout>>();
 
@@ -39,7 +48,11 @@ export function useTireTelemetry(): TireTelemetryData | null {
 
       ws.onmessage = (event) => {
         try {
-          setData(JSON.parse(event.data));
+          const msg = JSON.parse(event.data);
+          setData(msg);
+          if (msg.tireAlerts) {
+            setTireAlerts(msg.tireAlerts);
+          }
         } catch {
           // ignore malformed messages
         }
@@ -65,5 +78,5 @@ export function useTireTelemetry(): TireTelemetryData | null {
     };
   }, []);
 
-  return data;
+  return { data, tireAlerts };
 }

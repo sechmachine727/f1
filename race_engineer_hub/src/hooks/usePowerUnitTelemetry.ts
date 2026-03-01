@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import type { Alert } from "@/components/AlertBox";
 
 export interface PowerUnitData {
   rpm: number;
@@ -20,11 +21,19 @@ export interface PowerUnitData {
   sessionTime: number;
 }
 
+interface PuAlerts {
+  alerts: Alert[];
+  activeCount: number;
+}
+
 const WS_URL = "ws://localhost:8765";
 const RECONNECT_INTERVAL_MS = 2000;
 
-export function usePowerUnitTelemetry(): PowerUnitData | null {
+const EMPTY_ALERTS: PuAlerts = { alerts: [], activeCount: 0 };
+
+export function usePowerUnitTelemetry(): { data: PowerUnitData | null; puAlerts: PuAlerts } {
   const [data, setData] = useState<PowerUnitData | null>(null);
+  const [puAlerts, setPuAlerts] = useState<PuAlerts>(EMPTY_ALERTS);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout>>();
 
@@ -42,6 +51,9 @@ export function usePowerUnitTelemetry(): PowerUnitData | null {
           const msg = JSON.parse(event.data);
           if (msg.powerUnit) {
             setData({ ...msg.powerUnit, sessionTime: msg.sessionTime ?? 0 });
+          }
+          if (msg.puAlerts) {
+            setPuAlerts(msg.puAlerts);
           }
         } catch {
           // ignore malformed messages
@@ -68,5 +80,5 @@ export function usePowerUnitTelemetry(): PowerUnitData | null {
     };
   }, []);
 
-  return data;
+  return { data, puAlerts };
 }

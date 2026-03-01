@@ -5,9 +5,7 @@ import { AlertBox } from "@/components/AlertBox";
 import { EngineerReport, type Instruction } from "@/components/EngineerReport";
 import { useSessionTelemetry, formatLapTime, formatTimeLeft } from "@/hooks/useSessionTelemetry";
 import { useTireTelemetry } from "@/hooks/useTireTelemetry";
-import { useTireAlerts } from "@/hooks/useTireAlerts";
 import { usePowerUnitTelemetry } from "@/hooks/usePowerUnitTelemetry";
-import { usePowerUnitAlerts } from "@/hooks/usePowerUnitAlerts";
 import { useAeroTelemetry } from "@/hooks/useAeroTelemetry";
 import { Flag, Timer, Gauge, Clock } from "lucide-react";
 
@@ -22,10 +20,8 @@ const instructions: Instruction[] = [
 
 const Index = () => {
   const session = useSessionTelemetry();
-  const tireData = useTireTelemetry();
-  const { alerts: tireAlerts, activeCount: tireActiveCount } = useTireAlerts(tireData);
-  const puData = usePowerUnitTelemetry();
-  const { alerts: puAlerts, activeCount: puActiveCount } = usePowerUnitAlerts(puData);
+  const { tireAlerts: { alerts: tireAlerts, activeCount: tireActiveCount } } = useTireTelemetry();
+  const { puAlerts: { alerts: puAlerts, activeCount: puActiveCount } } = usePowerUnitTelemetry();
   const { aeroAlerts: { alerts: aeroAlerts, activeCount: aeroActiveCount } } = useAeroTelemetry();
 
   const sessionType = session?.sessionType ?? "—";
