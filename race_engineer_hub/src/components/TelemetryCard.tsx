@@ -22,7 +22,7 @@ const statusLabels = {
 export function TelemetryCard({ title, icon, children, status = "nominal" }: TelemetryCardProps) {
   const s = statusLabels[status];
   return (
-    <div className={`bg-card rounded-md border ${statusStyles[status]} p-3 flex flex-col gap-2 telemetry-grid`}>
+    <div className={`bg-card rounded-md border ${statusStyles[status]} p-3 flex flex-col gap-2 telemetry-grid flex-1`}>
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           {icon}
