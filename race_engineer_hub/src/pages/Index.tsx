@@ -2,6 +2,7 @@ import { TireTelemetry } from "@/components/TireTelemetry";
 import { EngineTelemetry } from "@/components/EngineTelemetry";
 import { AeroTelemetry } from "@/components/AeroTelemetry";
 import { AlertBox } from "@/components/AlertBox";
+import { DamageReportPanel } from "@/components/DamageReportPanel";
 import { EngineerReport, type Instruction } from "@/components/EngineerReport";
 import { useSessionTelemetry, formatLapTime, formatTimeLeft } from "@/hooks/useSessionTelemetry";
 import { useTireTelemetry } from "@/hooks/useTireTelemetry";
@@ -22,7 +23,7 @@ const Index = () => {
   const session = useSessionTelemetry();
   const { tireAlerts: { alerts: tireAlerts, activeCount: tireActiveCount } } = useTireTelemetry();
   const { puAlerts: { alerts: puAlerts, activeCount: puActiveCount } } = usePowerUnitTelemetry();
-  const { aeroAlerts: { alerts: aeroAlerts, activeCount: aeroActiveCount } } = useAeroTelemetry();
+  const { aeroAlerts: { alerts: aeroAlerts, activeCount: aeroActiveCount }, damageReport } = useAeroTelemetry();
 
   const sessionType = session?.sessionType ?? "—";
   const trackName = session?.trackName ?? "—";
@@ -80,6 +81,7 @@ const Index = () => {
         <div className="flex flex-col gap-2">
           <AeroTelemetry />
           <AlertBox alerts={aeroAlerts} activeCount={aeroActiveCount} />
+          <DamageReportPanel report={damageReport} />
         </div>
       </div>
 

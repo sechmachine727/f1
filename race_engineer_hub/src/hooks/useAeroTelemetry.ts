@@ -30,14 +30,19 @@ interface AeroAlerts {
   activeCount: number;
 }
 
+export interface DamageReport {
+  response: string | null;
+}
+
 const WS_URL = "ws://localhost:8765";
 const RECONNECT_INTERVAL_MS = 2000;
 
 const EMPTY_ALERTS: AeroAlerts = { alerts: [], activeCount: 0 };
 
-export function useAeroTelemetry(): { data: AeroData | null; aeroAlerts: AeroAlerts } {
+export function useAeroTelemetry(): { data: AeroData | null; aeroAlerts: AeroAlerts; damageReport: DamageReport } {
   const [data, setData] = useState<AeroData | null>(null);
   const [aeroAlerts, setAeroAlerts] = useState<AeroAlerts>(EMPTY_ALERTS);
+  const [damageReport, setDamageReport] = useState<DamageReport>({ response: null });
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout>>();
 
@@ -58,6 +63,9 @@ export function useAeroTelemetry(): { data: AeroData | null; aeroAlerts: AeroAle
           }
           if (msg.aeroAlerts) {
             setAeroAlerts(msg.aeroAlerts);
+          }
+          if (msg.damageReport) {
+            setDamageReport(msg.damageReport);
           }
         } catch {
           // ignore malformed messages
@@ -84,5 +92,5 @@ export function useAeroTelemetry(): { data: AeroData | null; aeroAlerts: AeroAle
     };
   }, []);
 
-  return { data, aeroAlerts };
+  return { data, aeroAlerts, damageReport };
 }

@@ -13,12 +13,15 @@ import argparse
 import asyncio
 import csv
 import json
+import os
 import socket
 import struct
 import time
 from pathlib import Path
 
 import websockets
+
+from telemetry_server.damage_agent import DamageAgent
 
 # ---------------------------------------------------------------------------
 # Re-use constants and struct definitions from tyre_logger.py
@@ -87,6 +90,12 @@ pu_alerts_log: list = []
 prev_pu_session_time: float = 0.0
 prev_pu_ers_mode: str = ""
 prev_pu_fuel_mix: str = ""
+
+# DamageAgent state
+damage_agent: DamageAgent | None = None
+damage_agent_response: str | None = None
+damage_agent_in_flight: bool = False
+damage_agent_pending: str | None = None
 
 # ---------------------------------------------------------------------------
 # Lookups
@@ -385,6 +394,7 @@ def _process_aero_alerts(aero: dict) -> None:
 
     aero_alert_conditions = current_conditions
     aero_alerts_log.extend(new_alerts)
+    return new_alerts
 
 
 # ---------------------------------------------------------------------------
@@ -697,7 +707,40 @@ def _process_pu_alerts(pu: dict) -> None:
     pu_alerts_log.extend(new_alerts)
 
 
-def build_message() -> str:
+async def _dispatch_damage_agent(alert_text: str) -> None:
+    """Send alert text to the DamageAgent in a background thread.
+
+    Uses an in-flight guard so only one agent call runs at a time.
+    If new alerts arrive while the agent is busy, they are queued
+    and dispatched when the current call completes.
+    """
+    global damage_agent_response, damage_agent_in_flight, damage_agent_pending
+
+    if damage_agent is None:
+        return
+
+    if damage_agent_in_flight:
+        # Queue the latest alert text; older pending text is replaced
+        damage_agent_pending = alert_text
+        return
+
+    damage_agent_in_flight = True
+    try:
+        response = await asyncio.to_thread(damage_agent.process_message, alert_text)
+        damage_agent_response = response
+    except Exception as exc:
+        print(f"DamageAgent error: {exc}")
+    finally:
+        damage_agent_in_flight = False
+
+    # If alerts arrived while we were busy, fire again
+    if damage_agent_pending is not None:
+        pending = damage_agent_pending
+        damage_agent_pending = None
+        await _dispatch_damage_agent(pending)
+
+
+def build_message() -> tuple[str, list[dict]]:
     """Build a JSON message from the latest merged state."""
 
     # -- Aero alerts (must run before we build the aero dict) --
@@ -717,7 +760,7 @@ def build_message() -> str:
         "brakeTempRL": telemetry_state.get("brake_temp_rl", 0),
         "brakeTempRR": telemetry_state.get("brake_temp_rr", 0),
     }
-    _process_aero_alerts(aero_snapshot)
+    new_aero_alerts = _process_aero_alerts(aero_snapshot)
 
     tires = {}
     for wn in WHEEL_NAMES:
@@ -814,7 +857,7 @@ def build_message() -> str:
         "lastLapTimeMs": last_lap_ms,
     }
 
-    return json.dumps({
+    msg = json.dumps({
         "tires": tires,
         "compound": status_state.get("tyre_compound_actual", ""),
         "compoundVisual": status_state.get("tyre_compound_visual", ""),
@@ -837,7 +880,11 @@ def build_message() -> str:
             "alerts": aero_alerts_log,
             "activeCount": len(aero_alert_conditions),
         },
+        "damageReport": {
+            "response": damage_agent_response,
+        },
     })
+    return msg, new_aero_alerts
 
 
 async def broadcast(message: str):
@@ -856,7 +903,8 @@ async def ws_handler(websocket):
     print(f"Client connected ({len(connected_clients)} total)")
     try:
         # Send current state immediately so the UI isn't blank
-        await websocket.send(build_message())
+        msg, _new_alerts = build_message()
+        await websocket.send(msg)
         # Keep connection alive – we only push, client doesn't send
         async for _ in websocket:
             pass
@@ -1033,7 +1081,16 @@ async def udp_reader():
             session_time = header[7]  # m_sessionTime (float)
 
             # Broadcast merged state to all WS clients
-            await broadcast(build_message())
+            msg, new_aero_alerts = build_message()
+            await broadcast(msg)
+
+            # Dispatch new aero alerts to DamageAgent
+            if new_aero_alerts:
+                alert_text = "\n".join(
+                    f"ALERT {a['level'].upper()} {a['message']} {a['time']}"
+                    for a in new_aero_alerts
+                )
+                asyncio.create_task(_dispatch_damage_agent(alert_text))
 
             # Write CSV row if capture is enabled
             if csv_capture is not None:
@@ -1175,14 +1232,24 @@ async def csv_replay(filepath: str, speed: int = 1):
             prev_wall_time = wall_time
 
             _populate_state_from_row(row)
-            await broadcast(build_message())
+            msg, new_aero_alerts = build_message()
+            await broadcast(msg)
+
+            # Dispatch new aero alerts to DamageAgent
+            if new_aero_alerts:
+                alert_text = "\n".join(
+                    f"ALERT {a['level'].upper()} {a['message']} {a['time']}"
+                    for a in new_aero_alerts
+                )
+                asyncio.create_task(_dispatch_damage_agent(alert_text))
+
             row_count += 1
 
     print(f"Replay complete — {row_count} frames sent.")
 
 
 async def main():
-    global csv_capture
+    global csv_capture, damage_agent
 
     parser = argparse.ArgumentParser(description="F1 25 telemetry WebSocket bridge")
     parser.add_argument(
@@ -1212,6 +1279,13 @@ async def main():
     if args.capture:
         csv_capture = CsvCapture(Path("data"))
         print("CSV capture enabled → data/")
+
+    os.environ.setdefault("AGENT_MANIFEST_FILE", "registries/manifest.hocon")
+    try:
+        damage_agent = DamageAgent()
+        print("DamageAgent initialized")
+    except Exception as exc:
+        print(f"DamageAgent unavailable: {exc}")
 
     print(f"Starting WebSocket server on ws://{WS_HOST}:{WS_PORT}")
     try:
