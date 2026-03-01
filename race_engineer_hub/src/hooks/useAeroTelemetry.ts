@@ -31,7 +31,7 @@ interface AeroAlerts {
 }
 
 export interface DamageReport {
-  response: string | null;
+  responses: string[];
 }
 
 const WS_URL = "ws://localhost:8765";
@@ -42,7 +42,8 @@ const EMPTY_ALERTS: AeroAlerts = { alerts: [], activeCount: 0 };
 export function useAeroTelemetry(): { data: AeroData | null; aeroAlerts: AeroAlerts; damageReport: DamageReport } {
   const [data, setData] = useState<AeroData | null>(null);
   const [aeroAlerts, setAeroAlerts] = useState<AeroAlerts>(EMPTY_ALERTS);
-  const [damageReport, setDamageReport] = useState<DamageReport>({ response: null });
+  const [damageReport, setDamageReport] = useState<DamageReport>({ responses: [] });
+  const lastDamageResponse = useRef<string | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout>>();
 
@@ -64,8 +65,11 @@ export function useAeroTelemetry(): { data: AeroData | null; aeroAlerts: AeroAle
           if (msg.aeroAlerts) {
             setAeroAlerts(msg.aeroAlerts);
           }
-          if (msg.damageReport) {
-            setDamageReport(msg.damageReport);
+          if (msg.damageReport?.response && msg.damageReport.response !== lastDamageResponse.current) {
+            lastDamageResponse.current = msg.damageReport.response;
+            setDamageReport((prev) => ({
+              responses: [...prev.responses, msg.damageReport.response],
+            }));
           }
         } catch {
           // ignore malformed messages
