@@ -72,6 +72,11 @@ motion_ex_state: dict = {}
 session_state: dict = {}
 session_time: float = 0.0
 
+# Aero alert state – computed server-side and sent pre-computed via WebSocket
+aero_alert_conditions: dict = {}   # key -> {"level": "warn"|"crit", "value": float}
+aero_alerts_log: list = []         # accumulated alerts
+prev_aero_session_time: float = 0.0
+
 # ---------------------------------------------------------------------------
 # Lookups
 # ---------------------------------------------------------------------------
@@ -245,8 +250,154 @@ class CsvCapture:
 csv_capture: CsvCapture | None = None
 
 
+# ---------------------------------------------------------------------------
+# Aero alert constants & processing
+# ---------------------------------------------------------------------------
+DAMAGE_REFIRE_STEP = 10  # re-alert every 10 % worsening
+
+DAMAGE_PARTS = [
+    {"key": "frontLeftWingDamage",  "label": "Front left wing",  "tag": "FL WING",  "clearMsg": "front left wing damage stabilised"},
+    {"key": "frontRightWingDamage", "label": "Front right wing", "tag": "FR WING",  "clearMsg": "front right wing damage stabilised"},
+    {"key": "rearWingDamage",       "label": "Rear wing",        "tag": "RR WING",  "clearMsg": "rear wing damage stabilised"},
+    {"key": "floorDamage",          "label": "Floor",            "tag": "FLOOR",    "clearMsg": "floor damage stabilised"},
+    {"key": "diffuserDamage",       "label": "Diffuser",         "tag": "DIFF",     "clearMsg": "diffuser damage stabilised"},
+    {"key": "sidepodDamage",        "label": "Sidepod",          "tag": "SIDEPOD",  "clearMsg": "sidepod damage stabilised"},
+]
+
+BRAKE_TEMPS = [
+    {"key": "brakeTempFL", "label": "FL brake", "tag": "BRK FL"},
+    {"key": "brakeTempFR", "label": "FR brake", "tag": "BRK FR"},
+    {"key": "brakeTempRL", "label": "RL brake", "tag": "BRK RL"},
+    {"key": "brakeTempRR", "label": "RR brake", "tag": "BRK RR"},
+]
+
+
+def _format_session_time(seconds: float) -> str:
+    total = int(seconds)
+    m = total // 60
+    s = total % 60
+    return f"{m:02d}:{s:02d}"
+
+
+def _process_aero_alerts(aero: dict) -> None:
+    """Port of useAeroAlerts.ts — accumulates alerts into aero_alerts_log."""
+    global aero_alert_conditions, aero_alerts_log, prev_aero_session_time
+
+    st = aero.get("sessionTime", 0.0)
+
+    # Detect new session (session time resets)
+    if st < prev_aero_session_time:
+        aero_alert_conditions = {}
+        aero_alerts_log = []
+    prev_aero_session_time = st
+
+    new_alerts: list[dict] = []
+    current_conditions: dict = {}
+    ts = _format_session_time(st)
+
+    # Damage conditions
+    for part in DAMAGE_PARTS:
+        val = aero.get(part["key"], 0)
+        if val > 50:
+            current_conditions[part["key"]] = {"level": "crit", "value": val}
+        elif val > 20:
+            current_conditions[part["key"]] = {"level": "warn", "value": val}
+
+    # Brake temperatures
+    for brk in BRAKE_TEMPS:
+        val = aero.get(brk["key"], 0)
+        if val > 1000:
+            current_conditions[brk["key"]] = {"level": "crit", "value": val}
+        elif val > 800:
+            current_conditions[brk["key"]] = {"level": "warn", "value": val}
+
+    # DRS fault
+    if aero.get("drsFault"):
+        current_conditions["drsFault"] = {"level": "crit", "value": 1}
+
+    # Fire alerts for new, escalated, or worsened conditions
+    for key, cur in current_conditions.items():
+        prev = aero_alert_conditions.get(key)
+        is_new = prev is None
+        is_escalation = prev is not None and prev["level"] == "warn" and cur["level"] == "crit"
+
+        part = next((p for p in DAMAGE_PARTS if p["key"] == key), None)
+        is_worsened = (
+            part is not None
+            and prev is not None
+            and prev["level"] == cur["level"]
+            and cur["value"] >= prev["value"] + DAMAGE_REFIRE_STEP
+        )
+
+        if is_new or is_escalation or is_worsened:
+            alert_level = "critical" if cur["level"] == "crit" else "warning"
+
+            if key == "drsFault":
+                new_alerts.append({
+                    "level": "critical",
+                    "message": "DRS system fault detected",
+                    "time": f"{ts} DRS",
+                })
+            elif part is not None:
+                msg = (
+                    f"{part['label']} damage critical ({cur['value']}%)"
+                    if cur["level"] == "crit"
+                    else f"{part['label']} damage detected ({cur['value']}%)"
+                )
+                new_alerts.append({"level": alert_level, "message": msg, "time": f"{ts} {part['tag']}"})
+            else:
+                brk = next((b for b in BRAKE_TEMPS if b["key"] == key), None)
+                if brk is not None:
+                    msg = (
+                        f"{brk['label']} temp {cur['value']}\u00b0C \u2014 overheating"
+                        if cur["level"] == "crit"
+                        else f"{brk['label']} temp {cur['value']}\u00b0C \u2014 running hot"
+                    )
+                    new_alerts.append({"level": alert_level, "message": msg, "time": f"{ts} {brk['tag']}"})
+        elif prev is not None:
+            # Keep the previous alerted value as baseline when no alert fires
+            cur["value"] = prev["value"]
+
+    # Detect fully cleared conditions
+    for key in aero_alert_conditions:
+        if key not in current_conditions:
+            if key == "drsFault":
+                new_alerts.append({"level": "info", "message": "DRS fault cleared", "time": f"{ts} DRS"})
+            else:
+                part = next((p for p in DAMAGE_PARTS if p["key"] == key), None)
+                if part is not None:
+                    new_alerts.append({"level": "info", "message": part["clearMsg"], "time": f"{ts} {part['tag']}"})
+                else:
+                    brk = next((b for b in BRAKE_TEMPS if b["key"] == key), None)
+                    if brk is not None:
+                        new_alerts.append({"level": "info", "message": f"{brk['label']} temp back to normal", "time": f"{ts} {brk['tag']}"})
+
+    aero_alert_conditions = current_conditions
+    aero_alerts_log.extend(new_alerts)
+
+
 def build_message() -> str:
     """Build a JSON message from the latest merged state."""
+
+    # -- Aero alerts (must run before we build the aero dict) --
+    # We build the aero snapshot first so _process_aero_alerts can read it,
+    # then include it in the final payload.
+    aero_snapshot = {
+        "sessionTime": session_time,
+        "frontLeftWingDamage": damage_state.get("front_left_wing_damage", 0),
+        "frontRightWingDamage": damage_state.get("front_right_wing_damage", 0),
+        "rearWingDamage": damage_state.get("rear_wing_damage", 0),
+        "floorDamage": damage_state.get("floor_damage", 0),
+        "diffuserDamage": damage_state.get("diffuser_damage", 0),
+        "sidepodDamage": damage_state.get("sidepod_damage", 0),
+        "drsFault": bool(damage_state.get("drs_fault", 0)),
+        "brakeTempFL": telemetry_state.get("brake_temp_fl", 0),
+        "brakeTempFR": telemetry_state.get("brake_temp_fr", 0),
+        "brakeTempRL": telemetry_state.get("brake_temp_rl", 0),
+        "brakeTempRR": telemetry_state.get("brake_temp_rr", 0),
+    }
+    _process_aero_alerts(aero_snapshot)
+
     tires = {}
     for wn in WHEEL_NAMES:
         tires[wn] = {
@@ -342,6 +493,10 @@ def build_message() -> str:
         "powerUnit": power_unit,
         "aero": aero,
         "session": session,
+        "aeroAlerts": {
+            "alerts": aero_alerts_log,
+            "activeCount": len(aero_alert_conditions),
+        },
     })
 
 

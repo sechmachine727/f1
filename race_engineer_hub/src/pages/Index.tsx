@@ -9,7 +9,6 @@ import { useTireAlerts } from "@/hooks/useTireAlerts";
 import { usePowerUnitTelemetry } from "@/hooks/usePowerUnitTelemetry";
 import { usePowerUnitAlerts } from "@/hooks/usePowerUnitAlerts";
 import { useAeroTelemetry } from "@/hooks/useAeroTelemetry";
-import { useAeroAlerts } from "@/hooks/useAeroAlerts";
 import { Flag, Timer, Gauge, Clock } from "lucide-react";
 
 const instructions: Instruction[] = [
@@ -27,8 +26,7 @@ const Index = () => {
   const { alerts: tireAlerts, activeCount: tireActiveCount } = useTireAlerts(tireData);
   const puData = usePowerUnitTelemetry();
   const { alerts: puAlerts, activeCount: puActiveCount } = usePowerUnitAlerts(puData);
-  const aeroData = useAeroTelemetry();
-  const { alerts: aeroAlerts, activeCount: aeroActiveCount } = useAeroAlerts(aeroData);
+  const { aeroAlerts: { alerts: aeroAlerts, activeCount: aeroActiveCount } } = useAeroTelemetry();
 
   const sessionType = session?.sessionType ?? "—";
   const trackName = session?.trackName ?? "—";

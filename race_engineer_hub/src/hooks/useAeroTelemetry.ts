@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import type { Alert } from "@/components/AlertBox";
 
 export interface AeroData {
   speed: number;
@@ -24,11 +25,19 @@ export interface AeroData {
   sessionTime: number;
 }
 
+interface AeroAlerts {
+  alerts: Alert[];
+  activeCount: number;
+}
+
 const WS_URL = "ws://localhost:8765";
 const RECONNECT_INTERVAL_MS = 2000;
 
-export function useAeroTelemetry(): AeroData | null {
+const EMPTY_ALERTS: AeroAlerts = { alerts: [], activeCount: 0 };
+
+export function useAeroTelemetry(): { data: AeroData | null; aeroAlerts: AeroAlerts } {
   const [data, setData] = useState<AeroData | null>(null);
+  const [aeroAlerts, setAeroAlerts] = useState<AeroAlerts>(EMPTY_ALERTS);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout>>();
 
@@ -46,6 +55,9 @@ export function useAeroTelemetry(): AeroData | null {
           const msg = JSON.parse(event.data);
           if (msg.aero) {
             setData({ ...msg.aero, sessionTime: msg.sessionTime ?? 0 });
+          }
+          if (msg.aeroAlerts) {
+            setAeroAlerts(msg.aeroAlerts);
           }
         } catch {
           // ignore malformed messages
@@ -72,5 +84,5 @@ export function useAeroTelemetry(): AeroData | null {
     };
   }, []);
 
-  return data;
+  return { data, aeroAlerts };
 }
