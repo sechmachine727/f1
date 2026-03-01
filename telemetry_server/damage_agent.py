@@ -47,8 +47,8 @@ class DamageAgent:
             log_path.rename(rolled)
             print(f"Rolled log to {rolled}")
 
-    def process_message(self, message: str) -> str | None:
-        print(f"Received message: {message}")
+    def process_messages(self, messages: list[str]) -> str | None:
+        combined: str = "\n".join(messages)
         # Use the current session to process the input
         input_processor: StreamingInputProcessor = StreamingInputProcessor(
             self.DEFAULT_INPUT,
@@ -57,7 +57,7 @@ class DamageAgent:
             self.THINKING_DIR,
         )
         # Update the conversation state with this turn's input
-        self.conversation_state["user_input"] = message
+        self.conversation_state["user_input"] = combined
         self.conversation_state = input_processor.process_once(self.conversation_state)
         # Get the agent response for this turn
         last_chat_response: str | None = self.conversation_state.get("last_chat_response")
@@ -86,5 +86,5 @@ if __name__ == "__main__":
     else:
         user_input = TEST_INPUT
 
-    response: str | None = agent.process_message(user_input)
+    response: str | None = agent.process_messages([user_input])
     print(f"Response:\n {response}")

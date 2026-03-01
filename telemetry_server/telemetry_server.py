@@ -95,7 +95,7 @@ prev_pu_fuel_mix: str = ""
 damage_agent: DamageAgent | None = None
 damage_agent_response: str | None = None
 damage_agent_in_flight: bool = False
-damage_agent_pending: str | None = None
+damage_agent_pending: list[str] = []
 
 # ---------------------------------------------------------------------------
 # Lookups
@@ -707,12 +707,12 @@ def _process_pu_alerts(pu: dict) -> None:
     pu_alerts_log.extend(new_alerts)
 
 
-async def _dispatch_damage_agent(alert_text: str) -> None:
-    """Send alert text to the DamageAgent in a background thread.
+async def _dispatch_damage_agent(alert_texts: list[str]) -> None:
+    """Send alert texts to the DamageAgent in a background thread.
 
     Uses an in-flight guard so only one agent call runs at a time.
     If new alerts arrive while the agent is busy, they are queued
-    and dispatched when the current call completes.
+    in a pending list and dispatched when the current call completes.
     """
     global damage_agent_response, damage_agent_in_flight, damage_agent_pending
 
@@ -720,13 +720,12 @@ async def _dispatch_damage_agent(alert_text: str) -> None:
         return
 
     if damage_agent_in_flight:
-        # Queue the latest alert text; older pending text is replaced
-        damage_agent_pending = alert_text
+        damage_agent_pending.extend(alert_texts)
         return
 
     damage_agent_in_flight = True
     try:
-        response = await asyncio.to_thread(damage_agent.process_message, alert_text)
+        response = await asyncio.to_thread(damage_agent.process_messages, alert_texts)
         damage_agent_response = response
     except Exception as exc:
         print(f"DamageAgent error: {exc}")
@@ -734,9 +733,9 @@ async def _dispatch_damage_agent(alert_text: str) -> None:
         damage_agent_in_flight = False
 
     # If alerts arrived while we were busy, fire again
-    if damage_agent_pending is not None:
+    if damage_agent_pending:
         pending = damage_agent_pending
-        damage_agent_pending = None
+        damage_agent_pending = []
         await _dispatch_damage_agent(pending)
 
 
@@ -1086,11 +1085,11 @@ async def udp_reader():
 
             # Dispatch new aero alerts to DamageAgent
             if new_aero_alerts:
-                alert_text = "\n".join(
+                alert_texts = [
                     f"ALERT {a['level'].upper()} {a['message']} {a['time']}"
                     for a in new_aero_alerts
-                )
-                asyncio.create_task(_dispatch_damage_agent(alert_text))
+                ]
+                asyncio.create_task(_dispatch_damage_agent(alert_texts))
 
             # Write CSV row if capture is enabled
             if csv_capture is not None:
@@ -1237,11 +1236,11 @@ async def csv_replay(filepath: str, speed: int = 1):
 
             # Dispatch new aero alerts to DamageAgent
             if new_aero_alerts:
-                alert_text = "\n".join(
+                alert_texts = [
                     f"ALERT {a['level'].upper()} {a['message']} {a['time']}"
                     for a in new_aero_alerts
-                )
-                asyncio.create_task(_dispatch_damage_agent(alert_text))
+                ]
+                asyncio.create_task(_dispatch_damage_agent(alert_texts))
 
             row_count += 1
 
