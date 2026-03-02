@@ -1,4 +1,5 @@
-import { ReactNode } from "react";
+import { ReactNode, useState } from "react";
+import { Maximize2 } from "lucide-react";
 
 interface TelemetryCardProps {
   title: string;
@@ -20,18 +21,57 @@ const statusLabels = {
 };
 
 export function TelemetryCard({ title, icon, children, status = "nominal" }: TelemetryCardProps) {
+  const [expanded, setExpanded] = useState(false);
   const s = statusLabels[status];
+
   return (
-    <div className={`bg-card rounded-md border ${statusStyles[status]} p-3 flex flex-col gap-2 telemetry-grid flex-1`}>
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          {icon}
-          <h2 className="font-display text-sm font-bold tracking-widest uppercase text-foreground">{title}</h2>
+    <>
+      <div className={`bg-card rounded-md border ${statusStyles[status]} p-3 flex flex-col gap-2 telemetry-grid flex-1`}>
+        <div
+          className="flex items-center justify-between select-none cursor-pointer"
+          onDoubleClick={() => setExpanded(true)}
+        >
+          <div className="flex items-center gap-2">
+            {icon}
+            <h2 className="font-display text-sm font-bold tracking-widest uppercase text-foreground">{title}</h2>
+            <Maximize2 className="h-2.5 w-2.5 text-muted-foreground/50" />
+          </div>
+          <span className={`font-display text-[10px] font-bold tracking-wider ${s.class} animate-pulse`}>● {s.text}</span>
         </div>
-        <span className={`font-display text-[10px] font-bold tracking-wider ${s.class} animate-pulse`}>● {s.text}</span>
+        {children}
       </div>
-      {children}
-    </div>
+
+      {expanded && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+          onClick={() => setExpanded(false)}
+        >
+          <div
+            className={`bg-card rounded-md border ${statusStyles[status]} p-5 flex flex-col gap-3 w-[90vw] max-w-2xl shadow-2xl`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                {icon}
+                <h2 className="font-display text-base font-bold tracking-widest uppercase text-foreground">{title}</h2>
+              </div>
+              <span className={`font-display text-xs font-bold tracking-wider ${s.class} animate-pulse`}>● {s.text}</span>
+            </div>
+            <div className="flex flex-col gap-3 max-h-[70vh] overflow-y-auto">
+              {children}
+            </div>
+            <div
+              className="pt-2 border-t border-border/50 text-center cursor-pointer"
+              onClick={() => setExpanded(false)}
+            >
+              <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-display">
+                Click to close
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 

@@ -68,17 +68,17 @@ const Index = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 mb-3 min-h-0 overflow-auto">
         <div className="flex flex-col gap-2">
           <TireTelemetry />
-          <AlertBox alerts={tireAlerts} activeCount={tireActiveCount} />
+          <AlertBox title="Tire Alerts" alerts={tireAlerts} activeCount={tireActiveCount} />
           <TiresReportPanel report={tiresReport} />
         </div>
         <div className="flex flex-col gap-2">
           <EngineTelemetry />
-          <AlertBox alerts={puAlerts} activeCount={puActiveCount} />
+          <AlertBox title="Power Unit Alerts" alerts={puAlerts} activeCount={puActiveCount} />
           <PuReportPanel report={puReport} />
         </div>
         <div className="flex flex-col gap-2">
           <AeroTelemetry />
-          <AlertBox alerts={aeroAlerts} activeCount={aeroActiveCount} />
+          <AlertBox title="Aero Alerts" alerts={aeroAlerts} activeCount={aeroActiveCount} />
           <DamageReportPanel report={damageReport} />
         </div>
       </div>

@@ -7,6 +7,7 @@ export function DriverRadioInput() {
   const [message, setMessage] = useState("");
   const [history, setHistory] = useState<string[]>([]);
   const historyRef = useRef<HTMLDivElement>(null);
+  const prevSessionTime = useRef<number>(0);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout>>();
 
@@ -17,6 +18,19 @@ export function DriverRadioInput() {
       if (unmounted) return;
       const ws = new WebSocket(WS_URL);
       wsRef.current = ws;
+
+      ws.onmessage = (event) => {
+        try {
+          const msg = JSON.parse(event.data);
+          const st = msg.sessionTime ?? 0;
+          if (st < prevSessionTime.current) {
+            setHistory([]);
+          }
+          prevSessionTime.current = st;
+        } catch {
+          // ignore
+        }
+      };
 
       ws.onclose = () => {
         if (!unmounted) {
