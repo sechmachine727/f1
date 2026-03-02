@@ -953,7 +953,9 @@ async def _flush_race_engineer() -> None:
     response = None
     try:
         response = await asyncio.to_thread(re_agent.process_messages, batch)
-        re_agent_response = response
+        # Don't send bare "Copy" acknowledgments to the frontend
+        if response and response.strip().lower() != "copy":
+            re_agent_response = response
     except Exception as exc:
         print(f"RaceEngineerAgent error: {exc}")
     finally:
