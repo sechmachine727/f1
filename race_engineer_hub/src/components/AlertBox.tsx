@@ -25,7 +25,7 @@ const rowStyles = {
   critical: "border-accent/20 bg-accent/5",
 };
 
-export function AlertBox({ alerts, activeCount }: { alerts: Alert[]; activeCount?: number }) {
+export function AlertBox({ title = "Alerts", alerts, activeCount }: { title?: string; alerts: Alert[]; activeCount?: number }) {
   const [expanded, setExpanded] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const expandedScrollRef = useRef<HTMLDivElement>(null);
@@ -49,7 +49,7 @@ export function AlertBox({ alerts, activeCount }: { alerts: Alert[]; activeCount
           onDoubleClick={() => setExpanded(true)}
         >
           <AlertTriangle className="h-3 w-3 text-muted-foreground" />
-          <span className="font-display text-[10px] font-bold tracking-widest uppercase text-muted-foreground">Alerts</span>
+          <span className="font-display text-[10px] font-bold tracking-widest uppercase text-muted-foreground">{title}</span>
           <Maximize2 className="h-2.5 w-2.5 text-muted-foreground/50 ml-1" />
           <span className="ml-auto font-display text-[10px] text-muted-foreground">{count}</span>
         </div>
@@ -81,7 +81,7 @@ export function AlertBox({ alerts, activeCount }: { alerts: Alert[]; activeCount
           >
             <div className="flex items-center gap-1.5 px-3 py-2 border-b border-border/50 bg-secondary/30">
               <AlertTriangle className="h-3 w-3 text-muted-foreground" />
-              <span className="font-display text-[10px] font-bold tracking-widest uppercase text-muted-foreground">Alerts</span>
+              <span className="font-display text-[10px] font-bold tracking-widest uppercase text-muted-foreground">{title}</span>
               <span className="ml-auto font-display text-[10px] text-muted-foreground">{count}</span>
             </div>
             <div ref={expandedScrollRef} className="max-h-[70vh] overflow-y-auto">
