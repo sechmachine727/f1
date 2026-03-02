@@ -23,6 +23,7 @@ import websockets
 
 from telemetry_server.damage_agent import DamageAgent
 from telemetry_server.power_unit_agent import PowerUnitAgent
+from telemetry_server.race_engineer_agent import RaceEngineerAgent
 from telemetry_server.tires_agent import TiresAgent
 
 # ---------------------------------------------------------------------------
@@ -116,6 +117,14 @@ pu_agent_in_flight: bool = False
 pu_agent_pending: list[str] = []
 pu_agent_batch_handle: asyncio.TimerHandle | None = None
 PU_AGENT_BATCH_DELAY: float = 1.0  # seconds to wait before flushing
+
+# RaceEngineerAgent state
+re_agent: RaceEngineerAgent | None = None
+re_agent_response: str | None = None
+re_agent_in_flight: bool = False
+re_agent_pending: list[str] = []
+re_agent_batch_handle: asyncio.TimerHandle | None = None
+RE_AGENT_BATCH_DELAY: float = 2.0  # longer window to batch multiple engineer reports
 
 # ---------------------------------------------------------------------------
 # Lookups
@@ -321,7 +330,8 @@ def _format_session_time(seconds: float) -> str:
 
 def _process_aero_alerts(aero: dict) -> None:
     """Port of useAeroAlerts.ts — accumulates alerts into aero_alerts_log."""
-    global aero_alert_conditions, aero_alerts_log, prev_aero_session_time, damage_agent_response
+    global aero_alert_conditions, aero_alerts_log, prev_aero_session_time
+    global damage_agent_response, re_agent_response
 
     st = aero.get("sessionTime", 0.0)
 
@@ -330,6 +340,7 @@ def _process_aero_alerts(aero: dict) -> None:
         aero_alert_conditions = {}
         aero_alerts_log = []
         damage_agent_response = None
+        re_agent_response = None
     prev_aero_session_time = st
 
     new_alerts: list[dict] = []
@@ -780,6 +791,9 @@ async def _flush_damage_agent() -> None:
     try:
         response = await asyncio.to_thread(damage_agent.process_messages, batch)
         damage_agent_response = response
+        # Forward to race engineer
+        if response:
+            _queue_race_engineer([f"Damage Engineer: {response}"])
     except Exception as exc:
         print(f"DamageAgent error: {exc}")
     finally:
@@ -826,6 +840,9 @@ async def _flush_tires_agent() -> None:
     try:
         response = await asyncio.to_thread(tires_agent.process_messages, batch)
         tires_agent_response = response
+        # Forward to race engineer
+        if response:
+            _queue_race_engineer([f"Tires Engineer: {response}"])
     except Exception as exc:
         print(f"TiresAgent error: {exc}")
     finally:
@@ -871,6 +888,9 @@ async def _flush_pu_agent() -> None:
     try:
         response = await asyncio.to_thread(pu_agent.process_messages, batch)
         pu_agent_response = response
+        # Forward to race engineer
+        if response:
+            _queue_race_engineer([f"Power Unit Engineer: {response}"])
     except Exception as exc:
         print(f"PowerUnitAgent error: {exc}")
     finally:
@@ -878,6 +898,73 @@ async def _flush_pu_agent() -> None:
 
     if pu_agent_pending:
         await _flush_pu_agent()
+
+
+def _queue_race_engineer(messages: list[str]) -> None:
+    """Add engineer reports to the pending list and (re)start the batch timer."""
+    global re_agent_batch_handle
+
+    re_agent_pending.extend(messages)
+
+    if re_agent_batch_handle is not None:
+        re_agent_batch_handle.cancel()
+
+    loop = asyncio.get_running_loop()
+    re_agent_batch_handle = loop.call_later(
+        RE_AGENT_BATCH_DELAY,
+        lambda: asyncio.ensure_future(_flush_race_engineer()),
+    )
+
+
+def _route_race_engineer_response(response: str) -> None:
+    """Parse the race engineer's response and route follow-up questions to specialists."""
+    route_fns = {
+        "Damage Engineer:": _queue_damage_alerts,
+        "Tires Engineer:": _queue_tires_alerts,
+        "Power Unit Engineer:": _queue_pu_alerts,
+    }
+    for line in response.strip().splitlines():
+        line = line.strip()
+        for prefix, queue_fn in route_fns.items():
+            if line.startswith(prefix):
+                msg = line[len(prefix):].strip()
+                if msg:
+                    queue_fn([msg])
+                break
+
+
+async def _flush_race_engineer() -> None:
+    """Drain the pending list and send the batch to the RaceEngineerAgent."""
+    global re_agent_response, re_agent_in_flight, re_agent_pending
+    global re_agent_batch_handle
+
+    re_agent_batch_handle = None
+
+    if re_agent is None or not re_agent_pending:
+        return
+
+    if re_agent_in_flight:
+        return
+
+    batch = re_agent_pending
+    re_agent_pending = []
+
+    re_agent_in_flight = True
+    response = None
+    try:
+        response = await asyncio.to_thread(re_agent.process_messages, batch)
+        re_agent_response = response
+    except Exception as exc:
+        print(f"RaceEngineerAgent error: {exc}")
+    finally:
+        re_agent_in_flight = False
+
+    # Route follow-up questions back to specialist agents
+    if response:
+        _route_race_engineer_response(response)
+
+    if re_agent_pending:
+        await _flush_race_engineer()
 
 
 def build_message() -> tuple[str, list[dict], list[dict], list[dict]]:
@@ -1028,6 +1115,9 @@ def build_message() -> tuple[str, list[dict], list[dict], list[dict]]:
         },
         "puReport": {
             "response": pu_agent_response,
+        },
+        "raceEngineerReport": {
+            "response": re_agent_response,
         },
     })
     return msg, new_aero_alerts, new_tire_alerts, new_pu_alerts
@@ -1427,7 +1517,7 @@ async def csv_replay(filepath: str, speed: int = 1):
 
 
 async def main():
-    global csv_capture, damage_agent, tires_agent, pu_agent
+    global csv_capture, damage_agent, tires_agent, pu_agent, re_agent
 
     parser = argparse.ArgumentParser(description="F1 25 telemetry WebSocket bridge")
     parser.add_argument(
@@ -1476,6 +1566,12 @@ async def main():
         print("PowerUnitAgent initialized")
     except Exception as exc:
         print(f"PowerUnitAgent unavailable: {exc}")
+
+    try:
+        re_agent = RaceEngineerAgent()
+        print("RaceEngineerAgent initialized")
+    except Exception as exc:
+        print(f"RaceEngineerAgent unavailable: {exc}")
 
     print(f"Starting WebSocket server on ws://{WS_HOST}:{WS_PORT}")
     try:

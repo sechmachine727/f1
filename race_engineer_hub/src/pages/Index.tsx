@@ -4,12 +4,14 @@ import { AeroTelemetry } from "@/components/AeroTelemetry";
 import { AlertBox } from "@/components/AlertBox";
 import { DamageReportPanel } from "@/components/DamageReportPanel";
 import { PuReportPanel } from "@/components/PuReportPanel";
+import { RaceEngineerPanel } from "@/components/RaceEngineerPanel";
 import { TiresReportPanel } from "@/components/TiresReportPanel";
 import { EngineerReport, type Instruction } from "@/components/EngineerReport";
 import { useSessionTelemetry, formatLapTime, formatTimeLeft } from "@/hooks/useSessionTelemetry";
 import { useTireTelemetry } from "@/hooks/useTireTelemetry";
 import { usePowerUnitTelemetry } from "@/hooks/usePowerUnitTelemetry";
 import { useAeroTelemetry } from "@/hooks/useAeroTelemetry";
+import { useRaceEngineerReport } from "@/hooks/useRaceEngineerReport";
 import { Flag, Timer, Gauge, Clock } from "lucide-react";
 
 const instructions: Instruction[] = [
@@ -26,6 +28,7 @@ const Index = () => {
   const { tireAlerts: { alerts: tireAlerts, activeCount: tireActiveCount }, tiresReport } = useTireTelemetry();
   const { puAlerts: { alerts: puAlerts, activeCount: puActiveCount }, puReport } = usePowerUnitTelemetry();
   const { aeroAlerts: { alerts: aeroAlerts, activeCount: aeroActiveCount }, damageReport } = useAeroTelemetry();
+  const raceEngineerReport = useRaceEngineerReport();
 
   const sessionType = session?.sessionType ?? "—";
   const trackName = session?.trackName ?? "—";
@@ -87,6 +90,11 @@ const Index = () => {
           <AlertBox alerts={aeroAlerts} activeCount={aeroActiveCount} />
           <DamageReportPanel report={damageReport} />
         </div>
+      </div>
+
+      {/* Race Engineer */}
+      <div className="shrink-0">
+        <RaceEngineerPanel report={raceEngineerReport} />
       </div>
 
       {/* Engineer Report */}
