@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import ReactMarkdown from "react-markdown";
 import { Bot, Loader2 } from "lucide-react";
 import type { PuReport } from "@/hooks/usePowerUnitTelemetry";
 
@@ -24,7 +25,9 @@ export function PuReportPanel({ report }: { report: PuReport }) {
         {report.responses.map((r, i) => (
           <div key={i} className="flex items-start gap-2 px-3 py-2 border-b last:border-b-0 border-border/20">
             <Bot className="h-3.5 w-3.5 text-info shrink-0 mt-0.5" />
-            <span className="text-[11px] text-card-foreground leading-tight">{r}</span>
+            <div className="prose prose-xs prose-invert max-w-none text-[11px] text-card-foreground leading-tight [&>p]:m-0">
+              <ReactMarkdown>{r}</ReactMarkdown>
+            </div>
           </div>
         ))}
         {report.responses.length === 0 && (
