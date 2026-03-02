@@ -1143,9 +1143,15 @@ async def ws_handler(websocket):
         # Send current state immediately so the UI isn't blank
         msg, _new_aero_alerts, _new_tire_alerts, _new_pu_alerts = build_message()
         await websocket.send(msg)
-        # Keep connection alive – we only push, client doesn't send
-        async for _ in websocket:
-            pass
+        # Listen for incoming messages (driver radio)
+        async for raw in websocket:
+            try:
+                incoming = json.loads(raw)
+                driver_msg = incoming.get("driverMessage")
+                if driver_msg and isinstance(driver_msg, str):
+                    _queue_race_engineer([f"Fernando: {driver_msg}"])
+            except (json.JSONDecodeError, AttributeError):
+                pass
     finally:
         connected_clients.discard(websocket)
         print(f"Client disconnected ({len(connected_clients)} total)")
