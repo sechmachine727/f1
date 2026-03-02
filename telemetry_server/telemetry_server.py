@@ -331,7 +331,8 @@ def _format_session_time(seconds: float) -> str:
 def _process_aero_alerts(aero: dict) -> None:
     """Port of useAeroAlerts.ts — accumulates alerts into aero_alerts_log."""
     global aero_alert_conditions, aero_alerts_log, prev_aero_session_time
-    global damage_agent_response, re_agent_response
+    global damage_agent_response, damage_agent_pending, damage_agent_batch_handle
+    global re_agent_response, re_agent_pending, re_agent_batch_handle
 
     st = aero.get("sessionTime", 0.0)
 
@@ -340,7 +341,15 @@ def _process_aero_alerts(aero: dict) -> None:
         aero_alert_conditions = {}
         aero_alerts_log = []
         damage_agent_response = None
+        damage_agent_pending = []
+        if damage_agent_batch_handle is not None:
+            damage_agent_batch_handle.cancel()
+            damage_agent_batch_handle = None
         re_agent_response = None
+        re_agent_pending = []
+        if re_agent_batch_handle is not None:
+            re_agent_batch_handle.cancel()
+            re_agent_batch_handle = None
     prev_aero_session_time = st
 
     new_alerts: list[dict] = []
@@ -449,7 +458,7 @@ TIRE_CLEAR_LABELS = {
 def _process_tire_alerts(tire_snapshot: dict) -> None:
     """Port of useTireAlerts.ts — accumulates alerts into tire_alerts_log."""
     global tire_alert_conditions, tire_alerts_log, prev_tire_session_time, prev_tire_compound
-    global tires_agent_response
+    global tires_agent_response, tires_agent_pending, tires_agent_batch_handle
 
     st = tire_snapshot.get("sessionTime", 0.0)
 
@@ -459,6 +468,10 @@ def _process_tire_alerts(tire_snapshot: dict) -> None:
         tire_alerts_log = []
         prev_tire_compound = ""
         tires_agent_response = None
+        tires_agent_pending = []
+        if tires_agent_batch_handle is not None:
+            tires_agent_batch_handle.cancel()
+            tires_agent_batch_handle = None
     prev_tire_session_time = st
 
     new_alerts: list[dict] = []
@@ -600,7 +613,8 @@ PU_ALERT_DEFS = {
 def _process_pu_alerts(pu: dict) -> None:
     """Port of usePowerUnitAlerts.ts — accumulates alerts into pu_alerts_log."""
     global pu_alert_conditions, pu_alerts_log, prev_pu_session_time
-    global prev_pu_ers_mode, prev_pu_fuel_mix, pu_agent_response
+    global prev_pu_ers_mode, prev_pu_fuel_mix
+    global pu_agent_response, pu_agent_pending, pu_agent_batch_handle
 
     st = pu.get("sessionTime", 0.0)
 
@@ -611,6 +625,10 @@ def _process_pu_alerts(pu: dict) -> None:
         prev_pu_ers_mode = ""
         prev_pu_fuel_mix = ""
         pu_agent_response = None
+        pu_agent_pending = []
+        if pu_agent_batch_handle is not None:
+            pu_agent_batch_handle.cancel()
+            pu_agent_batch_handle = None
     prev_pu_session_time = st
 
     new_alerts: list[dict] = []
