@@ -5,6 +5,8 @@ const WS_URL = "ws://localhost:8765";
 
 export function DriverRadioInput() {
   const [message, setMessage] = useState("");
+  const [history, setHistory] = useState<string[]>([]);
+  const historyRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout>>();
 
@@ -32,12 +34,19 @@ export function DriverRadioInput() {
     };
   }, []);
 
+  useEffect(() => {
+    if (historyRef.current) {
+      historyRef.current.scrollTop = historyRef.current.scrollHeight;
+    }
+  }, [history.length]);
+
   const send = useCallback(() => {
     const text = message.trim();
     if (!text) return;
     const ws = wsRef.current;
     if (ws && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({ driverMessage: text }));
+      setHistory((prev) => [...prev, text]);
       setMessage("");
     }
   }, [message]);
@@ -60,6 +69,18 @@ export function DriverRadioInput() {
           Driver Radio
         </h2>
       </div>
+      {history.length > 0 && (
+        <div ref={historyRef} className="max-h-24 overflow-y-auto border-b border-border/30">
+          {history.map((msg, i) => (
+            <div key={i} className="flex items-start gap-2 px-3 py-1.5">
+              <span className="font-display text-[9px] font-bold tracking-wider text-accent/60 shrink-0 mt-px">
+                FERNANDO &gt;
+              </span>
+              <span className="text-[11px] text-muted-foreground leading-tight">{msg}</span>
+            </div>
+          ))}
+        </div>
+      )}
       <div className="flex items-center gap-2 p-3">
         <span className="font-display text-[10px] font-bold tracking-wider text-accent shrink-0">
           FERNANDO &gt;
