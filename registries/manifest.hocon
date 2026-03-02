@@ -22,4 +22,5 @@
     "damage_engineer.hocon": true,
     "tires_engineer.hocon": true,
     "power_unit_engineer.hocon": true,
+    "race_engineer.hocon": true,
 }
