@@ -3,8 +3,8 @@ import { EngineTelemetry } from "@/components/EngineTelemetry";
 import { AeroTelemetry } from "@/components/AeroTelemetry";
 import { AlertBox } from "@/components/AlertBox";
 import { TireAlertPanel } from "@/components/TireAlertPanel";
+import { PuAlertPanel } from "@/components/PuAlertPanel";
 import { DamageReportPanel } from "@/components/DamageReportPanel";
-import { PuReportPanel } from "@/components/PuReportPanel";
 import { RaceEngineerPanel } from "@/components/RaceEngineerPanel";
 import { DriverRadioInput } from "@/components/DriverRadioInput";
 import { useSessionTelemetry, formatLapTime, formatTimeLeft } from "@/hooks/useSessionTelemetry";
@@ -72,8 +72,7 @@ const Index = () => {
         </div>
         <div className="flex flex-col gap-2 min-h-0">
           <EngineTelemetry />
-          <AlertBox title="Power Unit Alerts" alerts={puAlerts} activeCount={puActiveCount} />
-          <PuReportPanel report={puReport} />
+          <PuAlertPanel alerts={puAlerts} activeCount={puActiveCount} engineerResponses={puReport.responses} />
         </div>
         <div className="flex flex-col gap-2 min-h-0">
           <AeroTelemetry />

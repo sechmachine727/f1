@@ -114,6 +114,7 @@ TIRES_AGENT_BATCH_DELAY: float = 1.0  # seconds to wait before flushing
 # PowerUnitAgent state
 pu_agent: PowerUnitAgent | None = None
 pu_agent_response: str | None = None
+pu_agent_response_time: str | None = None
 pu_agent_in_flight: bool = False
 pu_agent_pending: list[str] = []
 pu_agent_batch_handle: asyncio.TimerHandle | None = None
@@ -616,7 +617,7 @@ def _process_pu_alerts(pu: dict) -> None:
     """Port of usePowerUnitAlerts.ts — accumulates alerts into pu_alerts_log."""
     global pu_alert_conditions, pu_alerts_log, prev_pu_session_time
     global prev_pu_ers_mode, prev_pu_fuel_mix
-    global pu_agent_response, pu_agent_pending, pu_agent_batch_handle
+    global pu_agent_response, pu_agent_response_time, pu_agent_pending, pu_agent_batch_handle
 
     st = pu.get("sessionTime", 0.0)
 
@@ -627,6 +628,7 @@ def _process_pu_alerts(pu: dict) -> None:
         prev_pu_ers_mode = ""
         prev_pu_fuel_mix = ""
         pu_agent_response = None
+        pu_agent_response_time = None
         pu_agent_pending = []
         if pu_agent_batch_handle is not None:
             pu_agent_batch_handle.cancel()
@@ -891,7 +893,7 @@ def _queue_pu_alerts(alert_texts: list[str]) -> None:
 
 async def _flush_pu_agent() -> None:
     """Drain the pending list and send the batch to the PowerUnitAgent."""
-    global pu_agent_response, pu_agent_in_flight, pu_agent_pending
+    global pu_agent_response, pu_agent_response_time, pu_agent_in_flight, pu_agent_pending
     global pu_agent_batch_handle
 
     pu_agent_batch_handle = None
@@ -909,6 +911,7 @@ async def _flush_pu_agent() -> None:
     try:
         response = await asyncio.to_thread(pu_agent.process_messages, batch)
         pu_agent_response = response
+        pu_agent_response_time = _format_session_time(prev_pu_session_time)
         # Forward to race engineer
         if response:
             _queue_race_engineer([f"Power Unit Engineer: {response}"])
@@ -1139,6 +1142,7 @@ def build_message() -> tuple[str, list[dict], list[dict], list[dict]]:
         },
         "puReport": {
             "response": pu_agent_response,
+            "time": pu_agent_response_time,
         },
         "raceEngineerReport": {
             "response": re_agent_response,
