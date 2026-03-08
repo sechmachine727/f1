@@ -97,6 +97,7 @@ prev_pu_fuel_mix: str = ""
 # DamageAgent state
 damage_agent: DamageAgent | None = None
 damage_agent_response: str | None = None
+damage_agent_response_time: str | None = None
 damage_agent_in_flight: bool = False
 damage_agent_pending: list[str] = []
 damage_agent_batch_handle: asyncio.TimerHandle | None = None
@@ -105,6 +106,7 @@ DAMAGE_AGENT_BATCH_DELAY: float = 1.0  # seconds to wait before flushing
 # TiresAgent state
 tires_agent: TiresAgent | None = None
 tires_agent_response: str | None = None
+tires_agent_response_time: str | None = None
 tires_agent_in_flight: bool = False
 tires_agent_pending: list[str] = []
 tires_agent_batch_handle: asyncio.TimerHandle | None = None
@@ -113,6 +115,7 @@ TIRES_AGENT_BATCH_DELAY: float = 1.0  # seconds to wait before flushing
 # PowerUnitAgent state
 pu_agent: PowerUnitAgent | None = None
 pu_agent_response: str | None = None
+pu_agent_response_time: str | None = None
 pu_agent_in_flight: bool = False
 pu_agent_pending: list[str] = []
 pu_agent_batch_handle: asyncio.TimerHandle | None = None
@@ -121,6 +124,7 @@ PU_AGENT_BATCH_DELAY: float = 1.0  # seconds to wait before flushing
 # RaceEngineerAgent state
 re_agent: RaceEngineerAgent | None = None
 re_agent_response: str | None = None
+re_agent_response_time: str | None = None
 re_agent_in_flight: bool = False
 re_agent_pending: list[str] = []
 re_agent_batch_handle: asyncio.TimerHandle | None = None
@@ -331,8 +335,8 @@ def _format_session_time(seconds: float) -> str:
 def _process_aero_alerts(aero: dict) -> None:
     """Port of useAeroAlerts.ts — accumulates alerts into aero_alerts_log."""
     global aero_alert_conditions, aero_alerts_log, prev_aero_session_time
-    global damage_agent_response, damage_agent_pending, damage_agent_batch_handle
-    global re_agent_response, re_agent_pending, re_agent_batch_handle
+    global damage_agent_response, damage_agent_response_time, damage_agent_pending, damage_agent_batch_handle
+    global re_agent_response, re_agent_response_time, re_agent_pending, re_agent_batch_handle
 
     st = aero.get("sessionTime", 0.0)
 
@@ -341,11 +345,13 @@ def _process_aero_alerts(aero: dict) -> None:
         aero_alert_conditions = {}
         aero_alerts_log = []
         damage_agent_response = None
+        damage_agent_response_time = None
         damage_agent_pending = []
         if damage_agent_batch_handle is not None:
             damage_agent_batch_handle.cancel()
             damage_agent_batch_handle = None
         re_agent_response = None
+        re_agent_response_time = None
         re_agent_pending = []
         if re_agent_batch_handle is not None:
             re_agent_batch_handle.cancel()
@@ -458,7 +464,7 @@ TIRE_CLEAR_LABELS = {
 def _process_tire_alerts(tire_snapshot: dict) -> None:
     """Port of useTireAlerts.ts — accumulates alerts into tire_alerts_log."""
     global tire_alert_conditions, tire_alerts_log, prev_tire_session_time, prev_tire_compound
-    global tires_agent_response, tires_agent_pending, tires_agent_batch_handle
+    global tires_agent_response, tires_agent_response_time, tires_agent_pending, tires_agent_batch_handle
 
     st = tire_snapshot.get("sessionTime", 0.0)
 
@@ -468,6 +474,7 @@ def _process_tire_alerts(tire_snapshot: dict) -> None:
         tire_alerts_log = []
         prev_tire_compound = ""
         tires_agent_response = None
+        tires_agent_response_time = None
         tires_agent_pending = []
         if tires_agent_batch_handle is not None:
             tires_agent_batch_handle.cancel()
@@ -614,7 +621,7 @@ def _process_pu_alerts(pu: dict) -> None:
     """Port of usePowerUnitAlerts.ts — accumulates alerts into pu_alerts_log."""
     global pu_alert_conditions, pu_alerts_log, prev_pu_session_time
     global prev_pu_ers_mode, prev_pu_fuel_mix
-    global pu_agent_response, pu_agent_pending, pu_agent_batch_handle
+    global pu_agent_response, pu_agent_response_time, pu_agent_pending, pu_agent_batch_handle
 
     st = pu.get("sessionTime", 0.0)
 
@@ -625,6 +632,7 @@ def _process_pu_alerts(pu: dict) -> None:
         prev_pu_ers_mode = ""
         prev_pu_fuel_mix = ""
         pu_agent_response = None
+        pu_agent_response_time = None
         pu_agent_pending = []
         if pu_agent_batch_handle is not None:
             pu_agent_batch_handle.cancel()
@@ -790,7 +798,7 @@ async def _flush_damage_agent() -> None:
     If new alerts accumulate while the agent is busy, they are
     dispatched when the current call completes.
     """
-    global damage_agent_response, damage_agent_in_flight, damage_agent_pending
+    global damage_agent_response, damage_agent_response_time, damage_agent_in_flight, damage_agent_pending
     global damage_agent_batch_handle
 
     damage_agent_batch_handle = None
@@ -809,6 +817,7 @@ async def _flush_damage_agent() -> None:
     try:
         response = await asyncio.to_thread(damage_agent.process_messages, batch)
         damage_agent_response = response
+        damage_agent_response_time = _format_session_time(prev_aero_session_time)
         # Forward to race engineer
         if response:
             _queue_race_engineer([f"Damage Engineer: {response}"])
@@ -840,7 +849,7 @@ def _queue_tires_alerts(alert_texts: list[str]) -> None:
 
 async def _flush_tires_agent() -> None:
     """Drain the pending list and send the batch to the TiresAgent."""
-    global tires_agent_response, tires_agent_in_flight, tires_agent_pending
+    global tires_agent_response, tires_agent_response_time, tires_agent_in_flight, tires_agent_pending
     global tires_agent_batch_handle
 
     tires_agent_batch_handle = None
@@ -858,6 +867,7 @@ async def _flush_tires_agent() -> None:
     try:
         response = await asyncio.to_thread(tires_agent.process_messages, batch)
         tires_agent_response = response
+        tires_agent_response_time = _format_session_time(prev_tire_session_time)
         # Forward to race engineer
         if response:
             _queue_race_engineer([f"Tires Engineer: {response}"])
@@ -888,7 +898,7 @@ def _queue_pu_alerts(alert_texts: list[str]) -> None:
 
 async def _flush_pu_agent() -> None:
     """Drain the pending list and send the batch to the PowerUnitAgent."""
-    global pu_agent_response, pu_agent_in_flight, pu_agent_pending
+    global pu_agent_response, pu_agent_response_time, pu_agent_in_flight, pu_agent_pending
     global pu_agent_batch_handle
 
     pu_agent_batch_handle = None
@@ -906,6 +916,7 @@ async def _flush_pu_agent() -> None:
     try:
         response = await asyncio.to_thread(pu_agent.process_messages, batch)
         pu_agent_response = response
+        pu_agent_response_time = _format_session_time(prev_pu_session_time)
         # Forward to race engineer
         if response:
             _queue_race_engineer([f"Power Unit Engineer: {response}"])
@@ -953,7 +964,7 @@ def _route_race_engineer_response(response: str) -> None:
 
 async def _flush_race_engineer() -> None:
     """Drain the pending list and send the batch to the RaceEngineerAgent."""
-    global re_agent_response, re_agent_in_flight, re_agent_pending
+    global re_agent_response, re_agent_response_time, re_agent_in_flight, re_agent_pending
     global re_agent_batch_handle
 
     re_agent_batch_handle = None
@@ -974,6 +985,7 @@ async def _flush_race_engineer() -> None:
         # Don't send bare "Copy" acknowledgments to the frontend
         if response and response.strip().lower() != "copy":
             re_agent_response = response
+            re_agent_response_time = _format_session_time(session_time)
     except Exception as exc:
         print(f"RaceEngineerAgent error: {exc}")
     finally:
@@ -1129,15 +1141,19 @@ def build_message() -> tuple[str, list[dict], list[dict], list[dict]]:
         },
         "damageReport": {
             "response": damage_agent_response,
+            "time": damage_agent_response_time,
         },
         "tiresReport": {
             "response": tires_agent_response,
+            "time": tires_agent_response_time,
         },
         "puReport": {
             "response": pu_agent_response,
+            "time": pu_agent_response_time,
         },
         "raceEngineerReport": {
             "response": re_agent_response,
+            "time": re_agent_response_time,
         },
     })
     return msg, new_aero_alerts, new_tire_alerts, new_pu_alerts

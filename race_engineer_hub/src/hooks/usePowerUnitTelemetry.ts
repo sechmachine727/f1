@@ -26,8 +26,13 @@ interface PuAlerts {
   activeCount: number;
 }
 
+export interface PuReportEntry {
+  text: string;
+  time: string;
+}
+
 export interface PuReport {
-  responses: string[];
+  responses: PuReportEntry[];
 }
 
 const WS_URL = "ws://localhost:8765";
@@ -68,7 +73,7 @@ export function usePowerUnitTelemetry(): { data: PowerUnitData | null; puAlerts:
             } else if (msg.puReport.response !== lastPuResponse.current) {
               lastPuResponse.current = msg.puReport.response;
               setPuReport((prev) => ({
-                responses: [...prev.responses, msg.puReport.response],
+                responses: [...prev.responses, { text: msg.puReport.response, time: msg.puReport.time ?? "" }],
               }));
             }
           }

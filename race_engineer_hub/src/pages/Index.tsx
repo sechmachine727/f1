@@ -1,11 +1,10 @@
 import { TireTelemetry } from "@/components/TireTelemetry";
 import { EngineTelemetry } from "@/components/EngineTelemetry";
 import { AeroTelemetry } from "@/components/AeroTelemetry";
-import { AlertBox } from "@/components/AlertBox";
-import { DamageReportPanel } from "@/components/DamageReportPanel";
-import { PuReportPanel } from "@/components/PuReportPanel";
+import { TireAlertPanel } from "@/components/TireAlertPanel";
+import { PuAlertPanel } from "@/components/PuAlertPanel";
+import { AeroAlertPanel } from "@/components/AeroAlertPanel";
 import { RaceEngineerPanel } from "@/components/RaceEngineerPanel";
-import { TiresReportPanel } from "@/components/TiresReportPanel";
 import { DriverRadioInput } from "@/components/DriverRadioInput";
 import { useSessionTelemetry, formatLapTime, formatTimeLeft } from "@/hooks/useSessionTelemetry";
 import { useTireTelemetry } from "@/hooks/useTireTelemetry";
@@ -65,21 +64,18 @@ const Index = () => {
       </header>
 
       {/* Telemetry Grid + Alerts */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 mb-3 min-h-0 overflow-auto">
-        <div className="flex flex-col gap-2">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 mb-3 flex-1 min-h-0">
+        <div className="flex flex-col gap-2 min-h-0">
           <TireTelemetry />
-          <AlertBox title="Tire Alerts" alerts={tireAlerts} activeCount={tireActiveCount} />
-          <TiresReportPanel report={tiresReport} />
+          <TireAlertPanel alerts={tireAlerts} activeCount={tireActiveCount} engineerResponses={tiresReport.responses} />
         </div>
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-2 min-h-0">
           <EngineTelemetry />
-          <AlertBox title="Power Unit Alerts" alerts={puAlerts} activeCount={puActiveCount} />
-          <PuReportPanel report={puReport} />
+          <PuAlertPanel alerts={puAlerts} activeCount={puActiveCount} engineerResponses={puReport.responses} />
         </div>
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-2 min-h-0">
           <AeroTelemetry />
-          <AlertBox title="Aero Alerts" alerts={aeroAlerts} activeCount={aeroActiveCount} />
-          <DamageReportPanel report={damageReport} />
+          <AeroAlertPanel alerts={aeroAlerts} activeCount={aeroActiveCount} engineerResponses={damageReport.responses} />
         </div>
       </div>
 
