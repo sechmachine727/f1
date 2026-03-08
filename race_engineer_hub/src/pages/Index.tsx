@@ -1,10 +1,9 @@
 import { TireTelemetry } from "@/components/TireTelemetry";
 import { EngineTelemetry } from "@/components/EngineTelemetry";
 import { AeroTelemetry } from "@/components/AeroTelemetry";
-import { AlertBox } from "@/components/AlertBox";
 import { TireAlertPanel } from "@/components/TireAlertPanel";
 import { PuAlertPanel } from "@/components/PuAlertPanel";
-import { DamageReportPanel } from "@/components/DamageReportPanel";
+import { AeroAlertPanel } from "@/components/AeroAlertPanel";
 import { RaceEngineerPanel } from "@/components/RaceEngineerPanel";
 import { DriverRadioInput } from "@/components/DriverRadioInput";
 import { useSessionTelemetry, formatLapTime, formatTimeLeft } from "@/hooks/useSessionTelemetry";
@@ -76,8 +75,7 @@ const Index = () => {
         </div>
         <div className="flex flex-col gap-2 min-h-0">
           <AeroTelemetry />
-          <AlertBox title="Aero Alerts" alerts={aeroAlerts} activeCount={aeroActiveCount} />
-          <DamageReportPanel report={damageReport} />
+          <AeroAlertPanel alerts={aeroAlerts} activeCount={aeroActiveCount} engineerResponses={damageReport.responses} />
         </div>
       </div>
 

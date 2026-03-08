@@ -97,6 +97,7 @@ prev_pu_fuel_mix: str = ""
 # DamageAgent state
 damage_agent: DamageAgent | None = None
 damage_agent_response: str | None = None
+damage_agent_response_time: str | None = None
 damage_agent_in_flight: bool = False
 damage_agent_pending: list[str] = []
 damage_agent_batch_handle: asyncio.TimerHandle | None = None
@@ -333,7 +334,7 @@ def _format_session_time(seconds: float) -> str:
 def _process_aero_alerts(aero: dict) -> None:
     """Port of useAeroAlerts.ts — accumulates alerts into aero_alerts_log."""
     global aero_alert_conditions, aero_alerts_log, prev_aero_session_time
-    global damage_agent_response, damage_agent_pending, damage_agent_batch_handle
+    global damage_agent_response, damage_agent_response_time, damage_agent_pending, damage_agent_batch_handle
     global re_agent_response, re_agent_pending, re_agent_batch_handle
 
     st = aero.get("sessionTime", 0.0)
@@ -343,6 +344,7 @@ def _process_aero_alerts(aero: dict) -> None:
         aero_alert_conditions = {}
         aero_alerts_log = []
         damage_agent_response = None
+        damage_agent_response_time = None
         damage_agent_pending = []
         if damage_agent_batch_handle is not None:
             damage_agent_batch_handle.cancel()
@@ -794,7 +796,7 @@ async def _flush_damage_agent() -> None:
     If new alerts accumulate while the agent is busy, they are
     dispatched when the current call completes.
     """
-    global damage_agent_response, damage_agent_in_flight, damage_agent_pending
+    global damage_agent_response, damage_agent_response_time, damage_agent_in_flight, damage_agent_pending
     global damage_agent_batch_handle
 
     damage_agent_batch_handle = None
@@ -813,6 +815,7 @@ async def _flush_damage_agent() -> None:
     try:
         response = await asyncio.to_thread(damage_agent.process_messages, batch)
         damage_agent_response = response
+        damage_agent_response_time = _format_session_time(prev_aero_session_time)
         # Forward to race engineer
         if response:
             _queue_race_engineer([f"Damage Engineer: {response}"])
@@ -1135,6 +1138,7 @@ def build_message() -> tuple[str, list[dict], list[dict], list[dict]]:
         },
         "damageReport": {
             "response": damage_agent_response,
+            "time": damage_agent_response_time,
         },
         "tiresReport": {
             "response": tires_agent_response,

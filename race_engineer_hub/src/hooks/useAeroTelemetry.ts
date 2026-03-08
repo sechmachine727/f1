@@ -30,8 +30,13 @@ interface AeroAlerts {
   activeCount: number;
 }
 
+export interface DamageReportEntry {
+  text: string;
+  time: string;
+}
+
 export interface DamageReport {
-  responses: string[];
+  responses: DamageReportEntry[];
 }
 
 const WS_URL = "ws://localhost:8765";
@@ -73,7 +78,7 @@ export function useAeroTelemetry(): { data: AeroData | null; aeroAlerts: AeroAle
             } else if (msg.damageReport.response !== lastDamageResponse.current) {
               lastDamageResponse.current = msg.damageReport.response;
               setDamageReport((prev) => ({
-                responses: [...prev.responses, msg.damageReport.response],
+                responses: [...prev.responses, { text: msg.damageReport.response, time: msg.damageReport.time ?? "" }],
               }));
             }
           }
