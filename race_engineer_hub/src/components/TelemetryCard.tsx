@@ -26,7 +26,7 @@ export function TelemetryCard({ title, icon, children, status = "nominal" }: Tel
 
   return (
     <>
-      <div className={`bg-card rounded-md border ${statusStyles[status]} p-3 flex flex-col gap-2 telemetry-grid flex-1`}>
+      <div className={`bg-card rounded-md border ${statusStyles[status]} p-3 flex flex-col gap-2 telemetry-grid shrink-0`}>
         <div
           className="flex items-center justify-between select-none cursor-pointer"
           onDoubleClick={() => setExpanded(true)}

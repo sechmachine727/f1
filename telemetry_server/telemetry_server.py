@@ -105,6 +105,7 @@ DAMAGE_AGENT_BATCH_DELAY: float = 1.0  # seconds to wait before flushing
 # TiresAgent state
 tires_agent: TiresAgent | None = None
 tires_agent_response: str | None = None
+tires_agent_response_time: str | None = None
 tires_agent_in_flight: bool = False
 tires_agent_pending: list[str] = []
 tires_agent_batch_handle: asyncio.TimerHandle | None = None
@@ -458,7 +459,7 @@ TIRE_CLEAR_LABELS = {
 def _process_tire_alerts(tire_snapshot: dict) -> None:
     """Port of useTireAlerts.ts — accumulates alerts into tire_alerts_log."""
     global tire_alert_conditions, tire_alerts_log, prev_tire_session_time, prev_tire_compound
-    global tires_agent_response, tires_agent_pending, tires_agent_batch_handle
+    global tires_agent_response, tires_agent_response_time, tires_agent_pending, tires_agent_batch_handle
 
     st = tire_snapshot.get("sessionTime", 0.0)
 
@@ -468,6 +469,7 @@ def _process_tire_alerts(tire_snapshot: dict) -> None:
         tire_alerts_log = []
         prev_tire_compound = ""
         tires_agent_response = None
+        tires_agent_response_time = None
         tires_agent_pending = []
         if tires_agent_batch_handle is not None:
             tires_agent_batch_handle.cancel()
@@ -840,7 +842,7 @@ def _queue_tires_alerts(alert_texts: list[str]) -> None:
 
 async def _flush_tires_agent() -> None:
     """Drain the pending list and send the batch to the TiresAgent."""
-    global tires_agent_response, tires_agent_in_flight, tires_agent_pending
+    global tires_agent_response, tires_agent_response_time, tires_agent_in_flight, tires_agent_pending
     global tires_agent_batch_handle
 
     tires_agent_batch_handle = None
@@ -858,6 +860,7 @@ async def _flush_tires_agent() -> None:
     try:
         response = await asyncio.to_thread(tires_agent.process_messages, batch)
         tires_agent_response = response
+        tires_agent_response_time = _format_session_time(prev_tire_session_time)
         # Forward to race engineer
         if response:
             _queue_race_engineer([f"Tires Engineer: {response}"])
@@ -1132,6 +1135,7 @@ def build_message() -> tuple[str, list[dict], list[dict], list[dict]]:
         },
         "tiresReport": {
             "response": tires_agent_response,
+            "time": tires_agent_response_time,
         },
         "puReport": {
             "response": pu_agent_response,

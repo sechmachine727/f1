@@ -26,8 +26,13 @@ interface TireAlerts {
   activeCount: number;
 }
 
+export interface TiresReportEntry {
+  text: string;
+  time: string;
+}
+
 export interface TiresReport {
-  responses: string[];
+  responses: TiresReportEntry[];
 }
 
 const WS_URL = "ws://localhost:8765";
@@ -66,7 +71,7 @@ export function useTireTelemetry(): { data: TireTelemetryData | null; tireAlerts
             } else if (msg.tiresReport.response !== lastTiresResponse.current) {
               lastTiresResponse.current = msg.tiresReport.response;
               setTiresReport((prev) => ({
-                responses: [...prev.responses, msg.tiresReport.response],
+                responses: [...prev.responses, { text: msg.tiresReport.response, time: msg.tiresReport.time ?? "" }],
               }));
             }
           }
