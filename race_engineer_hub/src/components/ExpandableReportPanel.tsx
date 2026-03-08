@@ -52,8 +52,8 @@ export function ExpandableReportPanel({ title, responses, emptyMessage }: Expand
       className="flex items-center gap-1.5 px-3 py-2 border-b border-border/50 bg-secondary/30 select-none cursor-pointer"
       onDoubleClick={onDoubleClick}
     >
-      <Bot className="h-3 w-3 text-muted-foreground" />
-      <span className="font-display text-[10px] font-bold tracking-widest uppercase text-muted-foreground">
+      <Bot className="h-4 w-4 text-primary" />
+      <span className="font-display text-sm font-bold tracking-widest uppercase text-foreground">
         {title}
       </span>
       {!expanded && <Maximize2 className="h-2.5 w-2.5 text-muted-foreground/50 ml-1" />}

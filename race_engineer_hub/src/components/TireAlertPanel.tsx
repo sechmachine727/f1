@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
-import { AlertTriangle, Info, CheckCircle, Bot, Loader2, Maximize2 } from "lucide-react";
+import { AlertTriangle, Info, CheckCircle, Bot, Loader2, Maximize2, Circle } from "lucide-react";
 import type { Alert } from "@/components/AlertBox";
 import type { TiresReportEntry } from "@/hooks/useTireTelemetry";
 
@@ -74,6 +74,8 @@ export function TireAlertPanel({ alerts, activeCount, engineerResponses }: TireA
   const expandedScrollRef = useRef<HTMLDivElement>(null);
 
   const items = mergeItems(alerts, engineerResponses);
+  const hasCritical = alerts.some((a) => a.level === "critical");
+  const counterColor = activeCount === 0 ? "text-primary" : hasCritical ? "text-accent" : "text-warning";
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -117,11 +119,11 @@ export function TireAlertPanel({ alerts, activeCount, engineerResponses }: TireA
           className="flex items-center gap-1.5 px-3 py-2 border-b border-border/50 bg-secondary/30 select-none cursor-pointer shrink-0"
           onDoubleClick={() => setExpanded(true)}
         >
-          <AlertTriangle className="h-3 w-3 text-muted-foreground" />
-          <span className="font-display text-[10px] font-bold tracking-widest uppercase text-muted-foreground">Tire Agent</span>
+          <Circle className="h-4 w-4 text-primary" />
+          <span className="font-display text-sm font-bold tracking-widest uppercase text-foreground">Tire Agent</span>
           <Maximize2 className="h-2.5 w-2.5 text-muted-foreground/50 ml-1" />
-          {hasAnalysis && <Bot className="h-3 w-3 text-info/60 ml-1" />}
-          <span className="ml-auto font-display text-[10px] text-muted-foreground">{activeCount}</span>
+          {hasAnalysis && <Bot className="h-4 w-4 text-info ml-1" />}
+          <span className={`ml-auto font-display text-[10px] font-bold ${counterColor}`}>{activeCount}</span>
         </div>
         <div ref={scrollRef} className="flex-1 overflow-y-auto">
           {items.map((item, i) => renderItem(item, i, false))}
@@ -145,9 +147,9 @@ export function TireAlertPanel({ alerts, activeCount, engineerResponses }: TireA
           >
             <div className="flex items-center gap-1.5 px-3 py-2 border-b border-border/50 bg-secondary/30">
               <AlertTriangle className="h-3 w-3 text-muted-foreground" />
-              <span className="font-display text-[10px] font-bold tracking-widest uppercase text-muted-foreground">Tire Agent</span>
-              {hasAnalysis && <Bot className="h-3 w-3 text-info/60 ml-1" />}
-              <span className="ml-auto font-display text-[10px] text-muted-foreground">{activeCount}</span>
+              <span className="font-display text-sm font-bold tracking-widest uppercase text-foreground">Tire Agent</span>
+              {hasAnalysis && <Bot className="h-4 w-4 text-info ml-1" />}
+              <span className={`ml-auto font-display text-[10px] font-bold ${counterColor}`}>{activeCount}</span>
             </div>
             <div ref={expandedScrollRef} className="max-h-[70vh] overflow-y-auto">
               {items.map((item, i) => renderItem(item, i, true))}
