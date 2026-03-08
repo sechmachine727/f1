@@ -1,7 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 
+export interface RaceEngineerReportEntry {
+  text: string;
+  time: string;
+}
+
 export interface RaceEngineerReport {
-  responses: string[];
+  responses: RaceEngineerReportEntry[];
 }
 
 const WS_URL = "ws://localhost:8765";
@@ -32,7 +37,7 @@ export function useRaceEngineerReport(): RaceEngineerReport {
             } else if (msg.raceEngineerReport.response !== lastResponse.current) {
               lastResponse.current = msg.raceEngineerReport.response;
               setReport((prev) => ({
-                responses: [...prev.responses, msg.raceEngineerReport.response],
+                responses: [...prev.responses, { text: msg.raceEngineerReport.response, time: msg.raceEngineerReport.time ?? "" }],
               }));
             }
           }

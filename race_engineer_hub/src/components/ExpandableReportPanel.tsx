@@ -2,9 +2,14 @@ import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import { Bot, Loader2, Maximize2 } from "lucide-react";
 
+interface ReportEntry {
+  text: string;
+  time: string;
+}
+
 interface ExpandableReportPanelProps {
   title: string;
-  responses: string[];
+  responses: ReportEntry[];
   emptyMessage: string;
 }
 
@@ -27,9 +32,10 @@ export function ExpandableReportPanel({ title, responses, emptyMessage }: Expand
       {responses.map((r, i) => (
         <div key={i} className="flex items-start gap-2 px-3 py-2 border-b last:border-b-0 border-border/20">
           <Bot className="h-3.5 w-3.5 text-info shrink-0 mt-0.5" />
-          <div className="prose prose-xs prose-invert max-w-none text-[11px] text-card-foreground leading-tight [&>p]:m-0">
-            <ReactMarkdown>{r}</ReactMarkdown>
+          <div className="prose prose-xs prose-invert max-w-none text-[11px] text-card-foreground leading-tight [&>p]:m-0 flex-1">
+            <ReactMarkdown>{r.text}</ReactMarkdown>
           </div>
+          <span className="text-[9px] text-muted-foreground tracking-wider shrink-0">{r.time}</span>
         </div>
       ))}
       {responses.length === 0 && (
@@ -81,9 +87,10 @@ export function ExpandableReportPanel({ title, responses, emptyMessage }: Expand
               {responses.map((r, i) => (
                 <div key={i} className="flex items-start gap-2 px-4 py-3 border-b last:border-b-0 border-border/20">
                   <Bot className="h-4 w-4 text-info shrink-0 mt-0.5" />
-                  <div className="prose prose-sm prose-invert max-w-none text-sm text-card-foreground leading-relaxed [&>p]:m-0">
-                    <ReactMarkdown>{r}</ReactMarkdown>
+                  <div className="prose prose-sm prose-invert max-w-none text-sm text-card-foreground leading-relaxed [&>p]:m-0 flex-1">
+                    <ReactMarkdown>{r.text}</ReactMarkdown>
                   </div>
+                  <span className="text-[10px] text-muted-foreground tracking-wider shrink-0">{r.time}</span>
                 </div>
               ))}
               {responses.length === 0 && (

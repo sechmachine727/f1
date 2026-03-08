@@ -124,6 +124,7 @@ PU_AGENT_BATCH_DELAY: float = 1.0  # seconds to wait before flushing
 # RaceEngineerAgent state
 re_agent: RaceEngineerAgent | None = None
 re_agent_response: str | None = None
+re_agent_response_time: str | None = None
 re_agent_in_flight: bool = False
 re_agent_pending: list[str] = []
 re_agent_batch_handle: asyncio.TimerHandle | None = None
@@ -335,7 +336,7 @@ def _process_aero_alerts(aero: dict) -> None:
     """Port of useAeroAlerts.ts — accumulates alerts into aero_alerts_log."""
     global aero_alert_conditions, aero_alerts_log, prev_aero_session_time
     global damage_agent_response, damage_agent_response_time, damage_agent_pending, damage_agent_batch_handle
-    global re_agent_response, re_agent_pending, re_agent_batch_handle
+    global re_agent_response, re_agent_response_time, re_agent_pending, re_agent_batch_handle
 
     st = aero.get("sessionTime", 0.0)
 
@@ -350,6 +351,7 @@ def _process_aero_alerts(aero: dict) -> None:
             damage_agent_batch_handle.cancel()
             damage_agent_batch_handle = None
         re_agent_response = None
+        re_agent_response_time = None
         re_agent_pending = []
         if re_agent_batch_handle is not None:
             re_agent_batch_handle.cancel()
@@ -962,7 +964,7 @@ def _route_race_engineer_response(response: str) -> None:
 
 async def _flush_race_engineer() -> None:
     """Drain the pending list and send the batch to the RaceEngineerAgent."""
-    global re_agent_response, re_agent_in_flight, re_agent_pending
+    global re_agent_response, re_agent_response_time, re_agent_in_flight, re_agent_pending
     global re_agent_batch_handle
 
     re_agent_batch_handle = None
@@ -983,6 +985,7 @@ async def _flush_race_engineer() -> None:
         # Don't send bare "Copy" acknowledgments to the frontend
         if response and response.strip().lower() != "copy":
             re_agent_response = response
+            re_agent_response_time = _format_session_time(session_time)
     except Exception as exc:
         print(f"RaceEngineerAgent error: {exc}")
     finally:
@@ -1150,6 +1153,7 @@ def build_message() -> tuple[str, list[dict], list[dict], list[dict]]:
         },
         "raceEngineerReport": {
             "response": re_agent_response,
+            "time": re_agent_response_time,
         },
     })
     return msg, new_aero_alerts, new_tire_alerts, new_pu_alerts
