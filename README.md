@@ -69,7 +69,7 @@ npm install
 npm run dev
 ```
 
-The panels will show "Waiting for telemetry…" until the F1 game starts sending UDP data on port 20777.
+Open [http://localhost:8081](http://localhost:8081) in a browser to see the Race Engineer Hub UI. The panels will show "Waiting for telemetry…" until the F1 game starts sending UDP data on port 20777.
 
 ### Test data
 
