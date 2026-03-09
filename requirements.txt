@@ -1,6 +1,6 @@
 # Neuro SAN
-neuro-san==0.6.26
-nsflow==0.6.7
+neuro-san==0.6.39
+nsflow==0.6.10
 
 # To use a .env file for environment variables
 python-dotenv==1.0.1
@@ -10,3 +10,7 @@ PySide6==6.9.3
 
 # WebSocket bridge for race_engineer_hub live telemetry
 websockets>=14.0
+
+# Code quality
+ruff==0.15.5
+pylint==4.0.5

@@ -1,0 +1,59 @@
+[tool.ruff]
+target-version = "py312"
+line-length = 119
+src = ["telemetry_server"]
+
+[tool.ruff.lint]
+select = [
+    "E",  # pycodestyle errors (e.g. indentation, whitespace, line length)
+    "F",  # Pyflakes checks (e.g. undefined names, unused imports, unused variables)
+    "I",  # isort import-ordering rules
+    "W",  # pycodestyle warnings (e.g. trailing whitespace, blank lines)
+]
+ignore = []
+
+[tool.ruff.lint.isort]
+force-single-line = true
+known-first-party = ["telemetry_server"]
+
+[tool.pylint]
+max-line-length = 119
+# Based on Google Python Style Guide
+disable = [
+    "C0301",  # Line too long (handled by ruff)
+    "W0511",  # TODO/FIXME comments
+    ]
+good-names = ["i", "j", "k", "ex", "_", "id", "f", "db", "e"]
+ignore-patterns = [".*checkpoint\\.py"]
+ignore-paths = ["^venv/.*$", "^.*/\\.venv/.*$"]
+# Google style requires docstrings
+enable = [
+    "useless-suppression",
+]
+# Google style naming conventions
+const-naming-style = "UPPER_CASE"
+function-naming-style = "snake_case"
+class-naming-style = "PascalCase"
+method-naming-style = "snake_case"
+attr-naming-style = "snake_case"
+argument-naming-style = "snake_case"
+variable-naming-style = "snake_case"
+inlinevar-naming-style = "snake_case"
+# Additional settings
+fail-under = 10.0
+output-format = "colorized"
+init-import = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
+addopts = "--verbose --cov=. --cov-report=term-missing --no-cov-on-fail"
+markers = [
+    "existing_marker: ...",
+    "integration: integration tests that may be slow or hit external services",
+]
+
+[tool.coverage.run]
+omit = ["tests/*", "*/venv/*"]
