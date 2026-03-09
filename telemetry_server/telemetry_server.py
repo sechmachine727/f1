@@ -27,33 +27,13 @@ from telemetry_server.race_engineer_agent import RaceEngineerAgent
 from telemetry_server.tires_agent import TiresAgent
 
 # ---------------------------------------------------------------------------
-# Re-use constants and struct definitions from tyre_logger.py
+# Re-use constants, struct definitions, and parser from f1_telemetry_parser.py
 # ---------------------------------------------------------------------------
-from telemetry_server.tyre_logger import (
+from telemetry_server.f1_telemetry_parser import (
     ACTUAL_COMPOUND,
-    CAR_DAMAGE_SIZE,
-    CAR_DAMAGE_STRUCT,
-    CAR_SETUP_SIZE,
-    CAR_SETUP_STRUCT,
-    CAR_STATUS_SIZE,
-    CAR_STATUS_STRUCT,
-    CAR_TELEMETRY_SIZE,
-    CAR_TELEMETRY_STRUCT,
+    F1TelemetryParser,
     HEADER_SIZE,
-    HEADER_STRUCT,
-    LAPDATA_SIZE,
-    LAPDATA_STRUCT,
-    MOTION_EX_SIZE,
-    MOTION_EX_STRUCT,
-    PACKET_ID_CAR_DAMAGE,
-    PACKET_ID_CAR_SETUPS,
-    PACKET_ID_CAR_STATUS,
     PACKET_ID_CAR_TELEMETRY,
-    PACKET_ID_LAP_DATA,
-    PACKET_ID_MOTION_EX,
-    PACKET_ID_SESSION,
-    SESSION_HEADER_SIZE,
-    SESSION_HEADER_STRUCT,
     VISUAL_COMPOUND,
     WHEEL_NAMES,
 )
@@ -1206,6 +1186,8 @@ async def udp_reader():
 
     print(f"Listening for F1 25 UDP on {UDP_IP}:{UDP_PORT}")
 
+    parser = F1TelemetryParser()
+
     while True:
         try:
             data = await loop.sock_recv(sock, 4096)
@@ -1213,184 +1195,55 @@ async def udp_reader():
             await asyncio.sleep(0.001)
             continue
 
-        if len(data) < HEADER_SIZE:
+        packet_id = parser.parse_packet(data)
+        if packet_id is None:
             continue
 
-        header = HEADER_STRUCT.unpack_from(data, 0)
-        packet_id = header[5]
-        player_car_index = header[10]
-
-        # -- Session (single block, not per-car) --
-        if packet_id == PACKET_ID_SESSION:
-            if len(data) < HEADER_SIZE + SESSION_HEADER_SIZE:
-                continue
-            fields = SESSION_HEADER_STRUCT.unpack_from(data, HEADER_SIZE)
-            session_state = {
-                "session_type": fields[5],
-                "track_id": fields[6],
-                "total_laps": fields[3],
-                "session_time_left": fields[8],
-                "session_duration": fields[9],
-                "track_temperature": fields[1],
-                "air_temperature": fields[2],
-                "weather": fields[0],
-            }
-            continue
-
-        # -- Lap Data --
-        if packet_id == PACKET_ID_LAP_DATA:
-            base = HEADER_SIZE + player_car_index * LAPDATA_SIZE
-            if len(data) < base + LAPDATA_SIZE:
-                continue
-            fields = LAPDATA_STRUCT.unpack_from(data, base)
-            lap_state = {
-                "current_lap_num": fields[14],
-                "lap_distance_m": round(fields[10], 2),
-                "car_position": fields[13],
-                "last_lap_time_ms": fields[0],
-                "current_lap_time_ms": fields[1],
-            }
-            continue
-
-        # -- Car Status --
-        if packet_id == PACKET_ID_CAR_STATUS:
-            base = HEADER_SIZE + player_car_index * CAR_STATUS_SIZE
-            if len(data) < base + CAR_STATUS_SIZE:
-                continue
-            fields = CAR_STATUS_STRUCT.unpack_from(data, base)
-            actual = fields[13]
-            visual = fields[14]
-            age = fields[15]
-            status_state = {
-                "tyre_compound_actual": ACTUAL_COMPOUND.get(actual, str(actual)),
-                "tyre_compound_visual": VISUAL_COMPOUND.get(visual, str(visual)),
-                "tyres_age_laps": age,
-                # Power unit fields from CarStatus
-                "fuel_in_tank": fields[5],
-                "fuel_remaining_laps": fields[7],
-                "fuel_mix": fields[2],
-                "engine_power_ice": fields[17],
-                "engine_power_mguk": fields[18],
-                "ers_store_energy": fields[19],
-                "ers_deploy_mode": fields[20],
-                "ers_harvested_mguk": fields[21],
-                "ers_harvested_mguh": fields[22],
-                "ers_deployed_this_lap": fields[23],
-                # Aero fields from CarStatus
-                "front_brake_bias": fields[3],
-                "drs_allowed": fields[11],
-                "drs_activation_distance": fields[12],
-            }
-            continue
-
-        # -- Car Damage --
-        if packet_id == PACKET_ID_CAR_DAMAGE:
-            base = HEADER_SIZE + player_car_index * CAR_DAMAGE_SIZE
-            if len(data) < base + CAR_DAMAGE_SIZE:
-                continue
-            fields = CAR_DAMAGE_STRUCT.unpack_from(data, base)
-            new_damage = {}
-            for i, wn in enumerate(WHEEL_NAMES):
-                new_damage[f"tyre_wear_{wn}"] = round(fields[0 + i], 2)
-                new_damage[f"tyre_damage_{wn}"] = fields[4 + i]
-                new_damage[f"tyre_blisters_{wn}"] = fields[12 + i]
-            # Power unit damage fields
-            new_damage["engine_damage"] = fields[25]
-            new_damage["gearbox_damage"] = fields[24]
-            # Aero damage fields
-            new_damage["front_left_wing_damage"] = fields[16]
-            new_damage["front_right_wing_damage"] = fields[17]
-            new_damage["rear_wing_damage"] = fields[18]
-            new_damage["floor_damage"] = fields[19]
-            new_damage["diffuser_damage"] = fields[20]
-            new_damage["sidepod_damage"] = fields[21]
-            new_damage["drs_fault"] = fields[22]
-            damage_state = new_damage
-            continue
-
-        # -- Car Setups --
-        if packet_id == PACKET_ID_CAR_SETUPS:
-            base = HEADER_SIZE + player_car_index * CAR_SETUP_SIZE
-            if len(data) < base + CAR_SETUP_SIZE:
-                continue
-            fields = CAR_SETUP_STRUCT.unpack_from(data, base)
-            setup_state = {
-                "front_wing": fields[0],
-                "rear_wing": fields[1],
-                "front_suspension_height": fields[12],
-                "rear_suspension_height": fields[13],
-                "brake_bias": fields[15],
-            }
-            continue
-
-        # -- Motion Ex (player only, no per-car offset) --
-        if packet_id == PACKET_ID_MOTION_EX:
-            if len(data) < HEADER_SIZE + MOTION_EX_SIZE:
-                continue
-            fields = MOTION_EX_STRUCT.unpack_from(data, HEADER_SIZE)
-            motion_ex_state = {
-                "front_aero_height": round(fields[47] * 1000, 1),  # m -> mm
-                "rear_aero_height": round(fields[48] * 1000, 1),
-                "front_roll_angle": round(fields[49], 4),
-                "rear_roll_angle": round(fields[50], 4),
-            }
+        # Copy parser state into globals for non-telemetry packets
+        if packet_id != PACKET_ID_CAR_TELEMETRY:
+            session_state = parser.session_state
+            lap_state = parser.lap_state
+            status_state = parser.status_state
+            damage_state = parser.damage_state
+            setup_state = parser.setup_state
+            motion_ex_state = parser.motion_ex_state
             continue
 
         # -- Car Telemetry (main trigger) --
-        if packet_id == PACKET_ID_CAR_TELEMETRY:
-            base = HEADER_SIZE + player_car_index * CAR_TELEMETRY_SIZE
-            if len(data) < base + CAR_TELEMETRY_SIZE:
-                continue
-            fields = CAR_TELEMETRY_STRUCT.unpack_from(data, base)
+        telemetry_state = parser.telemetry_state
+        session_time = parser.session_time
 
-            telem = {
-                "speed_kmh": fields[0],
-                "engine_rpm": fields[6],
-                "engine_temp": fields[22],
-                "gear": fields[5],
-                "drs": fields[7],
-            }
-            for i, wn in enumerate(WHEEL_NAMES):
-                telem[f"brake_temp_{wn}"] = fields[10 + i]
-                telem[f"tyre_surface_temp_{wn}"] = fields[14 + i]
-                telem[f"tyre_inner_temp_{wn}"] = fields[18 + i]
-                telem[f"tyre_pressure_{wn}"] = round(fields[23 + i], 2)
-            telemetry_state = telem
-            session_time = header[7]  # m_sessionTime (float)
+        # Broadcast merged state to all WS clients
+        msg, new_aero_alerts, new_tire_alerts, new_pu_alerts = build_message()
+        await broadcast(msg)
 
-            # Broadcast merged state to all WS clients
-            msg, new_aero_alerts, new_tire_alerts, new_pu_alerts = build_message()
-            await broadcast(msg)
+        # Dispatch new aero alerts to DamageAgent
+        if new_aero_alerts:
+            alert_texts = [
+                f"ALERT {a['level'].upper()} {a['message']} {a['time']}"
+                for a in new_aero_alerts
+            ]
+            _queue_damage_alerts(alert_texts)
 
-            # Dispatch new aero alerts to DamageAgent
-            if new_aero_alerts:
-                alert_texts = [
-                    f"ALERT {a['level'].upper()} {a['message']} {a['time']}"
-                    for a in new_aero_alerts
-                ]
-                _queue_damage_alerts(alert_texts)
+        # Dispatch new tire alerts to TiresAgent
+        if new_tire_alerts:
+            alert_texts = [
+                f"ALERT {a['level'].upper()} {a['message']} {a['time']}"
+                for a in new_tire_alerts
+            ]
+            _queue_tires_alerts(alert_texts)
 
-            # Dispatch new tire alerts to TiresAgent
-            if new_tire_alerts:
-                alert_texts = [
-                    f"ALERT {a['level'].upper()} {a['message']} {a['time']}"
-                    for a in new_tire_alerts
-                ]
-                _queue_tires_alerts(alert_texts)
+        # Dispatch new PU alerts to PowerUnitAgent
+        if new_pu_alerts:
+            alert_texts = [
+                f"ALERT {a['level'].upper()} {a['message']} {a['time']}"
+                for a in new_pu_alerts
+            ]
+            _queue_pu_alerts(alert_texts)
 
-            # Dispatch new PU alerts to PowerUnitAgent
-            if new_pu_alerts:
-                alert_texts = [
-                    f"ALERT {a['level'].upper()} {a['message']} {a['time']}"
-                    for a in new_pu_alerts
-                ]
-                _queue_pu_alerts(alert_texts)
-
-            # Write CSV row if capture is enabled
-            if csv_capture is not None:
-                session_uid = header[6]   # m_sessionUID (uint64)
-                frame_id = header[8]      # m_frameIdentifier
-                csv_capture.write_row(session_uid, session_time, frame_id)
+        # Write CSV row if capture is enabled
+        if csv_capture is not None:
+            csv_capture.write_row(parser.session_uid, session_time, 0)
 
 
 # ---------------------------------------------------------------------------
