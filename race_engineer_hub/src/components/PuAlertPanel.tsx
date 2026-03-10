@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
+import { useAutoScroll } from "@/hooks/useAutoScroll";
 import ReactMarkdown from "react-markdown";
 import { AlertTriangle, Info, CheckCircle, Bot, Loader2, Maximize2, Zap } from "lucide-react";
 import type { Alert } from "@/components/AlertBox";
@@ -68,21 +69,11 @@ interface PuAlertPanelProps {
 
 export function PuAlertPanel({ alerts, activeCount, engineerResponses }: PuAlertPanelProps) {
   const [expanded, setExpanded] = useState(false);
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const expandedScrollRef = useRef<HTMLDivElement>(null);
-
   const items = mergeItems(alerts, engineerResponses);
+  const scrollRef = useAutoScroll<HTMLDivElement>(items.length);
+  const expandedScrollRef = useAutoScroll<HTMLDivElement>(items.length);
   const hasCritical = alerts.some((a) => a.level === "critical");
   const counterColor = activeCount === 0 ? "text-primary" : hasCritical ? "text-accent" : "text-warning";
-
-  useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-    if (expandedScrollRef.current) {
-      expandedScrollRef.current.scrollTop = expandedScrollRef.current.scrollHeight;
-    }
-  }, [items.length]);
 
   const renderItem = (item: UnifiedItem, i: number, isExpanded: boolean) => {
     if (item.kind === "alert") {

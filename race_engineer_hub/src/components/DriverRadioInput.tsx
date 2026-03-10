@@ -1,12 +1,13 @@
 import { useRef, useState, useEffect, useCallback } from "react";
 import { Radio, Send } from "lucide-react";
+import { useAutoScroll } from "@/hooks/useAutoScroll";
 
 const WS_URL = "ws://localhost:8765";
 
 export function DriverRadioInput() {
   const [message, setMessage] = useState("");
   const [history, setHistory] = useState<string[]>([]);
-  const historyRef = useRef<HTMLDivElement>(null);
+  const historyRef = useAutoScroll<HTMLDivElement>(history.length);
   const prevSessionTime = useRef<number>(0);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout>>();
@@ -47,12 +48,6 @@ export function DriverRadioInput() {
       wsRef.current?.close();
     };
   }, []);
-
-  useEffect(() => {
-    if (historyRef.current) {
-      historyRef.current.scrollTop = historyRef.current.scrollHeight;
-    }
-  }, [history.length]);
 
   const send = useCallback(() => {
     const text = message.trim();
