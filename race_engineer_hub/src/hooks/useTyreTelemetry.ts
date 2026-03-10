@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { Alert } from "@/components/AlertBox";
 
-export interface TireData {
+export interface TyreData {
   surfaceTemp: number;
   innerTemp: number;
   pressure: number;
@@ -11,8 +11,8 @@ export interface TireData {
   brakeTemp: number;
 }
 
-export interface TireTelemetryData {
-  tires: Record<"fl" | "fr" | "rl" | "rr", TireData>;
+export interface TyreTelemetryData {
+  tyres: Record<"fl" | "fr" | "rl" | "rr", TyreData>;
   compound: string;
   compoundVisual: string;
   tyresAgeLaps: number;
@@ -21,30 +21,30 @@ export interface TireTelemetryData {
   sessionTime: number;
 }
 
-interface TireAlerts {
+interface TyreAlerts {
   alerts: Alert[];
   activeCount: number;
 }
 
-export interface TiresReportEntry {
+export interface TyresReportEntry {
   text: string;
   time: string;
 }
 
-export interface TiresReport {
-  responses: TiresReportEntry[];
+export interface TyresReport {
+  responses: TyresReportEntry[];
 }
 
 const WS_URL = "ws://localhost:8765";
 const RECONNECT_INTERVAL_MS = 2000;
 
-const EMPTY_ALERTS: TireAlerts = { alerts: [], activeCount: 0 };
+const EMPTY_ALERTS: TyreAlerts = { alerts: [], activeCount: 0 };
 
-export function useTireTelemetry(): { data: TireTelemetryData | null; tireAlerts: TireAlerts; tiresReport: TiresReport } {
-  const [data, setData] = useState<TireTelemetryData | null>(null);
-  const [tireAlerts, setTireAlerts] = useState<TireAlerts>(EMPTY_ALERTS);
-  const [tiresReport, setTiresReport] = useState<TiresReport>({ responses: [] });
-  const lastTiresResponse = useRef<string | null>(null);
+export function useTyreTelemetry(): { data: TyreTelemetryData | null; tyreAlerts: TyreAlerts; tyresReport: TyresReport } {
+  const [data, setData] = useState<TyreTelemetryData | null>(null);
+  const [tyreAlerts, setTyreAlerts] = useState<TyreAlerts>(EMPTY_ALERTS);
+  const [tyresReport, setTyresReport] = useState<TyresReport>({ responses: [] });
+  const lastTyresResponse = useRef<string | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout>>();
 
@@ -61,17 +61,17 @@ export function useTireTelemetry(): { data: TireTelemetryData | null; tireAlerts
         try {
           const msg = JSON.parse(event.data);
           setData(msg);
-          if (msg.tireAlerts) {
-            setTireAlerts(msg.tireAlerts);
+          if (msg.tyreAlerts) {
+            setTyreAlerts(msg.tyreAlerts);
           }
-          if (msg.tiresReport) {
-            if (msg.tiresReport.response === null) {
-              lastTiresResponse.current = null;
-              setTiresReport({ responses: [] });
-            } else if (msg.tiresReport.response !== lastTiresResponse.current) {
-              lastTiresResponse.current = msg.tiresReport.response;
-              setTiresReport((prev) => ({
-                responses: [...prev.responses, { text: msg.tiresReport.response, time: msg.tiresReport.time ?? "" }],
+          if (msg.tyresReport) {
+            if (msg.tyresReport.response === null) {
+              lastTyresResponse.current = null;
+              setTyresReport({ responses: [] });
+            } else if (msg.tyresReport.response !== lastTyresResponse.current) {
+              lastTyresResponse.current = msg.tyresReport.response;
+              setTyresReport((prev) => ({
+                responses: [...prev.responses, { text: msg.tyresReport.response, time: msg.tyresReport.time ?? "" }],
               }));
             }
           }
@@ -100,5 +100,5 @@ export function useTireTelemetry(): { data: TireTelemetryData | null; tireAlerts
     };
   }, []);
 
-  return { data, tireAlerts, tiresReport };
+  return { data, tyreAlerts, tyresReport };
 }

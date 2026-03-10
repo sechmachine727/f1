@@ -1,6 +1,6 @@
 import { Circle } from "lucide-react";
 import { TelemetryCard, BarGauge } from "./TelemetryCard";
-import { useTireTelemetry } from "@/hooks/useTireTelemetry";
+import { useTyreTelemetry } from "@/hooks/useTyreTelemetry";
 
 const POSITIONS = [
   { key: "fl" as const, label: "FL" },
@@ -17,13 +17,13 @@ const COMPOUND_COLORS: Record<string, string> = {
   wet: "#0072CE",
 };
 
-export function TireTelemetry() {
-  const { data } = useTireTelemetry();
+export function TyreTelemetry() {
+  const { data } = useTyreTelemetry();
 
   if (!data) {
     return (
       <TelemetryCard
-        title="Tires"
+        title="Tyres"
         icon={<Circle className="h-4 w-4 text-primary" />}
         status="nominal"
       >
@@ -34,7 +34,7 @@ export function TireTelemetry() {
     );
   }
 
-  const temps = POSITIONS.map((p) => data.tires[p.key].surfaceTemp);
+  const temps = POSITIONS.map((p) => data.tyres[p.key].surfaceTemp);
   const maxTemp = Math.max(...temps);
   const status = maxTemp > 108 ? "critical" : maxTemp > 103 ? "warning" : "nominal";
 
@@ -45,13 +45,13 @@ export function TireTelemetry() {
 
   return (
     <TelemetryCard
-      title="Tires"
+      title="Tyres"
       icon={<Circle className="h-4 w-4 text-primary" />}
       status={status}
     >
       <div className="grid grid-cols-2 gap-2">
         {POSITIONS.map((p) => {
-          const t = data.tires[p.key];
+          const t = data.tyres[p.key];
           const life = Math.max(0, Math.round(100 - t.wear));
           return (
             <div key={p.key} className="bg-secondary/50 rounded p-2 flex flex-col gap-1 border border-border/50">

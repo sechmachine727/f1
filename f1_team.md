@@ -13,7 +13,7 @@ It is connected to the following teams:
 Create an agent network that represents a Formula 1 racing team.
 The main agent is the Race Engineer. Here is what it does:
 - Manages communications between driver and team 
-- Gives instructions on strategy, tires, pace 
+- Gives instructions on strategy, tyres, pace 
 - Interprets driver feedback into setup changes
 - Example tasks:
   - "Box, box for softs" 
@@ -49,10 +49,10 @@ Create one agent per role (a ## title), and group them by sub-teams (a # title)
 - Monitors electronics and car systems reliability 
 - Troubleshoots sensor failures, software issues
 
-## Tire Engineer
-- Predicts tire degradation and optimal stint length 
-- Advises strategy team on tire choices 
-- Manages tire temperature and pressure targets
+## Tyre Engineer
+- Predicts tyre degradation and optimal stint length 
+- Advises strategy team on tyre choices 
+- Manages tyre temperature and pressure targets
 
 ## Power Unit Engineer
 - Manages engine modes and reliability
@@ -67,7 +67,7 @@ Create one agent per role (a ## title), and group them by sub-teams (a # title)
 
 ## Chief Strategist
 - Leads all race strategy decisions
-- Chooses pit stop timing and tire plans
+- Chooses pit stop timing and tyre plans
 Reacts to Safety Cars, weather, rivals
 
 ## Strategy Engineers
@@ -121,7 +121,7 @@ Pit stops require 2–3 seconds, so roles are ultra-specialized:
 - Pull old wheels away
 
 ## Wheel On Crew (4)
-- Fit new tires instantly
+- Fit new tyres instantly
 
 ## Front Jack Operator
 - Lifts car from front

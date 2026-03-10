@@ -64,7 +64,7 @@ F1 game → UDP:20777 → telemetry_server.py → parse packets → generate ale
 
 - **Race Engineer Agent** — coordinator that reads specialist reports, filters "Copy" acknowledgments, routes follow-ups to specialists, and communicates to the driver
 - **Damage Agent** — analyzes aero/brake alerts (wing damage, DRS faults, brake temps)
-- **Tires Agent** — analyzes tire alerts (surface temp, wear, damage, blistering)
+- **Tyres Agent** — analyzes tyre alerts (surface temp, wear, damage, blistering)
 - **Power Unit Agent** — analyzes PU alerts (engine temp, fuel, ERS, gearbox)
 
 Each specialist agent (`telemetry_server/*_agent.py`) uses `AgentSessionFactory` + `StreamingInputProcessor` from neuro-san. Alerts are batched with a debounce timer (1-2s) before dispatch. Responses are forwarded to the race engineer agent.
@@ -76,7 +76,7 @@ Each specialist agent (`telemetry_server/*_agent.py`) uses `AgentSessionFactory`
 ### Frontend patterns
 
 - WebSocket hooks auto-reconnect every 2s on close. Each hook deduplicates responses via `useRef` tracking the last value.
-- Combined alert panels (`TireAlertPanel`, `PuAlertPanel`, `AeroAlertPanel`) merge alert items and engineer responses chronologically using a merge-sort by timestamp.
+- Combined alert panels (`TyreAlertPanel`, `PuAlertPanel`, `AeroAlertPanel`) merge alert items and engineer responses chronologically using a merge-sort by timestamp.
 - Session reset is detected when `sessionTime` drops below the previous value, clearing all accumulated alerts and agent responses.
 - Panels are expandable via double-click on the header (fixed overlay pattern).
 - Path alias: `@/*` → `./src/*`.

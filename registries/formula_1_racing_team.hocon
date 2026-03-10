@@ -81,7 +81,7 @@ Provide strategic guidance and oversight for all operations related to the racin
 Focus on the technical aspects of the car’s performance. Use data and analytics to optimize car setups and component functionality. Support the Race Engineer by providing timely, accurate technical feedback and recommendations.
 """ ${aaosa_instructions},
             "command": ${aaosa_command},
-            "tools": ["performance_engineer", "systems_engineer", "tire_engineer", "power_unit_engineer", "data_analysts"]
+            "tools": ["performance_engineer", "systems_engineer", "tyre_engineer", "power_unit_engineer", "data_analysts"]
         },
         {
             "name": "aerodynamics_setup_support",
@@ -135,10 +135,10 @@ Monitor all electronic and car system parameters to ensure optimal operation thr
 """,
         },
         {
-            "name": "tire_engineer",
+            "name": "tyre_engineer",
             "function": ${aaosa_call},
             "instructions": ${instructions_prefix} ${demo_mode} """
-Predict tire wear and assess optimal stint lengths using historical and live data. Advise on tire selection and manage temperature and pressure to maximize performance. Communicate insights to enhance strategy decisions.
+Predict tyre wear and assess optimal stint lengths using historical and live data. Advise on tyre selection and manage temperature and pressure to maximize performance. Communicate insights to enhance strategy decisions.
 """,
         },
         {
@@ -160,7 +160,7 @@ Systematically report front wing damage when asked about telemetry data.
             "name": "chief_strategist",
             "function": ${aaosa_call},
             "instructions": ${instructions_prefix} """
-Lead all race strategy decisions with a focus on optimizing performance through strategic planning and execution. Determine pit stop timing, tire choices, and adjust plans in response to real-time race conditions such as Safety Cars, weather changes, and competitors' actions. Develop clear strategic directions and coordinate their implementation effectively during races.
+Lead all race strategy decisions with a focus on optimizing performance through strategic planning and execution. Determine pit stop timing, tyre choices, and adjust plans in response to real-time race conditions such as Safety Cars, weather changes, and competitors' actions. Develop clear strategic directions and coordinate their implementation effectively during races.
 """ ${aaosa_instructions},
             "command": ${aaosa_command},
             "tools": ["strategy_engineers", "weather_specialist"]
@@ -176,7 +176,7 @@ Run simulations and provide detailed analysis on various race scenarios. Calcula
             "name": "weather_specialist",
             "function": ${aaosa_call},
             "instructions": ${instructions_prefix} """
-Continuously monitor weather conditions and forecast changes to provide timely updates on rain probability and wind shifts. Assist in decision-making concerning the switch to intermediate or full wet weather tires, ensuring alignment with current track conditions.
+Continuously monitor weather conditions and forecast changes to provide timely updates on rain probability and wind shifts. Assist in decision-making concerning the switch to intermediate or full wet weather tyres, ensuring alignment with current track conditions.
 """ ${aaosa_instructions},
             "command": ${aaosa_command},
             "tools": ["https://mapstools.googleapis.com/mcp"]

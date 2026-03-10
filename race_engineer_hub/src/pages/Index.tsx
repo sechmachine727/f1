@@ -1,13 +1,13 @@
-import { TireTelemetry } from "@/components/TireTelemetry";
+import { TyreTelemetry } from "@/components/TyreTelemetry";
 import { EngineTelemetry } from "@/components/EngineTelemetry";
 import { AeroTelemetry } from "@/components/AeroTelemetry";
-import { TireAlertPanel } from "@/components/TireAlertPanel";
+import { TyreAlertPanel } from "@/components/TyreAlertPanel";
 import { PuAlertPanel } from "@/components/PuAlertPanel";
 import { AeroAlertPanel } from "@/components/AeroAlertPanel";
 import { RaceEngineerPanel } from "@/components/RaceEngineerPanel";
 import { DriverRadioInput } from "@/components/DriverRadioInput";
 import { useSessionTelemetry, formatLapTime, formatTimeLeft } from "@/hooks/useSessionTelemetry";
-import { useTireTelemetry } from "@/hooks/useTireTelemetry";
+import { useTyreTelemetry } from "@/hooks/useTyreTelemetry";
 import { usePowerUnitTelemetry } from "@/hooks/usePowerUnitTelemetry";
 import { useAeroTelemetry } from "@/hooks/useAeroTelemetry";
 import { useRaceEngineerReport } from "@/hooks/useRaceEngineerReport";
@@ -15,7 +15,7 @@ import { Flag, Timer, Gauge, Clock } from "lucide-react";
 
 const Index = () => {
   const session = useSessionTelemetry();
-  const { tireAlerts: { alerts: tireAlerts, activeCount: tireActiveCount }, tiresReport } = useTireTelemetry();
+  const { tyreAlerts: { alerts: tyreAlerts, activeCount: tyreActiveCount }, tyresReport } = useTyreTelemetry();
   const { puAlerts: { alerts: puAlerts, activeCount: puActiveCount }, puReport } = usePowerUnitTelemetry();
   const { aeroAlerts: { alerts: aeroAlerts, activeCount: aeroActiveCount }, damageReport } = useAeroTelemetry();
   const raceEngineerReport = useRaceEngineerReport();
@@ -66,8 +66,8 @@ const Index = () => {
       {/* Telemetry Grid + Alerts */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 mb-3 flex-1 min-h-0">
         <div className="flex flex-col gap-2 min-h-0">
-          <TireTelemetry />
-          <TireAlertPanel alerts={tireAlerts} activeCount={tireActiveCount} engineerResponses={tiresReport.responses} />
+          <TyreTelemetry />
+          <TyreAlertPanel alerts={tyreAlerts} activeCount={tyreActiveCount} engineerResponses={tyresReport.responses} />
         </div>
         <div className="flex flex-col gap-2 min-h-0">
           <EngineTelemetry />
