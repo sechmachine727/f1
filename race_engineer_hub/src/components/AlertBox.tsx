@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
+import { useAutoScroll } from "@/hooks/useAutoScroll";
 import { AlertTriangle, Info, CheckCircle, Maximize2 } from "lucide-react";
 
 export interface Alert {
@@ -27,17 +28,8 @@ const rowStyles = {
 
 export function AlertBox({ title = "Alerts", alerts, activeCount }: { title?: string; alerts: Alert[]; activeCount?: number }) {
   const [expanded, setExpanded] = useState(false);
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const expandedScrollRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-    if (expandedScrollRef.current) {
-      expandedScrollRef.current.scrollTop = expandedScrollRef.current.scrollHeight;
-    }
-  }, [alerts.length]);
+  const scrollRef = useAutoScroll<HTMLDivElement>(alerts.length);
+  const expandedScrollRef = useAutoScroll<HTMLDivElement>(alerts.length);
 
   const count = activeCount ?? alerts.length;
 

@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
+import { useAutoScroll } from "@/hooks/useAutoScroll";
 import ReactMarkdown from "react-markdown";
 import { Bot, Loader2, Maximize2 } from "lucide-react";
 
@@ -15,17 +16,8 @@ interface ExpandableReportPanelProps {
 
 export function ExpandableReportPanel({ title, responses, emptyMessage }: ExpandableReportPanelProps) {
   const [expanded, setExpanded] = useState(false);
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const expandedScrollRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-    if (expandedScrollRef.current) {
-      expandedScrollRef.current.scrollTop = expandedScrollRef.current.scrollHeight;
-    }
-  }, [responses.length]);
+  const scrollRef = useAutoScroll<HTMLDivElement>(responses.length);
+  const expandedScrollRef = useAutoScroll<HTMLDivElement>(responses.length);
 
   const content = (scrollRefProp: React.RefObject<HTMLDivElement>, heightClass: string) => (
     <div ref={scrollRefProp} className={`${heightClass} overflow-y-auto`}>
