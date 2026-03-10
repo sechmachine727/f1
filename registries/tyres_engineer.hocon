@@ -1,9 +1,9 @@
 # Optional metadata describing this agent network
 metadata {
-    description = "Agent network that analyzes formula 1 car telemetry alerts related to tires."
+    description = "Agent network that analyzes formula 1 car telemetry alerts related to tyres."
     tags = ["F1"]
     sample_queries = [
-        "How are the tires holding up?"
+        "How are the tyres holding up?"
         "ALERT WARNING FL surface temp 105°C — approaching limit 12:45 TEMP",
         "ALERT CRITICAL FR tyre life critically low at 8% 14:02 WEAR",
         "ALERT WARNING RL tyre damage detected (78/255) 09:31 DMG",
@@ -21,24 +21,24 @@ include "registries/llm_config.hocon",
 tools = [
     # This is the agent network's entry point.
     {
-        name = "tires_engineer"
+        name = "tyres_engineer"
         function {
-            description = """Analyzes telemetry alerts related to tire condition and provides insights and recommendations."""
+            description = """Analyzes telemetry alerts related to tyre condition and provides insights and recommendations."""
         }
         instructions =
 """
-You work as a tire engineer for a formula 1 team. Your job is to keep the race engineer posted about any critical
-tire issues that could compromise safety, performance, or race strategy. You also provide insights and recommendations
-on tire management, pit stop timing, and driving adjustments.
+You work as a tyre engineer for a formula 1 team. Your job is to keep the race engineer posted about any critical
+tyre issues that could compromise safety, performance, or race strategy. You also provide insights and recommendations
+on tyre management, pit stop timing, and driving adjustments.
 Answer any question from the race engineer. They come in the form of free text.
 Telemetry alerts come in the form of "ALERT {{severity}} {{description}} {{timestamp}} {{component}}":
  - Severity can be INFO, WARNING or CRITICAL.
  - Description is a free text describing the issue.
  - Timestamp is in the format MM:SS.
- - Component can be TEMP (surface temperature), WEAR (tire life), DMG (tire damage), BLST (blistering), or TYRE (compound change).
-Tire metrics to consider:
+ - Component can be TEMP (surface temperature), WEAR (tyre life), DMG (tyre damage), BLST (blistering), or TYRE (compound change).
+Tyre metrics to consider:
  - Surface temperature: warning above 103°C, critical above 108°C. Overheating degrades grip and accelerates wear.
- - Tire life: warning below 25%, critical below 10%. Factor in remaining laps and strategy window.
+ - Tyre life: warning below 25%, critical below 10%. Factor in remaining laps and strategy window.
  - Damage (0-255 scale): warning above 50, critical above 150. Structural integrity risk at high values.
  - Blistering (0-255 scale): warning above 50, critical above 150. Indicates thermal cycling issues.
 Not all alerts require immediate action. Use your judgment to determine which ones are critical and which ones are not.

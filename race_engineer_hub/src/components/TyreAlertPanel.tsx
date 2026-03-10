@@ -3,7 +3,7 @@ import { useAutoScroll } from "@/hooks/useAutoScroll";
 import ReactMarkdown from "react-markdown";
 import { AlertTriangle, Info, CheckCircle, Bot, Loader2, Maximize2, Circle } from "lucide-react";
 import type { Alert } from "@/components/AlertBox";
-import type { TiresReportEntry } from "@/hooks/useTireTelemetry";
+import type { TyresReportEntry } from "@/hooks/useTyreTelemetry";
 
 type UnifiedItem =
   | { kind: "alert"; level: Alert["level"]; message: string; time: string; sortKey: string }
@@ -14,7 +14,7 @@ function extractSortKey(time: string): string {
   return time.slice(0, 5);
 }
 
-function mergeItems(alerts: Alert[], responses: TiresReportEntry[]): UnifiedItem[] {
+function mergeItems(alerts: Alert[], responses: TyresReportEntry[]): UnifiedItem[] {
   const alertItems: UnifiedItem[] = alerts.map((a) => ({
     kind: "alert" as const,
     level: a.level,
@@ -63,13 +63,13 @@ const rowStyles = {
   critical: "border-accent/20 bg-accent/5",
 };
 
-interface TireAlertPanelProps {
+interface TyreAlertPanelProps {
   alerts: Alert[];
   activeCount: number;
-  engineerResponses: TiresReportEntry[];
+  engineerResponses: TyresReportEntry[];
 }
 
-export function TireAlertPanel({ alerts, activeCount, engineerResponses }: TireAlertPanelProps) {
+export function TyreAlertPanel({ alerts, activeCount, engineerResponses }: TyreAlertPanelProps) {
   const [expanded, setExpanded] = useState(false);
   const items = mergeItems(alerts, engineerResponses);
   const scrollRef = useAutoScroll<HTMLDivElement>(items.length);
@@ -111,7 +111,7 @@ export function TireAlertPanel({ alerts, activeCount, engineerResponses }: TireA
           onDoubleClick={() => setExpanded(true)}
         >
           <Circle className="h-4 w-4 text-primary" />
-          <span className="font-display text-sm font-bold tracking-widest uppercase text-foreground">Tire Agent</span>
+          <span className="font-display text-sm font-bold tracking-widest uppercase text-foreground">Tyre Agent</span>
           <Maximize2 className="h-2.5 w-2.5 text-muted-foreground/50 ml-1" />
           {hasAnalysis && <Bot className="h-4 w-4 text-info ml-1" />}
           <span className={`ml-auto font-display text-[10px] font-bold ${counterColor}`}>{activeCount}</span>
@@ -138,7 +138,7 @@ export function TireAlertPanel({ alerts, activeCount, engineerResponses }: TireA
           >
             <div className="flex items-center gap-1.5 px-3 py-2 border-b border-border/50 bg-secondary/30">
               <AlertTriangle className="h-3 w-3 text-muted-foreground" />
-              <span className="font-display text-sm font-bold tracking-widest uppercase text-foreground">Tire Agent</span>
+              <span className="font-display text-sm font-bold tracking-widest uppercase text-foreground">Tyre Agent</span>
               {hasAnalysis && <Bot className="h-4 w-4 text-info ml-1" />}
               <span className={`ml-auto font-display text-[10px] font-bold ${counterColor}`}>{activeCount}</span>
             </div>

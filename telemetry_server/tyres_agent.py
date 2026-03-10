@@ -10,12 +10,12 @@ from neuro_san.client.streaming_input_processor import StreamingInputProcessor
 TEST_INPUT = "ALERT WARNING FL surface temp 105°C — approaching limit 12:45 TEMP"
 
 
-class TiresAgent:
+class TyresAgent:
 
     SESSION_TYPE: str = "direct"
-    AGENT_NETWORK_NAME: str = "tires_engineer"
+    AGENT_NETWORK_NAME: str = "tyres_engineer"
     THINKING_DIR: str = "logs/agents"
-    THINKING_FILE: str = "tires_engineer"
+    THINKING_FILE: str = "tyres_engineer"
     DEFAULT_INPUT: str = "DEFAULT"
 
     def __init__(self) -> None:
@@ -64,7 +64,7 @@ class TiresAgent:
         return last_chat_response
 
 if __name__ == "__main__":
-    parser: argparse.ArgumentParser = argparse.ArgumentParser(description="Tires engineer agent")
+    parser: argparse.ArgumentParser = argparse.ArgumentParser(description="Tyres engineer agent")
     parser.add_argument(
         "--interactive",
         action="store_true",
@@ -75,7 +75,7 @@ if __name__ == "__main__":
     # Set env variables
     os.environ["AGENT_MANIFEST_FILE"] = "registries/manifest.hocon"
     # Instantiate the agent
-    agent: TiresAgent = TiresAgent()
+    agent: TyresAgent = TyresAgent()
 
     user_input: str
     if args.interactive:
