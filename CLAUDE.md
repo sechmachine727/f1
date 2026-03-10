@@ -84,7 +84,7 @@ Each specialist agent (`telemetry_server/*_agent.py`) uses `AgentSessionFactory`
 ## Code style
 
 - Python 3.12+. Line length 119 chars. Ruff + pylint for linting. Config in `pyproject.toml`.
-- Python 3.12+ target. Line length: 119 characters.
+- In Python, we use object oriented programming: use classes, one class per file and the file should have the same name as the class.
 - Linting: ruff (format + isort + pycodestyle + pyflakes) then pylint. Config in `pyproject.toml`.
 - Imports: ES-style single-line imports, sorted by isort (`force-single-line = true`).
 - Naming: Google Python Style Guide conventions -- `PascalCase` classes, `snake_case` functions/methods/variables, `UPPER_CASE` constants.
