@@ -1005,18 +1005,21 @@ def _queue_race_engineer(messages: list[str]) -> None:
 
 def _route_race_engineer_response(response: str) -> None:
     """Parse the race engineer's response and route follow-up questions to specialists."""
-    route_fns = {
-        "Damage Engineer:": _queue_damage_alerts,
-        "Tyres Engineer:": _queue_tyres_alerts,
-        "Power Unit Engineer:": _queue_pu_alerts,
+    route_targets = {
+        "Damage Engineer:": (_queue_damage_alerts, aero_alerts_log),
+        "Tyres Engineer:": (_queue_tyres_alerts, tyre_alerts_log),
+        "Power Unit Engineer:": (_queue_pu_alerts, pu_alerts_log),
     }
+    ts = _format_session_time(session_time)
     for line in response.strip().splitlines():
         line = line.strip()
-        for prefix, queue_fn in route_fns.items():
+        for prefix, (queue_fn, alerts_log) in route_targets.items():
             if line.startswith(prefix):
                 msg = line[len(prefix):].strip()
                 if msg:
-                    queue_fn([msg])
+                    prefixed = f"Race Engineer: {msg}"
+                    queue_fn([prefixed])
+                    alerts_log.append({"level": "info", "message": prefixed, "time": ts})
                 break
 
 
