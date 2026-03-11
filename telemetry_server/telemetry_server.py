@@ -878,7 +878,7 @@ async def _flush_damage_agent() -> None:
         damage_agent_response_time = _format_session_time(prev_aero_session_time)
         # Forward to race engineer
         if response:
-            _queue_race_engineer([f"Damage Engineer: {response}"])
+            _queue_race_engineer([f"From Damage Engineer: {response}"])
     except Exception as exc:
         print(f"DamageAgent error: {exc}")
     finally:
@@ -928,7 +928,7 @@ async def _flush_tyres_agent() -> None:
         tyres_agent_response_time = _format_session_time(prev_tyre_session_time)
         # Forward to race engineer
         if response:
-            _queue_race_engineer([f"Tyres Engineer: {response}"])
+            _queue_race_engineer([f"From Tyres Engineer: {response}"])
     except Exception as exc:
         print(f"TyresAgent error: {exc}")
     finally:
@@ -977,7 +977,7 @@ async def _flush_pu_agent() -> None:
         pu_agent_response_time = _format_session_time(prev_pu_session_time)
         # Forward to race engineer
         if response:
-            _queue_race_engineer([f"Power Unit Engineer: {response}"])
+            _queue_race_engineer([f"From Power Unit Engineer: {response}"])
     except Exception as exc:
         print(f"PowerUnitAgent error: {exc}")
     finally:
@@ -1004,23 +1004,56 @@ def _queue_race_engineer(messages: list[str]) -> None:
 
 
 def _route_race_engineer_response(response: str) -> None:
-    """Parse the race engineer's response and route follow-up questions to specialists."""
+    """Parse the race engineer's response and route follow-up questions to specialists.
+
+    Handles multi-line messages per target: lines without a known prefix are
+    appended to the most recently matched target. This way the race engineer
+    can send multi-line messages to a single specialist or address multiple
+    specialists in one response.
+    """
     route_targets = {
-        "Damage Engineer:": (_queue_damage_alerts, aero_alerts_log),
-        "Tyres Engineer:": (_queue_tyres_alerts, tyre_alerts_log),
-        "Power Unit Engineer:": (_queue_pu_alerts, pu_alerts_log),
+        "To Damage Engineer:": (_queue_damage_alerts, aero_alerts_log),
+        "To Tyres Engineer:": (_queue_tyres_alerts, tyre_alerts_log),
+        "To Power Unit Engineer:": (_queue_pu_alerts, pu_alerts_log),
     }
     ts = _format_session_time(session_time)
+
+    # Accumulate (target_key, lines) blocks so multi-line messages stay together
+    current_target: str | None = None
+    accumulated_lines: list[str] = []
+    blocks: list[tuple[str, str]] = []  # (target_key, full_message)
+
+    def _flush_block() -> None:
+        if current_target and accumulated_lines:
+            blocks.append((current_target, " ".join(accumulated_lines)))
+
     for line in response.strip().splitlines():
         line = line.strip()
-        for prefix, (queue_fn, alerts_log) in route_targets.items():
+        if not line:
+            continue
+        matched = False
+        for prefix in route_targets:
             if line.startswith(prefix):
-                msg = line[len(prefix):].strip()
-                if msg:
-                    prefixed = f"Race Engineer: {msg}"
-                    queue_fn([prefixed])
-                    alerts_log.append({"level": "info", "message": prefixed, "time": ts})
+                _flush_block()
+                current_target = prefix
+                accumulated_lines = []
+                remainder = line[len(prefix):].strip()
+                if remainder:
+                    accumulated_lines.append(remainder)
+                matched = True
                 break
+        if not matched and current_target:
+            # Continuation line for the current target
+            accumulated_lines.append(line)
+
+    _flush_block()
+
+    # Dispatch each block to the appropriate specialist
+    for target_key, msg in blocks:
+        queue_fn, alerts_log = route_targets[target_key]
+        prefixed = f"From Race Engineer: {msg}"
+        queue_fn([prefixed])
+        alerts_log.append({"level": "info", "message": prefixed, "time": ts})
 
 
 async def _flush_race_engineer() -> None:
@@ -1270,7 +1303,7 @@ async def ws_handler(websocket):
                 incoming = json.loads(raw)
                 driver_msg = incoming.get("driverMessage")
                 if driver_msg and isinstance(driver_msg, str):
-                    _queue_race_engineer([f"Fernando: {driver_msg}"])
+                    _queue_race_engineer([f"From Fernando: {driver_msg}"])
             except (json.JSONDecodeError, AttributeError):
                 pass
     finally:
