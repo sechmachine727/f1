@@ -57,6 +57,7 @@ setup_state: dict = {}
 motion_ex_state: dict = {}
 session_state: dict = {}
 session_time: float = 0.0
+prev_session_uid: int = 0
 
 # Alert state – computed server-side and sent pre-computed via WebSocket
 aero_alert_conditions: dict = {}   # key -> {"level": "warn"|"crit", "value": float}
@@ -306,10 +307,56 @@ BRAKE_TEMPS = [
 
 
 def _format_session_time(seconds: float) -> str:
+    """Format session time in seconds as MM:SS."""
     total = int(seconds)
     m = total // 60
     s = total % 60
     return f"{m:02d}:{s:02d}"
+
+
+WEATHER_LABELS = {
+    0: "Clear", 1: "Light Cloud", 2: "Overcast",
+    3: "Light Rain", 4: "Heavy Rain", 5: "Storm",
+}
+
+
+def _build_session_context() -> str:
+    """Build a human-readable session context string from the current session state."""
+    session_type = SESSION_TYPE_LABELS.get(session_state.get("session_type", 0), "Unknown")
+    track = TRACK_NAMES.get(session_state.get("track_id", -1), "Unknown Track")
+    total_laps = session_state.get("total_laps", 0)
+    weather = WEATHER_LABELS.get(session_state.get("weather", 0), "Unknown")
+    air_temp = session_state.get("air_temperature", 0)
+    track_temp = session_state.get("track_temperature", 0)
+
+    lines = [
+        "## Current Session Context",
+        f"- Session: {session_type}",
+        f"- Track: {track}",
+        f"- Weather: {weather}",
+        f"- Air temperature: {air_temp}°C",
+        f"- Track temperature: {track_temp}°C",
+    ]
+    if total_laps > 0:
+        lines.append(f"- Total laps: {total_laps}")
+    return "\n".join(lines)
+
+
+def _reinit_agents(context: str) -> None:
+    """Re-instantiate all agents with the given session context."""
+    global damage_agent, tyres_agent, pu_agent, re_agent
+
+    for name, cls, var_name in [
+        ("DamageAgent", DamageAgent, "damage_agent"),
+        ("TyresAgent", TyresAgent, "tyres_agent"),
+        ("PowerUnitAgent", PowerUnitAgent, "pu_agent"),
+        ("RaceEngineerAgent", RaceEngineerAgent, "re_agent"),
+    ]:
+        try:
+            globals()[var_name] = cls(session_context=context)
+            print(f"{name} re-initialized with session context")
+        except Exception as exc:
+            print(f"{name} re-init failed: {exc}")
 
 
 def _process_aero_alerts(aero: dict) -> None:
@@ -1175,6 +1222,7 @@ async def udp_reader():
     """Read F1 25 UDP packets and update shared state, broadcasting on each
     telemetry frame (packet 6)."""
     global lap_state, status_state, damage_state, telemetry_state, setup_state, motion_ex_state, session_state, session_time
+    global prev_session_uid
 
     loop = asyncio.get_running_loop()
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -1207,6 +1255,14 @@ async def udp_reader():
             damage_state = parser.damage_state
             setup_state = parser.setup_state
             motion_ex_state = parser.motion_ex_state
+
+            # Detect new session and re-instantiate agents with session context
+            if packet_id == PACKET_ID_SESSION and parser.session_uid != prev_session_uid:
+                prev_session_uid = parser.session_uid
+                context = _build_session_context()
+                print(f"New session detected — re-initializing agents\n{context}")
+                await asyncio.to_thread(_reinit_agents, context)
+
             continue
 
         # -- Car Telemetry (main trigger) --
@@ -1356,6 +1412,7 @@ def _populate_state_from_row(row: dict):
 
 async def csv_replay(filepath: str, speed: int = 1):
     """Replay a captured CSV file as if it were live telemetry."""
+    global prev_session_uid
     path = Path(filepath)
     if not path.exists():
         print(f"ERROR: file not found: {filepath}")
@@ -1379,6 +1436,15 @@ async def csv_replay(filepath: str, speed: int = 1):
             prev_wall_time = wall_time
 
             _populate_state_from_row(row)
+
+            # Detect new session in replay and re-init agents
+            row_uid = _int(row.get("session_uid"))
+            if row_uid and row_uid != prev_session_uid:
+                prev_session_uid = row_uid
+                context = _build_session_context()
+                print(f"New session detected in replay — re-initializing agents\n{context}")
+                await asyncio.to_thread(_reinit_agents, context)
+
             msg, new_aero_alerts, new_tyre_alerts, new_pu_alerts = build_message()
             await broadcast(msg)
 
