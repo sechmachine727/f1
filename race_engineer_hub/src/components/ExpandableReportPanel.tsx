@@ -13,9 +13,10 @@ interface ExpandableReportPanelProps {
   title: string;
   responses: ReportEntry[];
   emptyMessage: string;
+  className?: string;
 }
 
-export function ExpandableReportPanel({ title, responses, emptyMessage }: ExpandableReportPanelProps) {
+export function ExpandableReportPanel({ title, responses, emptyMessage, className }: ExpandableReportPanelProps) {
   const [expanded, setExpanded] = useState(false);
   const scrollRef = useAutoScroll<HTMLDivElement>(responses.length);
   const expandedScrollRef = useAutoScroll<HTMLDivElement>(responses.length);
@@ -61,9 +62,9 @@ export function ExpandableReportPanel({ title, responses, emptyMessage }: Expand
   return (
     <>
       {/* Inline panel */}
-      <div className="bg-card border border-border/50 rounded-md overflow-hidden">
+      <div className={`bg-card border border-border/50 rounded-md overflow-hidden flex flex-col ${className ?? ""}`}>
         {header(() => setExpanded(true))}
-        {content(scrollRef, "h-36")}
+        {content(scrollRef, className ? "flex-1" : "h-36")}
       </div>
 
       {/* Expanded overlay */}

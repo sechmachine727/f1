@@ -33,11 +33,12 @@ from telemetry_server.f1_telemetry_parser import (
     ACTUAL_COMPOUND,
     F1TelemetryParser,
     HEADER_SIZE,
+    NUM_CARS,
     PACKET_ID_CAR_TELEMETRY,
+    PACKET_ID_SESSION,
     VISUAL_COMPOUND,
     WHEEL_NAMES,
 )
-from telemetry_server.f1_telemetry_parser import NUM_CARS
 
 # ---------------------------------------------------------------------------
 # Config
@@ -1141,6 +1142,7 @@ def build_message() -> tuple[str, list[dict], list[dict], list[dict]]:
         "totalLaps": session_state.get("total_laps", 0),
         "sessionTimeLeft": session_state.get("session_time_left", 0),
         "sessionDuration": session_state.get("session_duration", 0),
+        "trackLength": session_state.get("track_length", 0),
         "trackTemp": session_state.get("track_temperature", 0),
         "airTemp": session_state.get("air_temperature", 0),
         "weather": session_state.get("weather", 0),

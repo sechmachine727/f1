@@ -5,9 +5,10 @@ import type { RaceEngineerReport } from "@/hooks/useRaceEngineerReport";
 interface RaceEngineerPanelProps {
   report: RaceEngineerReport;
   driverMessages: ReportEntry[];
+  className?: string;
 }
 
-export function RaceEngineerPanel({ report, driverMessages }: RaceEngineerPanelProps) {
+export function RaceEngineerPanel({ report, driverMessages, className }: RaceEngineerPanelProps) {
   const merged: ReportEntry[] = [
     ...driverMessages,
     ...report.responses.map((r) => ({ ...r, source: "engineer" as const })),
@@ -18,6 +19,7 @@ export function RaceEngineerPanel({ report, driverMessages }: RaceEngineerPanelP
       title="Race Engineer Agent"
       responses={merged}
       emptyMessage="Awaiting engineer reports..."
+      className={className}
     />
   );
 }

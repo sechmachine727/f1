@@ -4,17 +4,17 @@ import { TRACK_OUTLINES } from "@/data/trackOutlines";
 export interface CarPosition {
   x: number;
   z: number;
+  /** Heading angle in radians (direction of travel along the track). */
+  heading: number;
   position: number;
   lapDistance: number;
   active: boolean;
 }
 
 export interface TrackMapState {
-  /** Track outline — static (from bundled data) or dynamically built. */
   trackOutline: Array<{ x: number; z: number }>;
   cars: CarPosition[];
   playerIndex: number;
-  /** True when using static data OR when the dynamic outline has completed a full lap. */
   outlineComplete: boolean;
   trackName: string;
 }
@@ -30,23 +30,94 @@ function distSq(a: { x: number; z: number }, b: { x: number; z: number }): numbe
   return dx * dx + dz * dz;
 }
 
-/** Look up the static outline for a given track name, converting from [x,z][] to {x,z}[]. */
-function getStaticOutline(trackName: string): Array<{ x: number; z: number }> | null {
+// ---------------------------------------------------------------------------
+// Static outline helpers
+// ---------------------------------------------------------------------------
+
+interface StaticTrackData {
+  points: Array<{ x: number; z: number }>;
+  /** Cumulative arc-length distance at each point. */
+  distances: number[];
+  totalLength: number;
+}
+
+/** Load and precompute cumulative distances for a static track outline. */
+function loadStaticTrack(trackName: string): StaticTrackData | null {
   const coords = TRACK_OUTLINES[trackName];
   if (!coords) return null;
-  return coords.map(([x, z]) => ({ x, z }));
+
+  // Negate Z to mirror top-down view
+  const points = coords.map(([x, z]) => ({ x, z: -z }));
+  const distances = [0];
+  let total = 0;
+  for (let i = 1; i < points.length; i++) {
+    const dx = points[i].x - points[i - 1].x;
+    const dz = points[i].z - points[i - 1].z;
+    total += Math.sqrt(dx * dx + dz * dz);
+    distances.push(total);
+  }
+  return { points, distances, totalLength: total };
+}
+
+/** Find the point on the static outline at a given normalised position (0-1). */
+function staticPointAtNorm(track: StaticTrackData, norm: number): { x: number; z: number } {
+  // Clamp to [0, 1)
+  const n = ((norm % 1) + 1) % 1;
+  const targetDist = n * track.totalLength;
+  // Binary search for the segment containing targetDist
+  let lo = 0;
+  let hi = track.distances.length - 1;
+  while (lo < hi - 1) {
+    const mid = (lo + hi) >> 1;
+    if (track.distances[mid] <= targetDist) lo = mid;
+    else hi = mid;
+  }
+  // Interpolate between lo and hi
+  const segLen = track.distances[hi] - track.distances[lo];
+  const t = segLen > 0 ? (targetDist - track.distances[lo]) / segLen : 0;
+  return {
+    x: track.points[lo].x + t * (track.points[hi].x - track.points[lo].x),
+    z: track.points[lo].z + t * (track.points[hi].z - track.points[lo].z),
+  };
+}
+
+/** Compute the tangent direction (heading) at a normalised position on the track. */
+function trackHeadingAtNorm(track: StaticTrackData, norm: number): number {
+  const epsilon = 0.002; // small step for finite difference
+  const a = staticPointAtNorm(track, norm - epsilon);
+  const b = staticPointAtNorm(track, norm + epsilon);
+  return Math.atan2(b.z - a.z, b.x - a.x);
+}
+
+/**
+ * Map car positions onto the static track outline using normalised lap distance.
+ * Falls back to raw world coordinates when static data is unavailable.
+ */
+function mapCarsToOutline(
+  cars: CarPosition[],
+  staticTrack: StaticTrackData | null,
+  trackLength: number,
+): CarPosition[] {
+  if (!staticTrack || trackLength <= 0) return cars;
+
+  return cars.map((car) => {
+    if (!car.active) return car;
+    const norm = car.lapDistance / trackLength;
+    const pt = staticPointAtNorm(staticTrack, norm);
+    const heading = trackHeadingAtNorm(staticTrack, norm);
+    return { ...car, x: pt.x, z: pt.z, heading };
+  });
 }
 
 export function useTrackMap(): TrackMapState | null {
   const [state, setState] = useState<TrackMapState | null>(null);
 
-  // Dynamic outline refs (used only when no static data is available)
+  // Dynamic outline built from the player's live positions (fallback when no static data)
   const dynamicOutlineRef = useRef<Array<{ x: number; z: number }>>([]);
   const dynamicCompleteRef = useRef(false);
   const maxLapDistRef = useRef(0);
 
-  // Cached static outline so we don't re-convert on every message
-  const staticOutlineCacheRef = useRef<{ name: string; outline: Array<{ x: number; z: number }> } | null>(null);
+  const staticTrackRef = useRef<StaticTrackData | null>(null);
 
   const prevSessionTimeRef = useRef(0);
   const prevTrackNameRef = useRef("");
@@ -66,6 +137,7 @@ export function useTrackMap(): TrackMapState | null {
           const trackMap = msg.trackMap;
           const sessionTime: number = msg.sessionTime ?? 0;
           const trackName: string = msg.session?.trackName ?? "";
+          const trackLength: number = msg.session?.trackLength ?? 0;
 
           // Session reset — clear dynamic outline
           if (sessionTime < prevSessionTimeRef.current) {
@@ -75,41 +147,21 @@ export function useTrackMap(): TrackMapState | null {
           }
           prevSessionTimeRef.current = sessionTime;
 
-          // Track change — reset dynamic outline and invalidate static cache
+          // Track change — reload static data, reset dynamic outline
           if (trackName !== prevTrackNameRef.current) {
             prevTrackNameRef.current = trackName;
             dynamicOutlineRef.current = [];
             dynamicCompleteRef.current = false;
             maxLapDistRef.current = 0;
-            staticOutlineCacheRef.current = null;
-          }
-
-          // Resolve the outline: prefer static, fall back to dynamic
-          let outline: Array<{ x: number; z: number }>;
-          let outlineComplete: boolean;
-
-          if (staticOutlineCacheRef.current?.name === trackName) {
-            outline = staticOutlineCacheRef.current.outline;
-            outlineComplete = true;
-          } else {
-            const staticOutline = getStaticOutline(trackName);
-            if (staticOutline) {
-              staticOutlineCacheRef.current = { name: trackName, outline: staticOutline };
-              outline = staticOutline;
-              outlineComplete = true;
-            } else {
-              // Dynamic: accumulate from player positions
-              outline = dynamicOutlineRef.current;
-              outlineComplete = dynamicCompleteRef.current;
-            }
+            staticTrackRef.current = trackName ? loadStaticTrack(trackName) : null;
           }
 
           const playerIndex: number = trackMap?.playerIndex ?? 0;
-          const cars: CarPosition[] = trackMap?.cars ?? [];
-          const player = cars[playerIndex];
+          const rawCars: CarPosition[] = trackMap?.cars ?? [];
+          const player = rawCars[playerIndex];
 
-          // Build dynamic outline if no static data
-          if (!staticOutlineCacheRef.current && player && !dynamicCompleteRef.current && (player.x !== 0 || player.z !== 0)) {
+          // Accumulate dynamic outline from player position (fallback for unknown tracks)
+          if (player && !dynamicCompleteRef.current && (player.x !== 0 || player.z !== 0)) {
             const dynOutline = dynamicOutlineRef.current;
             const last = dynOutline.length > 0 ? dynOutline[dynOutline.length - 1] : null;
             if (!last || distSq(last, player) > MIN_DIST_SQ) {
@@ -123,6 +175,26 @@ export function useTrackMap(): TrackMapState | null {
               maxLapDistRef.current = ld;
             }
           }
+
+          const staticTrack = staticTrackRef.current;
+
+          // Choose outline: prefer static, fall back to dynamic
+          let outline: Array<{ x: number; z: number }>;
+          let outlineComplete: boolean;
+
+          if (staticTrack) {
+            outline = staticTrack.points;
+            outlineComplete = true;
+          } else if (dynamicCompleteRef.current || dynamicOutlineRef.current.length >= 20) {
+            outline = dynamicOutlineRef.current;
+            outlineComplete = dynamicCompleteRef.current;
+          } else {
+            outline = dynamicOutlineRef.current;
+            outlineComplete = false;
+          }
+
+          // Map car positions onto the outline via normalised lap distance
+          const cars = mapCarsToOutline(rawCars, staticTrack, trackLength);
 
           setState({
             trackOutline: outline,

@@ -387,6 +387,7 @@ class F1TelemetryParser:  # pylint: disable=too-many-instance-attributes,too-few
             "session_type": fields[5],
             "track_id": fields[6],
             "total_laps": fields[3],
+            "track_length": fields[4],
             "session_time_left": fields[8],
             "session_duration": fields[9],
             "track_temperature": fields[1],
