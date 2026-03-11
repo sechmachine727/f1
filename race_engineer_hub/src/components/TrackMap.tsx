@@ -296,7 +296,7 @@ function Header({
     <div className="flex items-center gap-2 px-3 py-2 border-b border-border/50 bg-secondary/30">
       <Map className="h-4 w-4 text-primary" />
       <span className="font-display text-sm font-bold tracking-widest uppercase text-foreground">
-        Track Map
+        Track Map{trackName ? ` — ${trackName}` : ""}
       </span>
       <div className="ml-auto flex items-center gap-2">
         <RotationDial rotation={rotation} onChange={onRotationChange} />
