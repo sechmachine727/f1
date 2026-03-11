@@ -15,28 +15,23 @@ import csv
 import json
 import os
 import socket
-import struct
 import time
 from pathlib import Path
 
 import websockets
 
-from telemetry_server.damage_agent import DamageAgent
-from telemetry_server.power_unit_agent import PowerUnitAgent
-from telemetry_server.race_engineer_agent import RaceEngineerAgent
-from telemetry_server.tyres_agent import TyresAgent
+from telemetry_server.agents.damage_agent import DamageAgent
+from telemetry_server.agents.power_unit_agent import PowerUnitAgent
+from telemetry_server.agents.race_engineer_agent import RaceEngineerAgent
+from telemetry_server.agents.tyres_agent import TyresAgent
 
 # ---------------------------------------------------------------------------
 # Re-use constants, struct definitions, and parser from f1_telemetry_parser.py
 # ---------------------------------------------------------------------------
 from telemetry_server.f1_telemetry_parser import (
-    ACTUAL_COMPOUND,
     F1TelemetryParser,
-    HEADER_SIZE,
-    NUM_CARS,
-    PACKET_ID_CAR_TELEMETRY,
     PACKET_ID_SESSION,
-    VISUAL_COMPOUND,
+    PACKET_ID_CAR_TELEMETRY,
     WHEEL_NAMES,
 )
 

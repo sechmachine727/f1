@@ -14,7 +14,7 @@ class PowerUnitAgent:
 
     SESSION_TYPE: str = "direct"
     AGENT_NETWORK_NAME: str = "power_unit_engineer"
-    THINKING_DIR: str = "logs/agents"
+    THINKING_DIR: str = "../logs/agents"
     THINKING_FILE: str = "power_unit_engineer"
     DEFAULT_INPUT: str = "DEFAULT"
 

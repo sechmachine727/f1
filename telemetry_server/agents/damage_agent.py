@@ -7,18 +7,19 @@ from typing import Any
 from neuro_san.client.agent_session_factory import AgentSessionFactory
 from neuro_san.client.streaming_input_processor import StreamingInputProcessor
 
-TEST_INPUT = "Damage Engineer: Front right wing damage critical (100%). Recommend box this lap for new nose."
+TEST_INPUT = "ALERT WARNING FL brake temp 803°C — running hot 02:33 BRK FL"
 
 
-class RaceEngineerAgent:
+class DamageAgent:
 
     SESSION_TYPE: str = "direct"
-    AGENT_NETWORK_NAME: str = "race_engineer"
-    THINKING_DIR: str = "logs/agents"
-    THINKING_FILE: str = "race_engineer"
+    AGENT_NETWORK_NAME: str = "damage_engineer"
+    THINKING_DIR: str = "../logs/agents"
+    THINKING_FILE: str = "damage_engineer"  # Must match the agent name?
     DEFAULT_INPUT: str = "DEFAULT"
 
     def __init__(self, session_context=None) -> None:
+        """Initialise the DamageAgent, optionally injecting session context into the prompt."""
         factory: AgentSessionFactory = AgentSessionFactory()
         # Create log folders if they don't exist
         os.makedirs(self.THINKING_DIR, exist_ok=True)
@@ -34,7 +35,7 @@ class RaceEngineerAgent:
         # Initialize any conversation state here
         self.conversation_state: dict[str, Any] = {
             "last_chat_response": None,
-            "prompt": "Analyze the engineer reports\n",
+            "prompt": "Analyze the alerts log\n",
             "timeout": 5000.0,
             "num_input": 0,
             "user_input": None,
@@ -69,7 +70,7 @@ class RaceEngineerAgent:
         return last_chat_response
 
 if __name__ == "__main__":
-    parser: argparse.ArgumentParser = argparse.ArgumentParser(description="Race engineer agent")
+    parser: argparse.ArgumentParser = argparse.ArgumentParser(description="Damage engineer agent")
     parser.add_argument(
         "--interactive",
         action="store_true",
@@ -80,7 +81,7 @@ if __name__ == "__main__":
     # Set env variables
     os.environ["AGENT_MANIFEST_FILE"] = "registries/manifest.hocon"
     # Instantiate the agent
-    agent: RaceEngineerAgent = RaceEngineerAgent()
+    agent: DamageAgent = DamageAgent()
 
     user_input: str
     if args.interactive:

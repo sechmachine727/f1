@@ -7,19 +7,18 @@ from typing import Any
 from neuro_san.client.agent_session_factory import AgentSessionFactory
 from neuro_san.client.streaming_input_processor import StreamingInputProcessor
 
-TEST_INPUT = "ALERT WARNING FL brake temp 803°C — running hot 02:33 BRK FL"
+TEST_INPUT = "ALERT WARNING FL surface temp 105°C — approaching limit 12:45 TEMP"
 
 
-class DamageAgent:
+class TyresAgent:
 
     SESSION_TYPE: str = "direct"
-    AGENT_NETWORK_NAME: str = "damage_engineer"
-    THINKING_DIR: str = "logs/agents"
-    THINKING_FILE: str = "damage_engineer"  # Must match the agent name?
+    AGENT_NETWORK_NAME: str = "tyres_engineer"
+    THINKING_DIR: str = "../logs/agents"
+    THINKING_FILE: str = "tyres_engineer"
     DEFAULT_INPUT: str = "DEFAULT"
 
     def __init__(self, session_context=None) -> None:
-        """Initialise the DamageAgent, optionally injecting session context into the prompt."""
         factory: AgentSessionFactory = AgentSessionFactory()
         # Create log folders if they don't exist
         os.makedirs(self.THINKING_DIR, exist_ok=True)
@@ -70,7 +69,7 @@ class DamageAgent:
         return last_chat_response
 
 if __name__ == "__main__":
-    parser: argparse.ArgumentParser = argparse.ArgumentParser(description="Damage engineer agent")
+    parser: argparse.ArgumentParser = argparse.ArgumentParser(description="Tyres engineer agent")
     parser.add_argument(
         "--interactive",
         action="store_true",
@@ -81,7 +80,7 @@ if __name__ == "__main__":
     # Set env variables
     os.environ["AGENT_MANIFEST_FILE"] = "registries/manifest.hocon"
     # Instantiate the agent
-    agent: DamageAgent = DamageAgent()
+    agent: TyresAgent = TyresAgent()
 
     user_input: str
     if args.interactive:

@@ -7,15 +7,15 @@ from typing import Any
 from neuro_san.client.agent_session_factory import AgentSessionFactory
 from neuro_san.client.streaming_input_processor import StreamingInputProcessor
 
-TEST_INPUT = "ALERT WARNING FL surface temp 105°C — approaching limit 12:45 TEMP"
+TEST_INPUT = "Damage Engineer: Front right wing damage critical (100%). Recommend box this lap for new nose."
 
 
-class TyresAgent:
+class RaceEngineerAgent:
 
     SESSION_TYPE: str = "direct"
-    AGENT_NETWORK_NAME: str = "tyres_engineer"
-    THINKING_DIR: str = "logs/agents"
-    THINKING_FILE: str = "tyres_engineer"
+    AGENT_NETWORK_NAME: str = "race_engineer"
+    THINKING_DIR: str = "../logs/agents"
+    THINKING_FILE: str = "race_engineer"
     DEFAULT_INPUT: str = "DEFAULT"
 
     def __init__(self, session_context=None) -> None:
@@ -34,7 +34,7 @@ class TyresAgent:
         # Initialize any conversation state here
         self.conversation_state: dict[str, Any] = {
             "last_chat_response": None,
-            "prompt": "Analyze the alerts log\n",
+            "prompt": "Analyze the engineer reports\n",
             "timeout": 5000.0,
             "num_input": 0,
             "user_input": None,
@@ -69,7 +69,7 @@ class TyresAgent:
         return last_chat_response
 
 if __name__ == "__main__":
-    parser: argparse.ArgumentParser = argparse.ArgumentParser(description="Tyres engineer agent")
+    parser: argparse.ArgumentParser = argparse.ArgumentParser(description="Race engineer agent")
     parser.add_argument(
         "--interactive",
         action="store_true",
@@ -80,7 +80,7 @@ if __name__ == "__main__":
     # Set env variables
     os.environ["AGENT_MANIFEST_FILE"] = "registries/manifest.hocon"
     # Instantiate the agent
-    agent: TyresAgent = TyresAgent()
+    agent: RaceEngineerAgent = RaceEngineerAgent()
 
     user_input: str
     if args.interactive:
