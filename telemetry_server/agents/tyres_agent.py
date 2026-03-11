@@ -14,7 +14,7 @@ class TyresAgent:
 
     SESSION_TYPE: str = "direct"
     AGENT_NETWORK_NAME: str = "tyres_engineer"
-    THINKING_DIR: str = "../logs/agents"
+    THINKING_DIR: str = "logs/agents"
     THINKING_FILE: str = "tyres_engineer"
     DEFAULT_INPUT: str = "DEFAULT"
 

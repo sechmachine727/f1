@@ -14,7 +14,7 @@ class RaceEngineerAgent:
 
     SESSION_TYPE: str = "direct"
     AGENT_NETWORK_NAME: str = "race_engineer"
-    THINKING_DIR: str = "../logs/agents"
+    THINKING_DIR: str = "logs/agents"
     THINKING_FILE: str = "race_engineer"
     DEFAULT_INPUT: str = "DEFAULT"
 

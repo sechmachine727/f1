@@ -14,7 +14,7 @@ class DamageAgent:
 
     SESSION_TYPE: str = "direct"
     AGENT_NETWORK_NAME: str = "damage_engineer"
-    THINKING_DIR: str = "../logs/agents"
+    THINKING_DIR: str = "logs/agents"
     THINKING_FILE: str = "damage_engineer"  # Must match the agent name?
     DEFAULT_INPUT: str = "DEFAULT"
 
