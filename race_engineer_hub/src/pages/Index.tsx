@@ -12,6 +12,8 @@ import { usePowerUnitTelemetry } from "@/hooks/usePowerUnitTelemetry";
 import { useAeroTelemetry } from "@/hooks/useAeroTelemetry";
 import { useRaceEngineerReport } from "@/hooks/useRaceEngineerReport";
 import { Flag, Timer, Gauge, Clock } from "lucide-react";
+import { useState, useCallback } from "react";
+import type { ReportEntry } from "@/components/ExpandableReportPanel";
 
 const Index = () => {
   const session = useSessionTelemetry();
@@ -19,6 +21,15 @@ const Index = () => {
   const { puAlerts: { alerts: puAlerts, activeCount: puActiveCount }, puReport } = usePowerUnitTelemetry();
   const { aeroAlerts: { alerts: aeroAlerts, activeCount: aeroActiveCount }, damageReport } = useAeroTelemetry();
   const raceEngineerReport = useRaceEngineerReport();
+  const [driverMessages, setDriverMessages] = useState<ReportEntry[]>([]);
+
+  const handleDriverSend = useCallback((text: string, time: string) => {
+    setDriverMessages((prev) => [...prev, { text, time, source: "driver" as const }]);
+  }, []);
+
+  const handleSessionReset = useCallback(() => {
+    setDriverMessages([]);
+  }, []);
 
   const sessionType = session?.sessionType ?? "—";
   const trackName = session?.trackName ?? "—";
@@ -81,12 +92,12 @@ const Index = () => {
 
       {/* Race Engineer */}
       <div className="shrink-0">
-        <RaceEngineerPanel report={raceEngineerReport} />
+        <RaceEngineerPanel report={raceEngineerReport} driverMessages={driverMessages} />
       </div>
 
       {/* Driver Radio */}
       <div className="shrink-0">
-        <DriverRadioInput />
+        <DriverRadioInput onSend={handleDriverSend} onSessionReset={handleSessionReset} />
       </div>
     </div>
   );
