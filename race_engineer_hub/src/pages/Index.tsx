@@ -6,6 +6,7 @@ import { PuAlertPanel } from "@/components/PuAlertPanel";
 import { AeroAlertPanel } from "@/components/AeroAlertPanel";
 import { RaceEngineerPanel } from "@/components/RaceEngineerPanel";
 import { DriverRadioInput } from "@/components/DriverRadioInput";
+import { TrackMap } from "@/components/TrackMap";
 import { useSessionTelemetry, formatLapTime, formatTimeLeft } from "@/hooks/useSessionTelemetry";
 import { useTyreTelemetry } from "@/hooks/useTyreTelemetry";
 import { usePowerUnitTelemetry } from "@/hooks/usePowerUnitTelemetry";
@@ -151,14 +152,15 @@ const Index = () => {
         </div>
       </div>
 
-      {/* Race Engineer */}
-      <div className="shrink-0">
-        <RaceEngineerPanel report={raceEngineerReport} driverMessages={driverMessages} />
-      </div>
-
-      {/* Driver Radio */}
-      <div className="shrink-0">
-        <DriverRadioInput onSend={handleDriverSend} onSessionReset={handleSessionReset} />
+      {/* Bottom: Race Engineer + Driver Radio (left 2/3) | Track Map (right 1/3) */}
+      <div className="shrink-0 grid grid-cols-1 lg:grid-cols-3 gap-3">
+        <div className="lg:col-span-2 flex flex-col gap-2">
+          <RaceEngineerPanel report={raceEngineerReport} driverMessages={driverMessages} />
+          <DriverRadioInput onSend={handleDriverSend} onSessionReset={handleSessionReset} />
+        </div>
+        <div className="h-64 lg:h-auto">
+          <TrackMap />
+        </div>
       </div>
     </div>
   );
