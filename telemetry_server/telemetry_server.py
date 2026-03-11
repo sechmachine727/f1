@@ -33,7 +33,9 @@ from telemetry_server.f1_telemetry_parser import (
     ACTUAL_COMPOUND,
     F1TelemetryParser,
     HEADER_SIZE,
+    NUM_CARS,
     PACKET_ID_CAR_TELEMETRY,
+    PACKET_ID_SESSION,
     VISUAL_COMPOUND,
     WHEEL_NAMES,
 )
@@ -58,6 +60,11 @@ motion_ex_state: dict = {}
 session_state: dict = {}
 session_time: float = 0.0
 prev_session_uid: int = 0
+
+# Track map state – world positions for all cars + all-car lap data
+motion_positions: list[dict] = []
+all_lap_data: list[dict] = []
+player_car_idx: int = 0
 
 # Alert state – computed server-side and sent pre-computed via WebSocket
 aero_alert_conditions: dict = {}   # key -> {"level": "warn"|"crit", "value": float}
@@ -1135,6 +1142,7 @@ def build_message() -> tuple[str, list[dict], list[dict], list[dict]]:
         "totalLaps": session_state.get("total_laps", 0),
         "sessionTimeLeft": session_state.get("session_time_left", 0),
         "sessionDuration": session_state.get("session_duration", 0),
+        "trackLength": session_state.get("track_length", 0),
         "trackTemp": session_state.get("track_temperature", 0),
         "airTemp": session_state.get("air_temperature", 0),
         "weather": session_state.get("weather", 0),
@@ -1142,6 +1150,27 @@ def build_message() -> tuple[str, list[dict], list[dict], list[dict]]:
         "currentLapTimeMs": lap_state.get("current_lap_time_ms", 0),
         "lastLapTimeMs": last_lap_ms,
     }
+
+    # -- Track map: merge motion positions with per-car lap data --
+    track_map = None
+    if motion_positions:
+        track_map_cars = []
+        for i in range(len(motion_positions)):
+            m = motion_positions[i]
+            lap = all_lap_data[i] if i < len(all_lap_data) else {}
+            wx = m.get("world_position_x", 0)
+            wz = m.get("world_position_z", 0)
+            track_map_cars.append({
+                "x": wx,
+                "z": wz,
+                "position": lap.get("position", 0),
+                "lapDistance": lap.get("lap_distance", 0),
+                "active": (wx != 0 or wz != 0) and lap.get("driver_status", 0) >= 1,
+            })
+        track_map = {
+            "playerIndex": player_car_idx,
+            "cars": track_map_cars,
+        }
 
     msg = json.dumps({
         "tyres": tyres,
@@ -1154,6 +1183,7 @@ def build_message() -> tuple[str, list[dict], list[dict], list[dict]]:
         "powerUnit": power_unit,
         "aero": aero,
         "session": session,
+        "trackMap": track_map,
         "tyreAlerts": {
             "alerts": tyre_alerts_log,
             "activeCount": len(tyre_alert_conditions),
@@ -1223,6 +1253,7 @@ async def udp_reader():
     telemetry frame (packet 6)."""
     global lap_state, status_state, damage_state, telemetry_state, setup_state, motion_ex_state, session_state, session_time
     global prev_session_uid
+    global motion_positions, all_lap_data, player_car_idx
 
     loop = asyncio.get_running_loop()
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -1255,6 +1286,9 @@ async def udp_reader():
             damage_state = parser.damage_state
             setup_state = parser.setup_state
             motion_ex_state = parser.motion_ex_state
+            motion_positions = parser.motion_data
+            all_lap_data = parser.all_cars_lap_data
+            player_car_idx = parser.player_car_index
 
             # Detect new session and re-instantiate agents with session context
             if packet_id == PACKET_ID_SESSION and parser.session_uid != prev_session_uid:
