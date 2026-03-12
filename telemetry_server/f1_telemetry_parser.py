@@ -6,6 +6,9 @@ used by both ``tyre_logger`` and ``telemetry_server``.
 
 import struct
 
+from telemetry_server.f1_constants import DRIVER_ABBREVIATIONS
+from telemetry_server.f1_constants import TEAM_ABBREVIATIONS
+
 # ---------------------------------------------------------------------------
 # Packet IDs (F1 25 spec)
 # ---------------------------------------------------------------------------
@@ -15,6 +18,7 @@ PACKET_ID_LAP_DATA = 2
 PACKET_ID_CAR_SETUPS = 5
 PACKET_ID_CAR_TELEMETRY = 6
 PACKET_ID_CAR_STATUS = 7
+PACKET_ID_PARTICIPANTS = 4
 PACKET_ID_CAR_DAMAGE = 10
 PACKET_ID_MOTION_EX = 13
 
@@ -46,6 +50,26 @@ SESSION_HEADER_STRUCT = struct.Struct(
     "H"  # m_sessionDuration
 )
 SESSION_HEADER_SIZE = SESSION_HEADER_STRUCT.size  # pylint: disable=invalid-name  # 13
+
+# ParticipantData struct (57 bytes per car)
+PARTICIPANT_STRUCT = struct.Struct(
+    "<"
+    "B"   # m_aiControlled
+    "B"   # m_driverId
+    "B"   # m_networkId
+    "B"   # m_teamId
+    "B"   # m_myTeam
+    "B"   # m_raceNumber
+    "B"   # m_nationality
+    "32s" # m_name (null-terminated UTF-8, cs_maxParticipantNameLen=32)
+    "B"   # m_yourTelemetry
+    "B"   # m_showOnlineNames
+    "H"   # m_techLevel
+    "B"   # m_platform
+    "B"   # m_numColours
+    "12s" # m_liveryColours (4 × LiveryColour, 3 bytes each)
+)
+PARTICIPANT_SIZE = PARTICIPANT_STRUCT.size  # pylint: disable=invalid-name  # 57
 
 # LapData struct (57 bytes)
 LAPDATA_STRUCT = struct.Struct(
@@ -310,6 +334,7 @@ class F1TelemetryParser:  # pylint: disable=too-many-instance-attributes,too-few
         self.player_car_index: int = 0
         self.motion_data: list[dict] = []
         self.all_cars_lap_data: list[dict] = []
+        self.participants_data: list[dict] = []
 
     def parse_packet(self, data: bytes) -> int | None:  # pylint: disable=too-many-return-statements
         """Parse a raw UDP packet and update internal state.
@@ -332,6 +357,8 @@ class F1TelemetryParser:  # pylint: disable=too-many-instance-attributes,too-few
             return self._parse_session(data)
         if packet_id == PACKET_ID_LAP_DATA:
             return self._parse_lap_data(data, player_car_index)
+        if packet_id == PACKET_ID_PARTICIPANTS:
+            return self._parse_participants(data)
         if packet_id == PACKET_ID_CAR_STATUS:
             return self._parse_car_status(data, player_car_index)
         if packet_id == PACKET_ID_CAR_DAMAGE:
@@ -395,6 +422,38 @@ class F1TelemetryParser:  # pylint: disable=too-many-instance-attributes,too-few
             "weather": fields[0],
         }
         return PACKET_ID_SESSION
+
+    def _parse_participants(self, data: bytes) -> int | None:
+        """Parse a Participants packet and update ``participants_data``."""
+        # First byte after header is m_numActiveCars
+        if len(data) < HEADER_SIZE + 1:
+            return None
+        num_active = data[HEADER_SIZE]
+        participants: list[dict] = []
+        for i in range(min(num_active, NUM_CARS)):
+            base = HEADER_SIZE + 1 + i * PARTICIPANT_SIZE
+            if len(data) < base + PARTICIPANT_SIZE:
+                break
+            fields = PARTICIPANT_STRUCT.unpack_from(data, base)
+            driver_id = fields[1]
+            team_id = fields[3]
+            raw_name = fields[7]  # 48-byte name field
+            name = raw_name.split(b"\x00", 1)[0].decode("utf-8", errors="replace")
+            # Use known abbreviation from driver ID, fall back to first 3 chars of name
+            abbrev = DRIVER_ABBREVIATIONS.get(driver_id, "")
+            if not abbrev and name:
+                abbrev = name[:3].upper()
+            team_abbrev = TEAM_ABBREVIATIONS.get(team_id, "")
+            participants.append({
+                "driver_id": driver_id,
+                "team_id": team_id,
+                "race_number": fields[5],
+                "name": name,
+                "abbreviation": abbrev,
+                "team_abbreviation": team_abbrev,
+            })
+        self.participants_data = participants
+        return PACKET_ID_PARTICIPANTS
 
     def _parse_lap_data(self, data: bytes, idx: int) -> int | None:
         """Parse a LapData packet and update ``lap_state`` and ``all_cars_lap_data``."""

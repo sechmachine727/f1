@@ -9,6 +9,10 @@ export interface CarPosition {
   position: number;
   lapDistance: number;
   active: boolean;
+  /** 3-letter driver abbreviation (e.g. "VER", "HAM"). Empty if unavailable. */
+  abbreviation: string;
+  /** Team abbreviation (e.g. "RBR", "MER"). Empty if unavailable. */
+  teamAbbreviation: string;
 }
 
 export interface TrackMapState {
