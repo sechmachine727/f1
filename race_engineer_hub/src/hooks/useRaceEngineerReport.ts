@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import type { Alert } from "@/components/AlertBox";
 
 export interface RaceEngineerReportEntry {
   text: string;
@@ -7,14 +8,16 @@ export interface RaceEngineerReportEntry {
 
 export interface RaceEngineerReport {
   responses: RaceEngineerReportEntry[];
+  alerts: Alert[];
 }
 
 const WS_URL = "ws://localhost:8765";
 const RECONNECT_INTERVAL_MS = 2000;
 
 export function useRaceEngineerReport(): RaceEngineerReport {
-  const [report, setReport] = useState<RaceEngineerReport>({ responses: [] });
+  const [report, setReport] = useState<RaceEngineerReport>({ responses: [], alerts: [] });
   const lastResponse = useRef<string | null>(null);
+  const lastAlertCount = useRef<number>(0);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout>>();
 
@@ -31,14 +34,30 @@ export function useRaceEngineerReport(): RaceEngineerReport {
         try {
           const msg = JSON.parse(event.data);
           if (msg.raceEngineerReport) {
-            if (msg.raceEngineerReport.response === null) {
+            const re = msg.raceEngineerReport;
+            const serverAlerts: Alert[] = re.alerts ?? [];
+
+            if (re.response === null && serverAlerts.length === 0) {
               lastResponse.current = null;
-              setReport({ responses: [] });
-            } else if (msg.raceEngineerReport.response !== lastResponse.current) {
-              lastResponse.current = msg.raceEngineerReport.response;
-              setReport((prev) => ({
-                responses: [...prev.responses, { text: msg.raceEngineerReport.response, time: msg.raceEngineerReport.time ?? "" }],
-              }));
+              lastAlertCount.current = 0;
+              setReport({ responses: [], alerts: [] });
+            } else {
+              setReport((prev) => {
+                const newResponses = re.response !== null && re.response !== lastResponse.current
+                  ? [...prev.responses, { text: re.response, time: re.time ?? "" }]
+                  : prev.responses;
+
+                if (re.response !== null) {
+                  lastResponse.current = re.response;
+                }
+
+                const newAlerts = serverAlerts.length !== lastAlertCount.current
+                  ? serverAlerts
+                  : prev.alerts;
+                lastAlertCount.current = serverAlerts.length;
+
+                return { responses: newResponses, alerts: newAlerts };
+              });
             }
           }
         } catch {

@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { useAutoScroll } from "@/hooks/useAutoScroll";
 import ReactMarkdown from "react-markdown";
-import { Bot, Loader2, Maximize2, Radio } from "lucide-react";
+import { Bot, Loader2, Maximize2, Radio, MessageSquare } from "lucide-react";
 
 export interface ReportEntry {
   text: string;
   time: string;
-  source?: "driver" | "engineer";
+  source?: "driver" | "engineer" | "alert";
 }
 
 interface ExpandableReportPanelProps {
@@ -24,9 +24,11 @@ export function ExpandableReportPanel({ title, responses, emptyMessage, classNam
   const content = (scrollRefProp: React.RefObject<HTMLDivElement>, heightClass: string) => (
     <div ref={scrollRefProp} className={`${heightClass} overflow-y-auto`}>
       {responses.map((r, i) => (
-        <div key={i} className={`flex items-start gap-2 px-3 py-2 border-b last:border-b-0 border-border/20 ${r.source === "driver" ? "bg-accent/5" : ""}`}>
+        <div key={i} className={`flex items-start gap-2 px-3 py-2 border-b last:border-b-0 border-border/20 ${r.source === "driver" ? "bg-accent/5" : r.source === "alert" ? "bg-warning/5" : ""}`}>
           {r.source === "driver"
             ? <Radio className="h-3.5 w-3.5 text-accent shrink-0 mt-0.5" />
+            : r.source === "alert"
+            ? <MessageSquare className="h-3.5 w-3.5 text-warning shrink-0 mt-0.5" />
             : <Bot className="h-3.5 w-3.5 text-info shrink-0 mt-0.5" />}
           <div className="prose prose-xs prose-invert max-w-none text-[11px] text-card-foreground leading-tight [&>p]:m-0 flex-1">
             {r.source === "driver"
@@ -83,9 +85,11 @@ export function ExpandableReportPanel({ title, responses, emptyMessage, classNam
               className="max-h-[70vh] overflow-y-auto"
             >
               {responses.map((r, i) => (
-                <div key={i} className={`flex items-start gap-2 px-4 py-3 border-b last:border-b-0 border-border/20 ${r.source === "driver" ? "bg-accent/5" : ""}`}>
+                <div key={i} className={`flex items-start gap-2 px-4 py-3 border-b last:border-b-0 border-border/20 ${r.source === "driver" ? "bg-accent/5" : r.source === "alert" ? "bg-warning/5" : ""}`}>
                   {r.source === "driver"
                     ? <Radio className="h-4 w-4 text-accent shrink-0 mt-0.5" />
+                    : r.source === "alert"
+                    ? <MessageSquare className="h-4 w-4 text-warning shrink-0 mt-0.5" />
                     : <Bot className="h-4 w-4 text-info shrink-0 mt-0.5" />}
                   <div className="prose prose-sm prose-invert max-w-none text-sm text-card-foreground leading-relaxed [&>p]:m-0 flex-1">
                     {r.source === "driver"

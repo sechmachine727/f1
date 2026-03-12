@@ -11,6 +11,7 @@ interface RaceEngineerPanelProps {
 export function RaceEngineerPanel({ report, driverMessages, className }: RaceEngineerPanelProps) {
   const merged: ReportEntry[] = [
     ...driverMessages,
+    ...report.alerts.map((a) => ({ text: a.message, time: a.time, source: "alert" as const })),
     ...report.responses.map((r) => ({ ...r, source: "engineer" as const })),
   ].sort((a, b) => a.time.localeCompare(b.time));
 

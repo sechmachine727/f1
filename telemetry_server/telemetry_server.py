@@ -112,6 +112,7 @@ re_agent_response_time: str | None = None
 re_agent_in_flight: bool = False
 re_agent_pending: list[str] = []
 re_agent_batch_handle: asyncio.TimerHandle | None = None
+re_alerts_log: list = []  # accumulated messages received by the race engineer
 RE_AGENT_BATCH_DELAY: float = 2.0  # longer window to batch multiple engineer reports
 
 # ---------------------------------------------------------------------------
@@ -395,6 +396,7 @@ def _process_aero_alerts(aero: dict) -> None:
     global aero_alert_conditions, aero_alerts_log, prev_aero_session_time
     global damage_agent_response, damage_agent_response_time, damage_agent_pending, damage_agent_batch_handle
     global re_agent_response, re_agent_response_time, re_agent_pending, re_agent_batch_handle
+    global re_alerts_log
 
     st = aero.get("sessionTime", 0.0)
 
@@ -411,6 +413,7 @@ def _process_aero_alerts(aero: dict) -> None:
         re_agent_response = None
         re_agent_response_time = None
         re_agent_pending = []
+        re_alerts_log = []
         if re_agent_batch_handle is not None:
             re_agent_batch_handle.cancel()
             re_agent_batch_handle = None
@@ -993,6 +996,11 @@ def _queue_race_engineer(messages: list[str]) -> None:
 
     re_agent_pending.extend(messages)
 
+    # Log incoming messages so they appear in the Race Engineer panel
+    ts = _format_session_time(session_time)
+    for msg in messages:
+        re_alerts_log.append({"level": "info", "message": msg, "time": ts})
+
     if re_agent_batch_handle is not None:
         re_agent_batch_handle.cancel()
 
@@ -1274,6 +1282,7 @@ def build_message() -> tuple[str, list[dict], list[dict], list[dict]]:
         "raceEngineerReport": {
             "response": re_agent_response,
             "time": re_agent_response_time,
+            "alerts": re_alerts_log,
         },
     })
     return msg, new_aero_alerts, new_tyre_alerts, new_pu_alerts
