@@ -1,5 +1,5 @@
-"""Download racing line data from the reference repo and build a compact
-TypeScript track data file for the Race Engineer Hub frontend.
+"""Build a compact TypeScript track data file for the Race Engineer Hub
+frontend from local course coordinate files.
 
 Usage:
     python scripts/build_track_data.py
@@ -9,58 +9,54 @@ import csv
 import io
 import json
 import math
-import urllib.request
+from pathlib import Path
 
-BASE_URL = (
-    "https://raw.githubusercontent.com/Fredrik2002/f1-25-telemetry-application/main/tracks/"
-)
+COORDS_DIR = Path(__file__).resolve().parent.parent / "common" / "course_coordinates"
 
-# Map from our TRACK_NAMES values to the reference repo filenames.
-# The reference files use pos_x → worldX, pos_z → worldZ (same coordinate system).
+# Map from our TRACK_NAMES values to local coordinate filenames.
 TRACK_FILE_MAP = {
-    "AUSTRALIAN GP": "melbourne_2020_racingline.txt",
-    "FRENCH GP": "paul_ricard_2020_racingline.txt",
-    "CHINESE GP": "shanghai_2020_racingline.txt",
-    "BAHRAIN GP": "Bahrain_racingline.txt",
-    "SPANISH GP": "catalunya_2020_racingline.txt",
-    "MONACO GP": "monaco_2020_racingline.txt",
-    "CANADIAN GP": "montreal_2020_racingline.txt",
-    "BRITISH GP": "silverstone_2020_racingline.txt",
-    "HUNGARIAN GP": "hungaroring_2020_racingline.txt",
-    "BELGIAN GP": "spa_2020_racingline.txt",
-    "ITALIAN GP": "monza_2020_racingline.txt",
-    "SINGAPORE GP": "singapore_2020_racingline.txt",
-    "JAPANESE GP": "suzuka_2020_racingline.txt",
-    "ABU DHABI GP": "abu_dhabi_2020_racingline.txt",
-    "UNITED STATES GP": "texas_2020_racingline.txt",
-    "BRAZILIAN GP": "brazil_2020_racingline.txt",
-    "AUSTRIAN GP": "austria_2020_racingline.txt",
-    "RUSSIAN GP": "sochi_2020_racingline.txt",
-    "MEXICAN GP": "mexico_2020_racingline.txt",
-    "AZERBAIJAN GP": "baku_2020_racingline.txt",
-    "DUTCH GP": "zandvoort_2020_racingline.txt",
-    "EMILIA ROMAGNA GP": "imola_2020_racingline.txt",
-    "SAUDI ARABIAN GP": "jeddah_2020_racingline.txt",
-    "MIAMI GP": "miami_2020_racingline.txt",
-    "LAS VEGAS GP": "Las Vegas_2020_racingline.txt",
-    "QATAR GP": "losail_2020_racingline.txt",
-    "VIETNAMESE GP": "hanoi_2020_racingline.txt",
-    "BAHRAIN SHORT": "sakhir_2020_racingline.txt",
+    "AUSTRALIAN GP": "melbourne_coordinates.txt",
+    "FRENCH GP": "paul_ricard_coordinates.txt",
+    "CHINESE GP": "shanghai_coordinates.txt",
+    "BAHRAIN GP": "bahrain_coordinates.txt",
+    "SPANISH GP": "catalunya_coordinates.txt",
+    "MONACO GP": "monaco_coordinates.txt",
+    "CANADIAN GP": "montreal_coordinates.txt",
+    "BRITISH GP": "silverstone_coordinates.txt",
+    "HUNGARIAN GP": "hungaroring_coordinates.txt",
+    "BELGIAN GP": "spa_coordinates.txt",
+    "ITALIAN GP": "monza_coordinates.txt",
+    "SINGAPORE GP": "singapore_coordinates.txt",
+    "JAPANESE GP": "suzuka_coordinates.txt",
+    "ABU DHABI GP": "abu_dhabi_coordinates.txt",
+    "UNITED STATES GP": "texas_coordinates.txt",
+    "BRAZILIAN GP": "brazil_coordinates.txt",
+    "AUSTRIAN GP": "austria_coordinates.txt",
+    "RUSSIAN GP": "sochi_coordinates.txt",
+    "MEXICAN GP": "mexico_coordinates.txt",
+    "AZERBAIJAN GP": "baku_coordinates.txt",
+    "DUTCH GP": "zandvoort_coordinates.txt",
+    "EMILIA ROMAGNA GP": "imola_coordinates.txt",
+    "SAUDI ARABIAN GP": "jeddah_coordinates.txt",
+    "MIAMI GP": "miami_coordinates.txt",
+    "LAS VEGAS GP": "las_vegas_coordinates.txt",
+    "QATAR GP": "losail_coordinates.txt",
+    "VIETNAMESE GP": "hanoi_coordinates.txt",
+    "BAHRAIN SHORT": "sakhir_coordinates.txt",
 }
 
 TARGET_POINTS = 150  # max points per track after subsampling
 
 
-def fetch_track(filename: str) -> list[tuple[float, float]]:
-    """Download a racing line file and return a list of (x, z) tuples."""
-    url = BASE_URL + urllib.request.quote(filename)
-    print(f"  Fetching {filename} ...")
-    try:
-        with urllib.request.urlopen(url, timeout=15) as resp:
-            text = resp.read().decode("utf-8")
-    except Exception as exc:
-        print(f"    FAILED: {exc}")
+def load_track(filename: str) -> list[tuple[float, float]]:
+    """Load a local coordinate file and return a list of (x, z) tuples."""
+    path = COORDS_DIR / filename
+    print(f"  Loading {filename} ...")
+    if not path.exists():
+        print(f"    MISSING: {path}")
         return []
+
+    text = path.read_text(encoding="utf-8")
 
     points: list[tuple[float, float]] = []
     reader = csv.reader(io.StringIO(text))
@@ -136,7 +132,7 @@ def main():
 
     for track_name, filename in sorted(TRACK_FILE_MAP.items()):
         print(f"[{track_name}]")
-        points = fetch_track(filename)
+        points = load_track(filename)
         if not points:
             print(f"    Skipped (no data)")
             continue
