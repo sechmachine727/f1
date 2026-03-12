@@ -25,20 +25,21 @@ export function ExpandableReportPanel({ title, responses, emptyMessage, classNam
     <div ref={scrollRefProp} className={`${heightClass} overflow-y-auto`}>
       {responses.map((r, i) => {
         const isRadio = r.source === "radio";
-        const bgClass = r.source === "driver" ? "bg-accent/5"
+        const isDriver = r.source === "driver";
+        const bgClass = isDriver ? "bg-accent/10 border-l-2 border-l-accent"
           : isRadio ? "bg-primary/10 border-l-2 border-l-primary"
           : r.source === "alert" ? "bg-warning/5" : "";
         return (
           <div key={i} className={`flex items-start gap-2 px-3 py-2 border-b last:border-b-0 border-border/20 ${bgClass}`}>
-            {r.source === "driver"
+            {isDriver
               ? <Radio className="h-3.5 w-3.5 text-accent shrink-0 mt-0.5" />
               : isRadio
               ? <Radio className="h-3.5 w-3.5 text-primary shrink-0 mt-0.5" />
               : r.source === "alert"
               ? <MessageSquare className="h-3.5 w-3.5 text-warning shrink-0 mt-0.5" />
               : <Bot className="h-3.5 w-3.5 text-info shrink-0 mt-0.5" />}
-            <div className={`prose prose-xs prose-invert max-w-none text-[11px] leading-tight [&>p]:m-0 flex-1 ${isRadio ? "text-primary font-semibold" : "text-card-foreground"}`}>
-              {r.source === "driver"
+            <div className={`prose prose-xs prose-invert max-w-none text-[11px] leading-tight [&>p]:m-0 flex-1 ${isDriver ? "text-accent font-semibold" : isRadio ? "text-primary font-semibold" : "text-card-foreground"}`}>
+              {isDriver
                 ? <span><span className="font-display text-[9px] font-bold tracking-wider text-accent/60">FERNANDO &gt; </span>{r.text}</span>
                 : <ReactMarkdown>{r.text}</ReactMarkdown>}
             </div>
@@ -94,20 +95,21 @@ export function ExpandableReportPanel({ title, responses, emptyMessage, classNam
             >
               {responses.map((r, i) => {
                 const isRadio = r.source === "radio";
-                const bgClass = r.source === "driver" ? "bg-accent/5"
+                const isDriver = r.source === "driver";
+                const bgClass = isDriver ? "bg-accent/10 border-l-2 border-l-accent"
                   : isRadio ? "bg-primary/10 border-l-2 border-l-primary"
                   : r.source === "alert" ? "bg-warning/5" : "";
                 return (
                   <div key={i} className={`flex items-start gap-2 px-4 py-3 border-b last:border-b-0 border-border/20 ${bgClass}`}>
-                    {r.source === "driver"
+                    {isDriver
                       ? <Radio className="h-4 w-4 text-accent shrink-0 mt-0.5" />
                       : isRadio
                       ? <Radio className="h-4 w-4 text-primary shrink-0 mt-0.5" />
                       : r.source === "alert"
                       ? <MessageSquare className="h-4 w-4 text-warning shrink-0 mt-0.5" />
                       : <Bot className="h-4 w-4 text-info shrink-0 mt-0.5" />}
-                    <div className={`prose prose-sm prose-invert max-w-none text-sm leading-relaxed [&>p]:m-0 flex-1 ${isRadio ? "text-primary font-semibold" : "text-card-foreground"}`}>
-                      {r.source === "driver"
+                    <div className={`prose prose-sm prose-invert max-w-none text-sm leading-relaxed [&>p]:m-0 flex-1 ${isDriver ? "text-accent font-semibold" : isRadio ? "text-primary font-semibold" : "text-card-foreground"}`}>
+                      {isDriver
                         ? <span><span className="font-display text-[10px] font-bold tracking-wider text-accent/60">FERNANDO &gt; </span>{r.text}</span>
                         : <ReactMarkdown>{r.text}</ReactMarkdown>}
                     </div>
