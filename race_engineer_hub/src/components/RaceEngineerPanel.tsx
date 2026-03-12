@@ -14,7 +14,10 @@ export function RaceEngineerPanel({ report, driverMessages, className }: RaceEng
     ...report.alerts
       .filter((a) => !a.message.startsWith("From Fernando:"))
       .map((a) => ({ text: a.message, time: a.time, source: "alert" as const })),
-    ...report.responses.map((r) => ({ ...r, source: "engineer" as const })),
+    ...report.responses.map((r) => ({
+      ...r,
+      source: r.text.startsWith("To Fernando:") ? "radio" as const : "engineer" as const,
+    })),
   ].sort((a, b) => a.time.localeCompare(b.time));
 
   return (
