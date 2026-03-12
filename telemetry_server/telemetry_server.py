@@ -108,12 +108,11 @@ PU_AGENT_BATCH_DELAY: float = 1.0  # seconds to wait before flushing
 
 # RaceEngineerAgent state
 re_agent: RaceEngineerAgent | None = None
-re_agent_response: str | None = None
-re_agent_response_time: str | None = None
 re_agent_in_flight: bool = False
 re_agent_pending: list[str] = []
 re_agent_batch_handle: asyncio.TimerHandle | None = None
-re_alerts_log: list = []  # accumulated messages received by the race engineer
+re_alerts_log: list = []       # accumulated messages received by the race engineer
+re_responses_log: list = []    # accumulated race engineer responses (split per target)
 RE_AGENT_BATCH_DELAY: float = 2.0  # longer window to batch multiple engineer reports
 
 # ---------------------------------------------------------------------------
@@ -396,8 +395,8 @@ def _process_aero_alerts(aero: dict) -> None:
     """Port of useAeroAlerts.ts — accumulates alerts into aero_alerts_log."""
     global aero_alert_conditions, aero_alerts_log, prev_aero_session_time
     global damage_agent_response, damage_agent_response_time, damage_agent_pending, damage_agent_batch_handle
-    global re_agent_response, re_agent_response_time, re_agent_pending, re_agent_batch_handle
-    global re_alerts_log
+    global re_agent_pending, re_agent_batch_handle
+    global re_alerts_log, re_responses_log
 
     st = aero.get("sessionTime", 0.0)
 
@@ -411,10 +410,9 @@ def _process_aero_alerts(aero: dict) -> None:
         if damage_agent_batch_handle is not None:
             damage_agent_batch_handle.cancel()
             damage_agent_batch_handle = None
-        re_agent_response = None
-        re_agent_response_time = None
         re_agent_pending = []
         re_alerts_log = []
+        re_responses_log = []
         if re_agent_batch_handle is not None:
             re_agent_batch_handle.cancel()
             re_agent_batch_handle = None
@@ -1065,9 +1063,37 @@ def _route_race_engineer_response(response: str) -> None:
         alerts_log.append({"level": "info", "message": prefixed, "time": ts})
 
 
+def _split_race_engineer_response(response: str) -> list[str]:
+    """Split a race engineer response into individual messages per target.
+
+    Each block starts with a known prefix (e.g. "To Fernando:", "To Damage Engineer:").
+    Continuation lines (no prefix) are appended to the current block.
+    Text without any prefix is kept as a standalone block.
+    """
+    prefixes = ("To Fernando:", "To Damage Engineer:", "To Tyres Engineer:", "To Power Unit Engineer:")
+    blocks: list[str] = []
+    current_lines: list[str] = []
+
+    for line in response.strip().splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        if any(line.startswith(p) for p in prefixes):
+            if current_lines:
+                blocks.append(" ".join(current_lines))
+            current_lines = [line]
+        else:
+            current_lines.append(line)
+
+    if current_lines:
+        blocks.append(" ".join(current_lines))
+
+    return blocks
+
+
 async def _flush_race_engineer() -> None:
     """Drain the pending list and send the batch to the RaceEngineerAgent."""
-    global re_agent_response, re_agent_response_time, re_agent_in_flight, re_agent_pending
+    global re_agent_in_flight, re_agent_pending
     global re_agent_batch_handle
 
     re_agent_batch_handle = None
@@ -1087,8 +1113,9 @@ async def _flush_race_engineer() -> None:
         response = await asyncio.to_thread(re_agent.process_messages, batch)
         # Don't send bare "Copy" acknowledgments to the frontend
         if response and response.strip().lower() != "copy":
-            re_agent_response = response
-            re_agent_response_time = _format_session_time(session_time)
+            ts = _format_session_time(session_time)
+            for msg in _split_race_engineer_response(response):
+                re_responses_log.append({"text": msg, "time": ts})
     except Exception as exc:
         print(f"RaceEngineerAgent error: {exc}")
     finally:
@@ -1281,8 +1308,7 @@ def build_message() -> tuple[str, list[dict], list[dict], list[dict]]:
             "time": pu_agent_response_time,
         },
         "raceEngineerReport": {
-            "response": re_agent_response,
-            "time": re_agent_response_time,
+            "responses": re_responses_log,
             "alerts": re_alerts_log,
         },
     })

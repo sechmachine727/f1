@@ -16,7 +16,7 @@ const RECONNECT_INTERVAL_MS = 2000;
 
 export function useRaceEngineerReport(): RaceEngineerReport {
   const [report, setReport] = useState<RaceEngineerReport>({ responses: [], alerts: [] });
-  const lastResponse = useRef<string | null>(null);
+  const lastResponseCount = useRef<number>(0);
   const lastAlertCount = useRef<number>(0);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout>>();
@@ -35,29 +35,25 @@ export function useRaceEngineerReport(): RaceEngineerReport {
           const msg = JSON.parse(event.data);
           if (msg.raceEngineerReport) {
             const re = msg.raceEngineerReport;
+            const serverResponses: RaceEngineerReportEntry[] = re.responses ?? [];
             const serverAlerts: Alert[] = re.alerts ?? [];
 
-            if (re.response === null && serverAlerts.length === 0) {
-              lastResponse.current = null;
+            if (serverResponses.length === 0 && serverAlerts.length === 0) {
+              lastResponseCount.current = 0;
               lastAlertCount.current = 0;
               setReport({ responses: [], alerts: [] });
             } else {
-              setReport((prev) => {
-                const newResponses = re.response !== null && re.response !== lastResponse.current
-                  ? [...prev.responses, { text: re.response, time: re.time ?? "" }]
-                  : prev.responses;
+              const responsesChanged = serverResponses.length !== lastResponseCount.current;
+              const alertsChanged = serverAlerts.length !== lastAlertCount.current;
 
-                if (re.response !== null) {
-                  lastResponse.current = re.response;
-                }
-
-                const newAlerts = serverAlerts.length !== lastAlertCount.current
-                  ? serverAlerts
-                  : prev.alerts;
+              if (responsesChanged || alertsChanged) {
+                lastResponseCount.current = serverResponses.length;
                 lastAlertCount.current = serverAlerts.length;
-
-                return { responses: newResponses, alerts: newAlerts };
-              });
+                setReport({
+                  responses: serverResponses,
+                  alerts: serverAlerts,
+                });
+              }
             }
           }
         } catch {
