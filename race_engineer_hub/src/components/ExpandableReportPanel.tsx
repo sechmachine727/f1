@@ -14,9 +14,10 @@ interface ExpandableReportPanelProps {
   responses: ReportEntry[];
   emptyMessage: string;
   className?: string;
+  headerExtra?: React.ReactNode;
 }
 
-export function ExpandableReportPanel({ title, responses, emptyMessage, className }: ExpandableReportPanelProps) {
+export function ExpandableReportPanel({ title, responses, emptyMessage, className, headerExtra }: ExpandableReportPanelProps) {
   const [expanded, setExpanded] = useState(false);
   const scrollRef = useAutoScroll<HTMLDivElement>(responses.length);
   const expandedScrollRef = useAutoScroll<HTMLDivElement>(responses.length);
@@ -66,7 +67,8 @@ export function ExpandableReportPanel({ title, responses, emptyMessage, classNam
         {title}
       </span>
       {!expanded && <Maximize2 className="h-2.5 w-2.5 text-muted-foreground/50 ml-1" />}
-      <span className="ml-auto font-display text-[10px] text-muted-foreground">{responses.length}</span>
+      {headerExtra && <span className="ml-auto">{headerExtra}</span>}
+      <span className={`font-display text-[10px] text-muted-foreground ${headerExtra ? "" : "ml-auto"}`}>{responses.length}</span>
     </div>
   );
 

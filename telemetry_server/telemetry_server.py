@@ -347,8 +347,8 @@ def _format_session_time(seconds: float) -> str:
 
 
 def _is_copy_ack(text: str) -> bool:
-    """Return True if the text is a bare 'Copy' acknowledgment, ignoring markdown bold."""
-    return text.strip().strip("*").strip().lower() == "copy"
+    """Return True if the text is a bare 'Copy' acknowledgment, ignoring markdown bold and trailing punctuation."""
+    return text.strip().strip("*").strip().rstrip(".").strip().lower() == "copy"
 
 
 WEATHER_LABELS = {
