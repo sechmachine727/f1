@@ -48,8 +48,9 @@
         #   - https://github.com/cognizant-ai-lab/neuro-san/blob/main/neuro_san/internals/run_context/langchain/llms/default_llm_info.hocon
         #   - https://github.com/cognizant-ai-lab/neuro-san/blob/main/docs/agent_hocon_reference.md#llm_config
 
-        "class": "openai",
-        "model_name": "gpt-5.2",
+        #"class": "openai",
+        #"model_name": "gpt-5.2",
+        "model_name": "claude-haiku",
 
     }
 }
