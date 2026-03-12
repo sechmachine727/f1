@@ -53,9 +53,9 @@ class CaptureSession:
         self._writer: BinaryWriter | None = None
         self._running = False
 
-        # Frequency gate: minimum interval between high-frequency captures
+        # Frequency gate: minimum interval between high-frequency captures (per packet type)
         self._min_interval_ns = int(1e9 / hz) if hz > 0 else 0
-        self._last_capture_ns: int = 0
+        self._last_capture_ns: dict[int, int] = {}
 
         # Latest decoded state per packet type (always updated, regardless of Hz)
         self.state: dict[int, dict] = {}
@@ -121,11 +121,12 @@ class CaptureSession:
         now_ns = time.time_ns()
 
         if packet_id in HIGH_FREQUENCY_PACKET_IDS:
-            # Gate high-frequency packets by the capture Hz
-            elapsed = now_ns - self._last_capture_ns
+            # Gate high-frequency packets by the capture Hz (per packet type)
+            last_ns = self._last_capture_ns.get(packet_id, 0)
+            elapsed = now_ns - last_ns
             if elapsed < self._min_interval_ns:
                 return
-            self._last_capture_ns = now_ns
+            self._last_capture_ns[packet_id] = now_ns
 
         self._writer.write(datagram, timestamp_ns=now_ns)
         self.packets_captured += 1
