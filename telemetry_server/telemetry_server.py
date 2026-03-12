@@ -31,6 +31,7 @@ from telemetry_server.agents.tyres_agent import TyresAgent
 from telemetry_server.f1_telemetry_parser import (
     F1TelemetryParser,
     PACKET_ID_SESSION,
+    NUM_CARS,
     PACKET_ID_CAR_TELEMETRY,
     WHEEL_NAMES,
 )
