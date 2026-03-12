@@ -346,6 +346,11 @@ def _format_session_time(seconds: float) -> str:
     return f"{m:02d}:{s:02d}"
 
 
+def _is_copy_ack(text: str) -> bool:
+    """Return True if the text is a bare 'Copy' acknowledgment, ignoring markdown bold."""
+    return text.strip().strip("*").strip().lower() == "copy"
+
+
 WEATHER_LABELS = {
     0: "Clear", 1: "Light Cloud", 2: "Overcast",
     3: "Light Rain", 4: "Heavy Rain", 5: "Storm",
@@ -876,10 +881,10 @@ async def _flush_damage_agent() -> None:
     damage_agent_in_flight = True
     try:
         response = await asyncio.to_thread(damage_agent.process_messages, batch)
-        damage_agent_response = response
-        damage_agent_response_time = _format_session_time(prev_aero_session_time)
-        # Forward to race engineer
-        if response:
+        # Skip bare "Copy" acknowledgments
+        if response and not _is_copy_ack(response):
+            damage_agent_response = response
+            damage_agent_response_time = _format_session_time(prev_aero_session_time)
             _queue_race_engineer([f"From Damage Engineer: {response}"])
     except Exception as exc:
         print(f"DamageAgent error: {exc}")
@@ -926,10 +931,10 @@ async def _flush_tyres_agent() -> None:
     tyres_agent_in_flight = True
     try:
         response = await asyncio.to_thread(tyres_agent.process_messages, batch)
-        tyres_agent_response = response
-        tyres_agent_response_time = _format_session_time(prev_tyre_session_time)
-        # Forward to race engineer
-        if response:
+        # Skip bare "Copy" acknowledgments
+        if response and not _is_copy_ack(response):
+            tyres_agent_response = response
+            tyres_agent_response_time = _format_session_time(prev_tyre_session_time)
             _queue_race_engineer([f"From Tyres Engineer: {response}"])
     except Exception as exc:
         print(f"TyresAgent error: {exc}")
@@ -975,10 +980,10 @@ async def _flush_pu_agent() -> None:
     pu_agent_in_flight = True
     try:
         response = await asyncio.to_thread(pu_agent.process_messages, batch)
-        pu_agent_response = response
-        pu_agent_response_time = _format_session_time(prev_pu_session_time)
-        # Forward to race engineer
-        if response:
+        # Skip bare "Copy" acknowledgments
+        if response and not _is_copy_ack(response):
+            pu_agent_response = response
+            pu_agent_response_time = _format_session_time(prev_pu_session_time)
             _queue_race_engineer([f"From Power Unit Engineer: {response}"])
     except Exception as exc:
         print(f"PowerUnitAgent error: {exc}")
@@ -1112,7 +1117,7 @@ async def _flush_race_engineer() -> None:
     try:
         response = await asyncio.to_thread(re_agent.process_messages, batch)
         # Don't send bare "Copy" acknowledgments to the frontend
-        if response and response.strip().lower() != "copy":
+        if response and not _is_copy_ack(response):
             ts = _format_session_time(session_time)
             for msg in _split_race_engineer_response(response):
                 re_responses_log.append({"text": msg, "time": ts})
