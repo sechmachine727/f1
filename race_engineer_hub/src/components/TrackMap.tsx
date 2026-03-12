@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Compass, Maximize, Map, ZoomIn, ZoomOut } from "lucide-react";
+import { Compass, Maximize, Map, Users, ZoomIn, ZoomOut } from "lucide-react";
 import { useTrackMap } from "@/hooks/useTrackMap";
 import { smoothTrackPath, detectTurns } from "@/utils/trackGeometry";
 
 const ROTATION_STORAGE_KEY = "trackMap:rotations";
 const ZOOM_STORAGE_KEY = "trackMap:zooms";
 const PAN_STORAGE_KEY = "trackMap:pans";
+const LABEL_MODE_STORAGE_KEY = "trackMap:labelMode";
+
+type LabelMode = "driver" | "team";
 
 function loadSavedRotation(trackName: string): number {
   try {
@@ -85,6 +88,11 @@ export function TrackMap() {
   const [rotation, setRotation] = useState(0);
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, z: 0 });
+  const [labelMode, setLabelMode] = useState<LabelMode>(() => {
+    try {
+      return (localStorage.getItem(LABEL_MODE_STORAGE_KEY) as LabelMode) || "driver";
+    } catch { return "driver"; }
+  });
   const trackNameRef = useRef("");
 
   const trackName = state?.trackName ?? "";
@@ -115,6 +123,12 @@ export function TrackMap() {
     if (trackName) savePan(trackName, p);
   }, [trackName]);
 
+  const handleToggleLabel = useCallback(() => {
+    const next: LabelMode = labelMode === "driver" ? "team" : "driver";
+    setLabelMode(next);
+    try { localStorage.setItem(LABEL_MODE_STORAGE_KEY, next); } catch { /* ignore */ }
+  }, [labelMode]);
+
   const handleFit = useCallback(() => {
     setZoom(1);
     setPan({ x: 0, z: 0 });
@@ -130,7 +144,7 @@ export function TrackMap() {
   if (!hasOutline) {
     return (
       <div className="bg-card border border-border/50 rounded-md overflow-hidden h-full flex flex-col">
-        <Header trackName="" carCount={0} rotation={0} onRotationChange={() => {}} zoom={1} onZoomChange={() => {}} onFit={() => {}} />
+        <Header trackName="" carCount={0} />
         <div className="flex-1 flex items-center justify-center">
           <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-display">
             Waiting for track data…
@@ -140,7 +154,7 @@ export function TrackMap() {
     );
   }
 
-  return <TrackMapSVG state={state!} hasCars={hasCars ?? false} rotation={rotation} onRotationChange={handleRotationChange} zoom={zoom} onZoomChange={handleZoomChange} pan={pan} onPan={handlePan} onFit={handleFit} />;
+  return <TrackMapSVG state={state!} hasCars={hasCars ?? false} rotation={rotation} onRotationChange={handleRotationChange} zoom={zoom} onZoomChange={handleZoomChange} pan={pan} onPan={handlePan} onFit={handleFit} labelMode={labelMode} onToggleLabel={handleToggleLabel} />;
 }
 
 function TrackMapSVG({
@@ -153,6 +167,8 @@ function TrackMapSVG({
   pan,
   onPan,
   onFit,
+  labelMode,
+  onToggleLabel,
 }: {
   state: NonNullable<ReturnType<typeof useTrackMap>>;
   hasCars: boolean;
@@ -163,6 +179,8 @@ function TrackMapSVG({
   pan: { x: number; z: number };
   onPan: (p: { x: number; z: number }) => void;
   onFit: () => void;
+  labelMode: LabelMode;
+  onToggleLabel: () => void;
 }) {
   const { trackOutline, cars, playerIndex, outlineComplete, trackName } = state;
 
@@ -260,20 +278,21 @@ function TrackMapSVG({
 
   return (
     <div className="bg-card border border-border/50 rounded-md overflow-hidden h-full flex flex-col">
-      <Header trackName={trackName} carCount={hasCars ? carCount : 0} rotation={rotation} onRotationChange={onRotationChange} zoom={zoom} onZoomChange={onZoomChange} onFit={onFit} />
-      <div
-        ref={svgRef}
-        className="flex-1 p-1 min-h-0 overflow-hidden cursor-grab active:cursor-grabbing"
-        onWheel={handleWheel}
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-      >
-        <svg
-          viewBox={`${zX} ${zZ} ${zW} ${zH}`}
-          className="w-full h-full"
-          preserveAspectRatio="xMidYMid meet"
+      <Header trackName={trackName} carCount={hasCars ? carCount : 0} />
+      <div className="flex-1 min-h-0 relative">
+        <div
+          ref={svgRef}
+          className="absolute inset-0 p-1 cursor-grab active:cursor-grabbing"
+          onWheel={handleWheel}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
         >
+          <svg
+            viewBox={`${zX} ${zZ} ${zW} ${zH}`}
+            className="w-full h-full"
+            preserveAspectRatio="xMidYMid meet"
+          >
           <defs>
             <filter id="playerGlow" x="-200%" y="-200%" width="500%" height="500%">
               <feGaussianBlur stdDeviation={scale * 0.006} result="blur" />
@@ -296,7 +315,7 @@ function TrackMapSVG({
             <path
               d={smoothPath}
               fill="none"
-              stroke="#166534"
+              stroke="#22863a"
               strokeWidth={trackWidth}
               strokeLinejoin="round"
               strokeLinecap="round"
@@ -322,7 +341,7 @@ function TrackMapSVG({
                   cy={car.z}
                   r={otherR}
                   fill="none"
-                  stroke="#4b5563"
+                  stroke="#1e40af"
                   strokeWidth={otherR * 0.8}
                 />
                 {car.position > 0 && (
@@ -330,13 +349,16 @@ function TrackMapSVG({
                     x={car.x}
                     y={car.z - otherR * 2.2}
                     textAnchor="middle"
-                    fill="#d1d5db"
+                    fill="#93c5fd"
                     fontSize={labelSize}
                     fontFamily="monospace"
                     fontWeight="bold"
                     transform={`rotate(${-rotation} ${car.x} ${car.z})`}
                   >
-                    {car.position}
+                    {car.position > 0 ? `${car.position} ` : ""}
+                    {labelMode === "team"
+                      ? (car.teamAbbreviation || "")
+                      : (car.abbreviation || "")}
                   </text>
                 )}
               </g>
@@ -344,12 +366,26 @@ function TrackMapSVG({
 
             {/* Player car — glowing red arrow pointing in driving direction */}
             {playerCar && (playerCar.x !== 0 || playerCar.z !== 0) && (
-              <g filter="url(#playerGlow)">
-                <polygon
-                  points={playerArrow(playerCar.x, playerCar.z, playerCar.heading, playerSize)}
-                  fill="#ef4444"
-                />
-              </g>
+              <>
+                <g filter="url(#playerGlow)">
+                  <polygon
+                    points={playerArrow(playerCar.x, playerCar.z, playerCar.heading, playerSize)}
+                    fill="#ef4444"
+                  />
+                </g>
+                <text
+                  x={playerCar.x}
+                  y={playerCar.z - playerSize * 2}
+                  textAnchor="middle"
+                  fill="#fca5a5"
+                  fontSize={labelSize}
+                  fontFamily="monospace"
+                  fontWeight="bold"
+                  transform={`rotate(${-rotation} ${playerCar.x} ${playerCar.z})`}
+                >
+                  {playerCar.position > 0 ? `${playerCar.position} ` : ""}YOU
+                </text>
+              </>
             )}
 
             {/* Turn indicators */}
@@ -376,6 +412,42 @@ function TrackMapSVG({
             })}
           </g>
         </svg>
+        </div>
+
+        {/* Floating toolbar — top-right */}
+        <div className="absolute right-2 top-2 flex flex-col items-center gap-1 bg-card/20 backdrop-blur-sm border border-border/30 rounded-md p-1 z-10">
+          <button
+            onClick={() => onZoomChange(zoom * 1.15)}
+            className="p-1 rounded text-muted-foreground hover:text-primary hover:bg-secondary/50 transition-colors"
+            title="Zoom in"
+          >
+            <ZoomIn className="h-3.5 w-3.5" />
+          </button>
+          <button
+            onClick={() => onZoomChange(zoom / 1.15)}
+            className="p-1 rounded text-muted-foreground hover:text-primary hover:bg-secondary/50 transition-colors"
+            title="Zoom out"
+          >
+            <ZoomOut className="h-3.5 w-3.5" />
+          </button>
+          <button
+            onClick={onFit}
+            className="p-1 rounded text-muted-foreground hover:text-primary hover:bg-secondary/50 transition-colors"
+            title="Fit to viewport"
+          >
+            <Maximize className="h-3.5 w-3.5" />
+          </button>
+          <div className="p-0.5">
+            <RotationDial rotation={rotation} onChange={onRotationChange} />
+          </div>
+          <button
+            onClick={onToggleLabel}
+            className="p-1 rounded text-muted-foreground hover:text-primary hover:bg-secondary/50 transition-colors"
+            title={`Labels: ${labelMode === "driver" ? "Driver" : "Team"} (click to toggle)`}
+          >
+            <Users className="h-3.5 w-3.5" />
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -420,72 +492,32 @@ function RotationDial({ rotation, onChange }: { rotation: number; onChange: (deg
   return (
     <div
       ref={dialRef}
-      className="relative w-6 h-6 cursor-grab active:cursor-grabbing select-none"
+      className="relative w-5 h-5 cursor-grab active:cursor-grabbing select-none"
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       title={`Rotate track (${rotation}°)`}
     >
       <Compass
-        className="w-6 h-6 text-muted-foreground hover:text-primary transition-colors"
+        className="w-5 h-5 text-muted-foreground hover:text-primary transition-colors"
         style={{ transform: `rotate(${rotation}deg)` }}
       />
     </div>
   );
 }
 
-function Header({
-  trackName,
-  carCount,
-  rotation,
-  onRotationChange,
-  zoom,
-  onZoomChange,
-  onFit,
-}: {
-  trackName: string;
-  carCount: number;
-  rotation: number;
-  onRotationChange: (deg: number) => void;
-  zoom: number;
-  onZoomChange: (z: number) => void;
-  onFit: () => void;
-}) {
+function Header({ trackName, carCount }: { trackName: string; carCount: number }) {
   return (
     <div className="flex items-center gap-2 px-3 py-2 border-b border-border/50 bg-secondary/30">
       <Map className="h-4 w-4 text-primary" />
       <span className="font-display text-sm font-bold tracking-widest uppercase text-foreground">
         Track Map{trackName ? ` — ${trackName}` : ""}
       </span>
-      <div className="ml-auto flex items-center gap-2">
-        <button
-          onClick={() => onZoomChange(zoom / 1.15)}
-          className="p-0.5 rounded text-muted-foreground hover:text-primary transition-colors"
-          title="Zoom out"
-        >
-          <ZoomOut className="h-4 w-4" />
-        </button>
-        <button
-          onClick={() => onZoomChange(zoom * 1.15)}
-          className="p-0.5 rounded text-muted-foreground hover:text-primary transition-colors"
-          title="Zoom in"
-        >
-          <ZoomIn className="h-4 w-4" />
-        </button>
-        <button
-          onClick={onFit}
-          className="p-0.5 rounded text-muted-foreground hover:text-primary transition-colors"
-          title="Fit to viewport"
-        >
-          <Maximize className="h-4 w-4" />
-        </button>
-        <RotationDial rotation={rotation} onChange={onRotationChange} />
-        {carCount > 0 && (
-          <span className="font-display text-[10px] text-muted-foreground">
-            {carCount} CARS
-          </span>
-        )}
-      </div>
+      {carCount > 0 && (
+        <span className="ml-auto font-display text-[10px] font-bold text-emerald-500">
+          {carCount} CARS
+        </span>
+      )}
     </div>
   );
 }
