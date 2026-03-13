@@ -1,12 +1,15 @@
 """
 Live terminal viewer for F1 25 telemetry.
 
-Renders a rich dashboard to stdout using ANSI escape codes:
-  - Session header with position, lap, times
-  - ASCII car shape with tyre temps, wear, pressures, and aero damage
-  - Power unit panel (speed, RPM, gear, fuel, ERS, engine components)
+Renders a rich dashboard using the alternate screen buffer for flicker-free
+output with ANSI escape codes and Unicode box-drawing characters:
+  - Session header with position, lap, sector times, weather forecast
+  - TYRES panel with temps, wear, pressures, brakes, tyre/brake damage
+  - POWER UNIT panel with speed, RPM, gear, fuel, ERS, steer input
+  - AERODYNAMICS panel with wing/floor/diffuser/sidepod damage, faults
+  - SETUP & DYNAMICS panel with car setup and MotionEx data
   - ASCII track map with all car positions via lap-distance interpolation
-  - Capture stats
+  - EVENTS scrolling log
 
 No external dependencies — uses only ANSI codes and Unicode box-drawing.
 
@@ -20,11 +23,17 @@ import math
 import os
 import re
 import sys
+from collections import deque
 
 from common.f1_viewer.track_loader import TrackLoader
 
 # ─── ANSI codes ───
-_CLEAR = "\033[2J\033[H"
+_HOME = "\033[H"            # Cursor home — redraws in-place without clearing
+_ALT_ON = "\033[?1049h"    # Enter alternate screen buffer
+_ALT_OFF = "\033[?1049l"   # Leave alternate screen buffer
+_HIDE_CUR = "\033[?25l"    # Hide cursor
+_SHOW_CUR = "\033[?25h"    # Show cursor
+_ERASE_DOWN = "\033[J"     # Erase from cursor to end of screen
 _BOLD = "\033[1m"
 _DIM = "\033[2m"
 _RESET = "\033[0m"
@@ -44,6 +53,7 @@ _COMPOUND_COLORS = {16: _RED, 17: _YELLOW, 18: _WHITE, 7: _GREEN, 8: _BLUE}
 
 # Lookup tables
 _WEATHER = {0: "Clear", 1: "Light Cloud", 2: "Overcast", 3: "Light Rain", 4: "Heavy Rain", 5: "Storm"}
+_WEATHER_ICON = {0: "☀", 1: "⛅", 2: "☁", 3: "🌧", 4: "🌧🌧", 5: "⛈"}
 _SESSION_TYPES = {
     0: "Unknown", 1: "FP1", 2: "FP2", 3: "FP3", 4: "Short FP",
     5: "Q1", 6: "Q2", 7: "Q3", 8: "Short Q", 9: "OSQ",
@@ -52,6 +62,18 @@ _SESSION_TYPES = {
 _FUEL_MIX = {0: "Lean", 1: "Standard", 2: "Rich", 3: "Max"}
 _ERS_MODE = {0: "None", 1: "Medium", 2: "Hotlap", 3: "Overtake"}
 _SC_STATUS = {0: "", 1: "Full SC", 2: "VSC", 3: "Formation Lap"}
+
+_EVENT_NAMES = {
+    "SSTA": "Session Started", "SEND": "Session Ended", "FTLP": "Fastest Lap",
+    "RTMT": "Retirement", "DRSE": "DRS Enabled", "DRSD": "DRS Disabled",
+    "TMPT": "Team Mate in Pits", "CHQF": "Chequered Flag", "RCWN": "Race Winner",
+    "PENA": "Penalty", "SPTP": "Speed Trap", "STLG": "Start Lights",
+    "LGOT": "Lights Out", "DTSV": "Drive Through Served", "SGSV": "Stop-Go Served",
+    "FLBK": "Flashback", "BUTN": "Button Press", "RDFL": "Red Flag",
+    "OVTK": "Overtake", "SGAY": "Safety Car", "COLL": "Collision",
+}
+
+_MAX_EVENTS = 8  # Number of events to show in the scrolling log
 
 
 class TerminalViewer:
@@ -69,6 +91,8 @@ class TerminalViewer:
         self._track_loader = TrackLoader()
         self._static_track: _StaticTrack | None = None
         self._loaded_track_id: int = -999
+        self._events: deque[str] = deque(maxlen=_MAX_EVENTS)
+        self._last_event_frame: int = -1
 
     async def run(self, refresh_hz: int = 10) -> None:
         """Render loop.
@@ -77,17 +101,28 @@ class TerminalViewer:
             refresh_hz: Display refresh rate in Hz.
         """
         interval = 1.0 / refresh_hz
-        while self._session._running:
-            self._render()
-            await asyncio.sleep(interval)
+        # Enter alternate screen buffer — prevents scroll-back pollution
+        sys.stdout.write(_ALT_ON + _HIDE_CUR)
+        sys.stdout.flush()
+        try:
+            while self._session._running:
+                self._render()
+                await asyncio.sleep(interval)
+        finally:
+            sys.stdout.write(_SHOW_CUR + _ALT_OFF)
+            sys.stdout.flush()
 
     def _render(self) -> None:
         """Build and print one frame to stdout."""
         state = self._session.state
+        if not state:
+            return  # Nothing to render yet
+
         try:
             cols, _ = os.get_terminal_size()
         except OSError:
             cols = 120
+        cols = min(cols, 200)  # Sanity cap
 
         lines: list[str] = []
 
@@ -100,6 +135,7 @@ class TerminalViewer:
         parts = state.get(4)
         motion_ex = state.get(13)
         setups = state.get(5)
+        event = state.get(3)
 
         player_idx = None
         for src in (sess, telem, lap, status):
@@ -107,36 +143,83 @@ class TerminalViewer:
                 player_idx = src["m_playerCarIndex"]
                 break
 
+        # Collect events
+        self._collect_events(event)
+
         lines += self._render_header(sess, lap, player_idx, cols)
 
         panel_w = (cols - 3) // 2
 
-        # Top row: TYRES (left) | POWER UNIT (right)
-        car_lines = self._render_car_panel(telem, damage, status, setups, motion_ex, player_idx)
-        pu_lines = self._render_pu_panel(telem, status, damage, player_idx)
-        lines += _side_by_side(car_lines, pu_lines, panel_w)
+        # Only render panels once core telemetry data has arrived
+        if telem and player_idx is not None:
+            # Row 1: TYRES | POWER UNIT
+            car_lines = self._render_car_panel(telem, damage, status, setups, motion_ex, player_idx)
+            pu_lines = self._render_pu_panel(telem, status, damage, player_idx)
+            lines += _side_by_side(car_lines, pu_lines, panel_w)
 
-        # Bottom row: AERODYNAMICS (left) | TRACK MAP (right)
-        aero_lines = self._render_aero_panel(damage, motion_ex, player_idx)
-        track_lines = self._render_track_map(sess, motion, lap, parts, player_idx, panel_w)
-        lines += _side_by_side(aero_lines, track_lines, panel_w)
+            # Row 2: AERODYNAMICS | SETUP & DYNAMICS
+            aero_lines = self._render_aero_damage_panel(damage, motion_ex, player_idx)
+            setup_lines = self._render_setup_panel(setups, motion_ex, status, player_idx)
+            lines += _side_by_side(aero_lines, setup_lines, panel_w)
 
+            # Row 3: TRACK MAP | EVENTS
+            track_lines = self._render_track_map(sess, motion, lap, parts, player_idx, panel_w)
+            event_lines = self._render_events_panel(panel_w)
+            lines += _side_by_side(track_lines, event_lines, panel_w)
+        else:
+            lines.append(f" {_DIM}Waiting for telemetry...{_RESET}")
+
+        # Footer
         lines.append(f" {_DIM}{'─' * (cols - 2)}{_RESET}")
         n_active = parts.get("m_numActiveCars", 0) if parts else 0
+        hz_label = self._session.hz
+        total = ""
+        if hasattr(self._session, "total_frames"):
+            total = f"/{self._session.total_frames:,}"
+        progress = ""
+        if hasattr(self._session, "progress"):
+            pct = self._session.progress * 100
+            progress = f"  │  {pct:.0f}%"
         lines.append(
-            f" {_DIM}Packets: {self._session.packets_received:,} recv"
-            f"  │  {self._session.packets_captured:,} captured"
-            f"  │  {self._session.hz} Hz"
-            f"  │  {n_active} cars active{_RESET}"
+            f" {_DIM}Packets: {self._session.packets_received:,}{total}"
+            f"  │  {self._session.packets_captured:,} decoded"
+            f"  │  {hz_label}"
+            f"  │  {n_active} cars{progress}{_RESET}"
         )
 
-        sys.stdout.write(_CLEAR + "\n".join(lines) + "\n")
+        # Truncate any line that would overflow the terminal width
+        safe = []
+        for line in lines:
+            vis = _visible_len(line)
+            if vis >= cols:
+                line = _truncate(line, cols - 1)
+            safe.append(line)
+
+        sys.stdout.write(_HOME + "\n".join(safe) + _ERASE_DOWN + "\n")
         sys.stdout.flush()
+
+    # ─── EVENT COLLECTION ───
+
+    def _collect_events(self, event) -> None:
+        """Accumulate events into the scrolling log."""
+        if not event:
+            return
+        frame = event.get("m_overallFrameIdentifier", 0)
+        if frame == self._last_event_frame:
+            return
+        self._last_event_frame = frame
+        code = event.get("m_eventStringCode", "")
+        if not code or code in ("BUTN",):
+            return
+        name = _EVENT_NAMES.get(code, code)
+        t = event.get("m_sessionTime", 0)
+        mins, secs = divmod(t, 60)
+        self._events.append(f"{_DIM}{int(mins):02d}:{secs:05.2f}{_RESET}  {name}")
 
     # ─── HEADER ───
 
     def _render_header(self, sess, lap, player_idx, cols) -> list[str]:
-        """Render the top header bar."""
+        """Render the top header bar with weather forecast and sector times."""
         lines = []
         lines.append(f" {_BOLD}{_CYAN}{'═' * (cols - 2)}{_RESET}")
 
@@ -152,6 +235,7 @@ class TerminalViewer:
             mins, secs = divmod(time_left, 60)
 
             pos_str = lap_str = time_str = last_str = ""
+            s1_str = s2_str = s3_str = sector_str = ""
             if lap and player_idx is not None:
                 cars = lap.get("m_lapData", [])
                 if player_idx < len(cars):
@@ -162,6 +246,21 @@ class TerminalViewer:
                     time_str = _fmt_time(p.get("m_currentLapTimeInMS", 0))
                     last_str = _fmt_time(p.get("m_lastLapTimeInMS", 0))
 
+                    # Sector times
+                    cur_sector = p.get("m_sector", 0)
+                    s1_ms = p.get("m_sector1TimeMSPart", 0) + p.get("m_sector1TimeMinutesPart", 0) * 60000
+                    s2_ms = p.get("m_sector2TimeMSPart", 0) + p.get("m_sector2TimeMinutesPart", 0) * 60000
+                    s1_str = _fmt_sector(s1_ms) if s1_ms > 0 else ("--.-" if cur_sector == 0 else _fmt_sector(s1_ms))
+                    s2_str = _fmt_sector(s2_ms) if s2_ms > 0 else "--.-"
+                    s3_str = "--.-"
+                    sector_str = f"S1 {s1_str}  S2 {s2_str}  S3 {s3_str}"
+
+                    # Delta to car in front
+                    delta_ms = p.get("m_deltaToCarInFrontMSPart", 0) + p.get("m_deltaToCarInFrontMinutesPart", 0) * 60000
+                    if delta_ms > 0:
+                        sector_str += f"  │  Δ {delta_ms / 1000:+.3f}s"
+
+            # Line 1: title + position/lap/time
             mode_str = f"{_YELLOW}[REPLAY]{_RESET}" if self._mode == "REPLAY" else f"{_GREEN}LIVE CAPTURE{_RESET}"
             title = f" {_BOLD}{_CYAN}F1 25 TELEMETRY{_RESET} — {mode_str}"
             right = f"{_BOLD}{_WHITE}{pos_str}{_RESET}  {_CYAN}{lap_str}{_RESET}  {_GREEN}{time_str}{_RESET}  Last: {_YELLOW}{last_str}{_RESET}"
@@ -169,6 +268,7 @@ class TerminalViewer:
             lines.append(f"{title}{' ' * max(gap, 2)}{right}")
             lines.append(f" {_BOLD}{_CYAN}{'═' * (cols - 2)}{_RESET}")
 
+            # Line 2: session info
             sc_str = f"  │  {_RED}{_BOLD}{sc}{_RESET}" if sc else ""
             lines.append(
                 f" {_BOLD}{sess_type}{_RESET}  │  {weather}  │  "
@@ -176,6 +276,44 @@ class TerminalViewer:
                 f"Air: {air_temp}°C  │  {track_len}m  │  "
                 f"Remaining: {_BOLD}{mins:02d}:{secs:02d}{_RESET}{sc_str}"
             )
+
+            # Line 3: sector times
+            if sector_str:
+                lines.append(f" {_DIM}Sectors:{_RESET}  {sector_str}")
+
+            # Line 4: weather forecast for the CURRENT session only
+            forecasts = sess.get("m_weatherForecastSamples", [])
+            n_forecasts = sess.get("m_numWeatherForecastSamples", 0)
+            cur_sess_type = sess.get("m_sessionType", 0)
+            if forecasts and n_forecasts > 0:
+                prefix = f" {_DIM}Forecast:{_RESET}  "
+                prefix_vis = 12  # " Forecast:  "
+                sep = "  ·  "
+                sep_vis = 5
+                fc_parts = []
+                running_vis = prefix_vis
+                for fc in forecasts[:n_forecasts]:
+                    if fc.get("m_sessionType", 0) != cur_sess_type:
+                        continue
+                    offset = fc.get("m_timeOffset", 0)
+                    if offset == 0:
+                        continue
+                    fc_weather = _WEATHER.get(fc.get("m_weather", 0), "?")
+                    fc_track = fc.get("m_trackTemperature", 0)
+                    fc_rain = fc.get("m_rainPercentage", 0)
+                    rain_str = f" {_CYAN}{fc_rain}%{_RESET}" if fc_rain > 0 else ""
+                    part = f"+{offset}m {fc_weather} {fc_track}°C{rain_str}"
+                    part_vis = _visible_len(part)
+                    cost = (sep_vis if fc_parts else 0) + part_vis
+                    if running_vis + cost > cols - 6:
+                        break
+                    fc_parts.append(part)
+                    running_vis += cost
+                    if len(fc_parts) >= 3:
+                        break
+                if fc_parts:
+                    lines.append(f"{prefix}{sep.join(fc_parts)}")
+
         else:
             mode_str = f"{_YELLOW}[REPLAY]{_RESET}" if self._mode == "REPLAY" else f"{_GREEN}LIVE CAPTURE{_RESET}"
             lines.append(f" {_BOLD}{_CYAN}F1 25 TELEMETRY{_RESET} — {mode_str}")
@@ -185,7 +323,7 @@ class TerminalViewer:
         lines.append("")
         return lines
 
-    # ─── CAR & TYRES PANEL ───
+    # ─── TYRES PANEL ───
 
     def _render_car_panel(self, telem, damage, status, setups, motion_ex, player_idx) -> list[str]:
         """Render ASCII car with tyre data."""
@@ -248,15 +386,23 @@ class TerminalViewer:
         lines.append(b(f"  Brak {c}│{_RESET} {_rpad(_cb(brake[RL]), 7)}{c}│{_RESET}          {c}│{_RESET}{_lpad(_cb(brake[RR]), 7)} {c}│{_RESET}"))
         lines.append(b(f"       └──{TB}──┴──────────┴──{TB}──┘"))
         lines.append(b(f"           {_DIM}RL{_RESET}                  {_DIM}RR{_RESET}    "))
+
+        # Tyre damage and brake damage
+        tyre_dmg = d.get("m_tyresDamage", [0]*4)
+        brake_dmg = d.get("m_brakesDamage", [0]*4)
+        if any(v > 0 for v in tyre_dmg):
+            lines.append(b(f"  {_DIM}Tyre Dmg{_RESET} FL {_rpad(_cd(tyre_dmg[FL]), 2)}% FR {_rpad(_cd(tyre_dmg[FR]), 2)}% RL {_rpad(_cd(tyre_dmg[RL]), 2)}% RR {_rpad(_cd(tyre_dmg[RR]), 2)}%"))
+        if any(v > 0 for v in brake_dmg):
+            lines.append(b(f"  {_DIM}Brake Dm{_RESET} FL {_rpad(_cd(brake_dmg[FL]), 2)}% FR {_rpad(_cd(brake_dmg[FR]), 2)}% RL {_rpad(_cd(brake_dmg[RL]), 2)}% RR {_rpad(_cd(brake_dmg[RR]), 2)}%"))
         if any(b_val > 0 for b_val in blist):
-            lines.append(_bx(c, f"  Blisters: FL {_cd(blist[FL])}%  FR {_cd(blist[FR])}%  RL {_cd(blist[RL])}%  RR {_cd(blist[RR])}%"))
+            lines.append(b(f"  {_DIM}Blister{_RESET}  FL {_rpad(_cd(blist[FL]), 2)}% FR {_rpad(_cd(blist[FR]), 2)}% RL {_rpad(_cd(blist[RL]), 2)}% RR {_rpad(_cd(blist[RR]), 2)}%"))
         lines.append(f"{c}└{'─' * W}┘{_RESET}")
         return lines
 
-    # ─── AERODYNAMICS PANEL ───
+    # ─── AERO & DAMAGE PANEL ───
 
-    def _render_aero_panel(self, damage, motion_ex, player_idx) -> list[str]:
-        """Render the aerodynamics data panel."""
+    def _render_aero_damage_panel(self, damage, motion_ex, player_idx) -> list[str]:
+        """Render aerodynamics damage data."""
         lines = []
         a = _BLUE
         W = _BOX_W
@@ -277,22 +423,112 @@ class TerminalViewer:
         diff = d.get("m_diffuserDamage", 0)
         side = d.get("m_sidepodDamage", 0)
         drs_f = d.get("m_drsFault", 0)
+        ers_f = d.get("m_ersFault", 0)
+        eng_blown = d.get("m_engineBlown", 0)
+        eng_seized = d.get("m_engineSeized", 0)
 
         f_ride = motion_ex.get("m_frontAeroHeight", 0) if motion_ex else 0
         r_ride = motion_ex.get("m_rearAeroHeight", 0) if motion_ex else 0
 
         drs_txt = f"{_RED}FAULT{_RESET}" if drs_f else f"{_GREEN}OK{_RESET}"
+        ers_txt = f"{_RED}FAULT{_RESET}" if ers_f else f"{_GREEN}OK{_RESET}"
 
         b = lambda content: _bx(a, content)  # noqa: E731
-        b_sep = f"{a}│{_RESET}  {'─' * (W - 4)}  {a}│{_RESET}"
+
         lines.append(b(f"  Front Wing   L {_rpad(_cd(fl_wing), 3)}%   R {_rpad(_cd(fr_wing), 3)}%"))
-        lines.append(b(f"  Rear Wing    {_rpad(_cd(rw), 3)}%"))
-        lines.append(b_sep)
-        lines.append(b(f"  Floor        {_rpad(_cd(floor), 3)}%    Diffuser  {_rpad(_cd(diff), 3)}%"))
-        lines.append(b(f"  Sidepod      {_rpad(_cd(side), 3)}%    DRS       {drs_txt}"))
-        lines.append(b_sep)
-        lines.append(b(f"  Ride Height  F {f_ride:.3f}m   R {r_ride:.3f}m"))
+        lines.append(b(f"  Rear Wing    {_rpad(_cd(rw), 3)}%     Floor     {_rpad(_cd(floor), 3)}%"))
+        lines.append(b(f"  Diffuser     {_rpad(_cd(diff), 3)}%     Sidepod   {_rpad(_cd(side), 3)}%"))
+        lines.append(b(f"  DRS {drs_txt}   ERS {ers_txt}   Ride F{f_ride:.3f} R{r_ride:.3f}"))
+        if eng_blown:
+            lines.append(b(f"  {_RED}{_BOLD}ENGINE BLOWN{_RESET}"))
+        if eng_seized:
+            lines.append(b(f"  {_RED}{_BOLD}ENGINE SEIZED{_RESET}"))
         lines.append(f"{a}└{'─' * W}┘{_RESET}")
+        return lines
+
+    # ─── SETUP & DYNAMICS PANEL ───
+
+    def _render_setup_panel(self, setups, motion_ex, status, player_idx) -> list[str]:
+        """Render car setup and dynamics data."""
+        lines = []
+        w = _WHITE
+        W = _BOX_W
+        lines.append(f"{_BOLD}{w}┌─ SETUP & DYNAMICS {'─' * (W - 19)}┐{_RESET}")
+
+        if player_idx is None:
+            lines.append(_bx(w, f" {_DIM}No data{_RESET}"))
+            lines.append(f"{w}└{'─' * W}┘{_RESET}")
+            return lines
+
+        su = {}
+        if setups:
+            su_cars = setups.get("m_carSetupData", [])
+            su = su_cars[player_idx] if player_idx < len(su_cars) else {}
+        s = {}
+        if status:
+            s_cars = status.get("m_carStatusData", [])
+            s = s_cars[player_idx] if player_idx < len(s_cars) else {}
+
+        b = lambda content: _bx(w, content)  # noqa: E731
+        b_sep = f"{w}│{_RESET}  {'─' * (W - 4)}  {w}│{_RESET}"
+
+        # Setup values
+        fw = su.get("m_frontWing", 0)
+        rew = su.get("m_rearWing", 0)
+        f_camber = su.get("m_frontCamber", 0)
+        r_camber = su.get("m_rearCamber", 0)
+        f_toe = su.get("m_frontToe", 0)
+        r_toe = su.get("m_rearToe", 0)
+        f_susp = su.get("m_frontSuspension", 0)
+        r_susp = su.get("m_rearSuspension", 0)
+        f_arb = su.get("m_frontAntiRollBar", 0)
+        r_arb = su.get("m_rearAntiRollBar", 0)
+        f_sh = su.get("m_frontSuspensionHeight", 0)
+        r_sh = su.get("m_rearSuspensionHeight", 0)
+        brake_p = su.get("m_brakePressure", 0)
+        eng_brake = su.get("m_engineBraking", 0)
+        fuel_load = su.get("m_fuelLoad", 0)
+
+        # Status extras
+        tc = s.get("m_tractionControl", 0)
+        abs_val = s.get("m_antiLockBrakes", 0)
+        fia_flag = s.get("m_vehicleFIAFlags", 0)
+        flag_names = {0: "", 1: f"{_GREEN}Green{_RESET}", 2: f"{_BLUE}Blue{_RESET}",
+                      3: f"{_YELLOW}Yellow{_RESET}", 4: f"{_RED}Red{_RESET}"}
+        flag_str = flag_names.get(fia_flag, "")
+
+        lines.append(b(f"  {_DIM}Wings{_RESET}     Front {fw:>2}    Rear {rew:>2}"))
+        lines.append(b(f"  {_DIM}Camber{_RESET}    Front {f_camber:>5.2f}  Rear {r_camber:>5.2f}"))
+        lines.append(b(f"  {_DIM}Toe{_RESET}       Front {f_toe:>5.3f}  Rear {r_toe:>5.3f}"))
+        lines.append(b(f"  {_DIM}Suspension{_RESET} Front {f_susp:>2}    Rear {r_susp:>2}"))
+        lines.append(b(f"  {_DIM}AR Bar{_RESET}    Front {f_arb:>2}    Rear {r_arb:>2}"))
+        lines.append(b(f"  {_DIM}Ride Ht{_RESET}   Front {f_sh:>2}    Rear {r_sh:>2}"))
+        lines.append(b_sep)
+        lines.append(b(f"  Brake Press {brake_p:>3}%  EngBrake {eng_brake:>3}%  Fuel {fuel_load:>.1f}kg"))
+        lines.append(b(f"  TC {'ON' if tc else 'OFF':>3}  ABS {'ON' if abs_val else 'OFF':>3}  {flag_str}"))
+
+        # MotionEx dynamics
+        if motion_ex:
+            b_sep_line = b_sep
+            lines.append(b_sep_line)
+            g_lat = 0
+            g_long = 0
+            if motion_ex:
+                vel_x = motion_ex.get("m_localVelocityX", 0)
+                vel_z = motion_ex.get("m_localVelocityZ", 0)
+                speed_ms = math.sqrt(vel_x**2 + vel_z**2)
+
+                susp_pos = motion_ex.get("m_suspensionPosition", [0]*4)
+                wheel_speed = motion_ex.get("m_wheelSpeed", [0]*4)
+                slip_ratio = motion_ex.get("m_wheelSlipRatio", [0]*4)
+                cog = motion_ex.get("m_heightOfCOGAboveGround", 0)
+                front_roll = motion_ex.get("m_frontRollAngle", 0)
+                rear_roll = motion_ex.get("m_rearRollAngle", 0)
+
+                lines.append(b(f"  {_DIM}Dynamics{_RESET}  CoG {cog:.3f}m  Speed {speed_ms:.1f}m/s"))
+                lines.append(b(f"  {_DIM}Roll{_RESET}  F {front_roll:>+7.4f}  R {rear_roll:>+7.4f}"))
+
+        lines.append(f"{w}└{'─' * W}┘{_RESET}")
         return lines
 
     # ─── POWER UNIT PANEL ───
@@ -326,6 +562,7 @@ class TerminalViewer:
         drs = t.get("m_drs", 0)
         throttle = t.get("m_throttle", 0)
         brake = t.get("m_brake", 0)
+        steer = t.get("m_steer", 0)
         engine_temp = t.get("m_engineTemperature", 0)
 
         gear_str = f"{_BOLD}{_WHITE}N{_RESET}" if gear == 0 else (f"{_BOLD}{_RED}R{_RESET}" if gear < 0 else f"{_BOLD}{_WHITE}{gear}{_RESET}")
@@ -361,10 +598,25 @@ class TerminalViewer:
         b = lambda content: _bx(m, content)  # noqa: E731
         b_sep = f"{m}│{_RESET}  {'─' * (W - 4)}  {m}│{_RESET}"
 
+        # Steer bar: -1.0 (left) to +1.0 (right), centered
+        steer_w = 14
+        steer_mid = steer_w // 2
+        steer_pos = int(steer * steer_mid)
+        steer_bar_chars = [" "] * steer_w
+        steer_bar_chars[steer_mid] = "│"
+        if steer_pos != 0:
+            start = min(steer_mid, steer_mid + steer_pos)
+            end = max(steer_mid, steer_mid + steer_pos)
+            for si in range(start, end + 1):
+                if 0 <= si < steer_w:
+                    steer_bar_chars[si] = "█"
+        steer_bar = f"{_YELLOW}{''.join(steer_bar_chars)}{_RESET}"
+
         lines.append(b(f"  Speed   {_BOLD}{_WHITE}{speed:>5d}{_RESET} km/h  {_bar_h(speed / 350, 14)}"))
         lines.append(b(f"  RPM    {rpm:>6,}       Gear: {gear_str}   DRS: {drs_str}"))
         lines.append(b(f"  Throttle {_bar_color(throttle, _GREEN)}  {throttle*100:>4.0f}%"))
         lines.append(b(f"  Brake    {_bar_color(brake, _RED)}  {brake*100:>4.0f}%"))
+        lines.append(b(f"  Steer    [{steer_bar}] {steer:>+5.2f}"))
         lines.append(b(f"  Engine   {_color_temp_eng(engine_temp)}{engine_temp:>4d}°C{_RESET}"))
         lines.append(b_sep)
         lines.append(b(f"  Fuel     {fuel_kg:>5.1f} kg / {fuel_cap:.0f}    Mix: {_BOLD}{fuel_mix}{_RESET}"))
@@ -382,6 +634,32 @@ class TerminalViewer:
         lines.append(f"{m}└{'─' * W}┘{_RESET}")
         return lines
 
+    # ─── EVENTS PANEL ───
+
+    def _render_events_panel(self, panel_w) -> list[str]:
+        """Render scrolling event log."""
+        lines = []
+        g = _YELLOW
+        W = panel_w - 2
+        lines.append(f"{_BOLD}{g}┌─ EVENTS {'─' * max(W - 10, 0)}┐{_RESET}")
+
+        if not self._events:
+            for _ in range(_MAX_EVENTS):
+                lines.append(f"{g}│{_RESET}{' ' * W}{g}│{_RESET}")
+        else:
+            for i in range(_MAX_EVENTS):
+                idx = len(self._events) - _MAX_EVENTS + i
+                if 0 <= idx < len(self._events):
+                    ev = self._events[idx]
+                    vis = _visible_len(ev)
+                    pad = W - vis - 1
+                    lines.append(f"{g}│{_RESET} {ev}{' ' * max(pad, 0)}{g}│{_RESET}")
+                else:
+                    lines.append(f"{g}│{_RESET}{' ' * W}{g}│{_RESET}")
+
+        lines.append(f"{g}└{'─' * W}┘{_RESET}")
+        return lines
+
     # ─── TRACK MAP ───
 
     def _render_track_map(self, sess, motion, lap, parts, player_idx, panel_w) -> list[str]:
@@ -396,7 +674,7 @@ class TerminalViewer:
         if sess:
             track_id = sess.get("m_trackId", -1)
             track_length = sess.get("m_trackLength", 0)
-            from telemetry_server.f1_constants import TRACK_NAMES
+            from common.f1_structs.f1_constants import TRACK_NAMES
             track_name = TRACK_NAMES.get(track_id, f"Track {track_id}")
 
         # Count active cars
@@ -496,10 +774,11 @@ class TerminalViewer:
             if 0 <= gr < map_h:
                 color = f"{_RED}{_BOLD}" if is_player else _YELLOW
                 vis_len = len(label)
-                start = max(0, min(gc, map_w - vis_len))
+                start = max(0, min(gc, map_w - vis_len - 1))
                 for ci, ch in enumerate(label):
-                    if start + ci < map_w:
-                        grid[gr][start + ci] = f"{color}{ch}{_RESET}"
+                    col = start + ci
+                    if 0 <= col < map_w:
+                        grid[gr][col] = f"{color}{ch}{_RESET}"
 
         for row in grid:
             lines.append(f"{g}│{_RESET}{''.join(row)}{g}│{_RESET}")
@@ -560,9 +839,34 @@ def _fmt_time(ms: int) -> str:
     return f"{minutes}:{seconds:06.3f}"
 
 
+def _fmt_sector(ms: int) -> str:
+    """Format sector time in milliseconds as SS.mmm."""
+    if ms == 0:
+        return " --.-"
+    seconds = ms / 1000
+    return f"{seconds:5.1f}"
+
+
 def _visible_len(text: str) -> int:
     """Length of text excluding ANSI escape sequences."""
     return len(_ANSI_RE.sub("", text))
+
+
+def _truncate(text: str, max_vis: int) -> str:
+    """Truncate an ANSI string to max_vis visible characters."""
+    vis = 0
+    i = 0
+    while i < len(text) and vis < max_vis:
+        # Skip ANSI escape sequences
+        if text[i] == "\033" and i + 1 < len(text) and text[i + 1] == "[":
+            j = i + 2
+            while j < len(text) and text[j] != "m":
+                j += 1
+            i = j + 1  # skip past the 'm'
+            continue
+        vis += 1
+        i += 1
+    return text[:i] + _RESET
 
 
 def _rpad(text: str, width: int) -> str:

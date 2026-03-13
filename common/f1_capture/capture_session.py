@@ -18,6 +18,8 @@ from pathlib import Path
 from common.f1_capture.binary_writer import BinaryWriter
 from common.f1_capture.udp_listener import UdpListener
 from common.f1_decoder.packet_decoder import PacketDecoder
+from common.f1_structs.f1_constants import SESSION_TYPE_NAMES
+from common.f1_structs.f1_constants import TRACK_NAMES
 
 
 # Packets sent every frame (up to 60Hz) — gate these by capture Hz
@@ -62,6 +64,8 @@ class CaptureSession:
 
         # Session tracking
         self._current_session_uid: int | None = None
+        self._capture_ts: str = ""  # timestamp string for the current capture file
+        self._file_renamed: bool = False
 
         # Stats
         self.packets_received: int = 0
@@ -114,6 +118,10 @@ class CaptureSession:
         except (KeyError, Exception):
             pass  # Unknown packet type or decode error — skip
 
+        # Rename capture file once we know the track and session type
+        if packet_id == 1 and not self._file_renamed and self._writer is not None:
+            self._rename_capture_file(decoded)
+
         # Decide whether to write this packet to the capture file
         if not self._capture or self._writer is None:
             return
@@ -138,11 +146,36 @@ class CaptureSession:
             print(f"[CaptureSession] closed: {self._writer.path}")
 
         self._current_session_uid = session_uid
+        self._file_renamed = False
         self.state.clear()
 
         if self._capture:
-            ts = time.strftime("%Y%m%d_%H%M%S")
-            path = self._output_dir / f"f1_25_{session_uid:016x}_{ts}.f1bin"
+            self._capture_ts = time.strftime("%Y%m%d_%H%M%S")
+            path = self._output_dir / f"f1_25_capturing_{self._capture_ts}.f1bin"
             self._writer = BinaryWriter(path)
             self._writer.open()
             print(f"[CaptureSession] capturing to: {path}")
+
+    def _rename_capture_file(self, session_data: dict) -> None:
+        """Rename the capture file to include track and session type."""
+        track_id = session_data.get("m_trackId", -1)
+        session_type = session_data.get("m_sessionType", 0)
+
+        track = TRACK_NAMES.get(track_id, f"track{track_id}")
+        sess = SESSION_TYPE_NAMES.get(session_type, f"session{session_type}")
+
+        # Sanitize for filename: lowercase, replace spaces/parens with underscores
+        track_slug = track.lower().split("(")[0].strip().replace(" ", "_")
+        sess_slug = sess.replace(" ", "_")
+
+        new_name = f"f1_25_{track_slug}_{sess_slug}_{self._capture_ts}.f1bin"
+        new_path = self._writer.path.parent / new_name
+
+        old_path = self._writer.path
+        self._writer.close()
+        old_path.rename(new_path)
+        self._writer = BinaryWriter(new_path)
+        self._writer._path = new_path
+        self._writer._file = open(new_path, "ab")  # reopen in append mode
+        self._file_renamed = True
+        print(f"[CaptureSession] renamed: {old_path.name} → {new_name}")
