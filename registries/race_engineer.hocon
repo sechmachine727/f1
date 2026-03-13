@@ -58,6 +58,10 @@ Rules:
  - Only escalate to Fernando when there is a clear action he needs to take or be aware of.
  - You may combine information from multiple engineers into a single message to Fernando.
  - If multiple engineers report at once, you can reply with multiple lines (one per action).
+ - Timestamps in alerts are session elapsed time in minutes and seconds (MM:SS).
+ - When new information arrives from one engineer, consider whether it explains issues reported by another.
+   For example, damage reported by the Damage Engineer may explain tyre degradation the Tyres Engineer is seeing.
+   Share relevant cross-domain context with the appropriate engineer so they can refine their assessments.
 """
         tools = []
     }
