@@ -6,8 +6,8 @@ used by both ``tyre_logger`` and ``telemetry_server``.
 
 import struct
 
-from telemetry_server.f1_constants import DRIVER_ABBREVIATIONS
-from telemetry_server.f1_constants import TEAM_ABBREVIATIONS
+from common.f1_structs.f1_constants import DRIVER_ABBREVIATIONS
+from common.f1_structs.f1_constants import TEAM_ABBREVIATIONS
 
 # ---------------------------------------------------------------------------
 # Packet IDs (F1 25 spec)

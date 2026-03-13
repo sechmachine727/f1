@@ -396,7 +396,7 @@ class TerminalViewer:
         if sess:
             track_id = sess.get("m_trackId", -1)
             track_length = sess.get("m_trackLength", 0)
-            from telemetry_server.f1_constants import TRACK_NAMES
+            from common.f1_structs.f1_constants import TRACK_NAMES
             track_name = TRACK_NAMES.get(track_id, f"Track {track_id}")
 
         # Count active cars
