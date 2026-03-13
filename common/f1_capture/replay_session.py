@@ -35,7 +35,7 @@ class ReplaySession:
         self.state: dict[int, dict] = {}
         self.packets_received: int = 0
         self.packets_captured: int = 0
-        self.hz: int = 0
+        self.hz: str = f"{speed}x"
 
         # Replay stats
         self.path = path
@@ -48,7 +48,7 @@ class ReplaySession:
 
         # Pre-scan to get total frame count for progress reporting
         total_frames = self._reader.count()
-        self.hz = total_frames  # display total as a useful stat
+        self.total_frames = total_frames
 
         first_ts: int | None = None
         replay_start: float | None = None
