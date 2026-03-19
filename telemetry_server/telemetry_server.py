@@ -891,6 +891,18 @@ async def _flush_race_engineer() -> None:
 # ---------------------------------------------------------------------------
 # Build message & dispatch alerts
 # ---------------------------------------------------------------------------
+def _state_ready() -> bool:
+    """Return True once the essential packets have been received at least once.
+
+    Packets 6 (Car Telemetry), 7 (Car Status), and 10 (Car Damage) are
+    required for meaningful alert processing.  Without them the adapter
+    returns zeros which trigger spurious alerts (e.g. "0 (0) fitted",
+    "Fuel critically low — 0.0 laps remaining") that immediately clear
+    once real data arrives.
+    """
+    return 6 in state and 7 in state and 10 in state
+
+
 def build_message() -> tuple[str, list[dict], list[dict], list[dict]]:
     """Build a JSON message from the latest merged state via the adapter."""
     aero = adapter.get_aero()
@@ -901,20 +913,26 @@ def build_message() -> tuple[str, list[dict], list[dict], list[dict]]:
     lap = adapter.get_lap()
     track_map = adapter.get_track_map()
 
-    # -- Aero alerts --
-    aero_snapshot = {**aero, "sessionTime": session_time}
-    new_aero_alerts = _process_aero_alerts(aero_snapshot)
+    # Skip alert processing until all essential packets have arrived
+    if _state_ready():
+        # -- Aero alerts --
+        aero_snapshot = {**aero, "sessionTime": session_time}
+        new_aero_alerts = _process_aero_alerts(aero_snapshot)
 
-    # -- Tyre alerts --
-    new_tyre_alerts = _process_tyre_alerts({
-        "sessionTime": session_time,
-        "tyres": tyres,
-        "compound": compound,
-        "compoundVisual": compound_visual,
-    })
+        # -- Tyre alerts --
+        new_tyre_alerts = _process_tyre_alerts({
+            "sessionTime": session_time,
+            "tyres": tyres,
+            "compound": compound,
+            "compoundVisual": compound_visual,
+        })
 
-    # -- Power unit alerts --
-    new_pu_alerts = _process_pu_alerts({**power_unit, "sessionTime": session_time})
+        # -- Power unit alerts --
+        new_pu_alerts = _process_pu_alerts({**power_unit, "sessionTime": session_time})
+    else:
+        new_aero_alerts = []
+        new_tyre_alerts = []
+        new_pu_alerts = []
 
     msg = json.dumps({
         "tyres": tyres,
