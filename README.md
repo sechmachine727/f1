@@ -48,7 +48,7 @@ python -m test_udp
 
 Run a sample script to capture telemetry:
 ```shell
-python -m telemetry_server.tyre_logger
+python -m telemetry_server --capture
 ```
 
 ## Reinforcement Learning
@@ -73,32 +73,30 @@ Open [http://localhost:8081](http://localhost:8081) in a browser to see the Race
 
 ### Test data
 
-Telemetry CSV files are stored as GitHub release assets (too large for git). Download them with:
+Test `.f1bin` telemetry files are stored as GitHub release assets (too large for git). Download them with:
 ```shell
 ./scripts/download_test_data.sh
 ```
-This pulls all CSV files from the `test-data-v1` release into `data/`.
 
-You can also download them manually from the [test-data-v1 release](https://github.com/cognizant-ai-lab/f1/releases/tag/test-data-v1) and place them in `data/`.
+You can also download them manually from the GitHub releases page and place them in `data/`.
 
 ### Capturing telemetry
 
-Add `--capture` to save all telemetry to CSV files in `data/`. One file is created per session, named after the GP and session type:
+Add `--capture` to save all telemetry to `.f1bin` binary files in `data/`. One file is created per session, rotating automatically on session change:
 ```shell
 python -m telemetry_server --capture
 ```
-Example output: `data/f1_25_bahrain_gp_race_20260214-215852.csv`
 
 ### Replaying telemetry
 
-Use `--replay` to play back a captured CSV file. The web app receives the data as if it were live:
+Use `--replay` to play back a captured `.f1bin` file. The web app receives the data as if it were live:
 ```shell
-python -m telemetry_server --replay data/f1_25_bahrain_gp_race_20260214-215852.csv
+python -m telemetry_server --replay data/f1_25_capture.f1bin
 ```
 
 Add `--speed` to fast-forward the replay:
 ```shell
-python -m telemetry_server --replay data/f1_25_bahrain_gp_race_20260214-215852.csv --speed 10x
+python -m telemetry_server --replay data/f1_25_capture.f1bin --speed 10x
 ```
 
 ## F1 Race Engineer Hub Concept

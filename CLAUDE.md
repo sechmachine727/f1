@@ -22,9 +22,9 @@ cd race_engineer_hub && npm install
 | Agent network + nsflow UI | `python -m run` | 8080 (server), 4173 (nsflow) |
 | Telemetry WebSocket bridge | `python -m telemetry_server` | UDP 20777 in, WS 8765 out |
 | Race Engineer Hub (React UI) | `cd race_engineer_hub && npm run dev` | 8081 |
-| Replay captured telemetry | `python -m telemetry_server --replay data/<file>.csv --speed 10x` | |
-| Capture live telemetry to CSV | `python -m telemetry_server --capture` | |
-| Download test CSV data | `./scripts/download_test_data.sh` | |
+| Replay captured telemetry | `python -m telemetry_server --replay data/<file>.f1bin --speed 10x` | |
+| Capture live telemetry to .f1bin | `python -m telemetry_server --capture` | |
+| Download test data | `./scripts/download_test_data.sh` | |
 
 ## Verification
 
@@ -44,7 +44,7 @@ Three main systems communicate at runtime:
 
 1. **Neuro SAN agent network** (`registries/`, `run.py`) — HOCON-defined multi-agent orchestration. Agents are declared in `registries/*.hocon` and registered in `registries/manifest.hocon`. LLM config in `registries/llm_config.hocon` (default: OpenAI gpt-5.2, requires `OPENAI_API_KEY` in `.env`).
 
-2. **Telemetry server** (`telemetry_server/`) — Async Python WebSocket bridge. Receives F1 25 UDP packets, parses them via `F1TelemetryParser` (`f1_packet_parser.py`), generates alerts, dispatches to specialist agents, and broadcasts JSON over WebSocket.
+2. **Telemetry server** (`telemetry_server/`) — Async Python WebSocket bridge. Receives F1 25 UDP packets, decodes them via `common.f1_decoder.PacketDecoder`, translates to WebSocket JSON via `TelemetryStateAdapter`, generates alerts, dispatches to specialist agents, and broadcasts over WebSocket. Supports `.f1bin` binary capture and replay.
 
 3. **Race Engineer Hub** (`race_engineer_hub/`) — Vite + React 18 + TypeScript + Tailwind + shadcn/ui dashboard. Each hook (`src/hooks/`) opens its own WebSocket connection to the telemetry server and accumulates state.
 
@@ -71,7 +71,7 @@ Each specialist agent (`telemetry_server/*_agent.py`) uses `AgentSessionFactory`
 
 ### Telemetry parsing
 
-`F1TelemetryParser` in `f1_packet_parser.py` is the shared parser used by both `tyre_logger.py` and `telemetry_server.py`. It parses 7 packet types (Session, LapData, CarStatus, CarDamage, CarTelemetry, CarSetups, MotionEx) into state dicts. `PACKET_ID_CAR_TELEMETRY` is the trigger packet — when received, the server builds and broadcasts the full JSON message.
+`common.f1_decoder.PacketDecoder` decodes all 16 F1 25 UDP packet types into nested Python dicts (keyed by `m_packetId`). `TelemetryStateAdapter` (`telemetry_server/telemetry_state_adapter.py`) translates the decoded state into the flat camelCase dicts consumed by the WebSocket JSON messages and alert system. Packet ID 6 (Car Telemetry) is the trigger packet — when received, the server builds and broadcasts the full JSON message. Live capture and replay use `.f1bin` binary format via `common.f1_capture`.
 
 ### Frontend patterns
 

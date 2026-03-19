@@ -18,6 +18,14 @@ export interface PowerUnitData {
   ersHarvestedMGUH: number;
   engineDamage: number;
   gearboxDamage: number;
+  engineMGUHWear: number;
+  engineESWear: number;
+  engineCEWear: number;
+  engineICEWear: number;
+  engineMGUKWear: number;
+  engineTCWear: number;
+  engineBlown: boolean;
+  engineSeized: boolean;
   sessionTime: number;
 }
 
