@@ -19,16 +19,21 @@ from common.f1_decoder.packet_decoder import PacketDecoder
 class ReplaySession:
     """Replays a .f1bin capture file with the same interface as CaptureSession."""
 
-    def __init__(self, path: Path, speed: float = 1.0):
+    def __init__(self, path: Path, speed: float = 1.0, max_wait: float = 0.0):
         """Initialize the replay session.
 
         Args:
             path: Path to the .f1bin capture file.
             speed: Playback speed multiplier (1.0 = real-time, 10.0 = 10x faster).
+            max_wait: Maximum seconds to sleep between packets.
+                      0 = no waiting (replay as fast as possible).
+                      Positive = cap inter-packet delay to this value.
+                      Negative = unlimited (respect original timing exactly).
         """
         self._reader = BinaryReader(path)
         self._decoder = PacketDecoder()
         self._speed = speed
+        self._max_wait = max_wait
         self._running = False
 
         # Same public interface as CaptureSession
@@ -69,7 +74,9 @@ class ReplaySession:
                 # How far into replay we actually are
                 actual_elapsed_s = asyncio.get_event_loop().time() - replay_start
                 wait = target_replay_s - actual_elapsed_s
-                if wait > 0:
+                if wait > 0 and self._max_wait != 0:
+                    if self._max_wait > 0:
+                        wait = min(wait, self._max_wait)
                     await asyncio.sleep(wait)
 
             if not self._running:
