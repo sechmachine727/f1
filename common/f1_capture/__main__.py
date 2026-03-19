@@ -59,6 +59,10 @@ def main():
         "--speed", type=float, default=1.0,
         help="Replay speed multiplier (default: 1.0 = real-time, 10.0 = 10x faster)",
     )
+    parser.add_argument(
+        "--keep-pauses", action="store_true",
+        help="Preserve original game pauses during replay (by default pauses are skipped)",
+    )
     args = parser.parse_args()
 
     from pathlib import Path
@@ -113,7 +117,8 @@ def _run_replay(args, replay_path):
         print(f"[f1_capture] Error: file not found: {replay_path}")
         return
 
-    session = ReplaySession(path=replay_path, speed=args.speed)
+    max_gap = None if args.keep_pauses else 0.5
+    session = ReplaySession(path=replay_path, speed=args.speed, max_gap=max_gap)
 
     async def run():
         """Run replay with terminal viewer."""

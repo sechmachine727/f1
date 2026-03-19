@@ -1101,7 +1101,7 @@ async def udp_reader(capture: bool):
 # ---------------------------------------------------------------------------
 # .f1bin replay
 # ---------------------------------------------------------------------------
-async def f1bin_replay(filepath: str, speed: float):
+async def f1bin_replay(filepath: str, speed: float, max_gap: float | None = 0.5):
     """Replay a captured .f1bin file as if it were live telemetry."""
     global state, adapter, session_time, prev_session_uid
 
@@ -1112,7 +1112,7 @@ async def f1bin_replay(filepath: str, speed: float):
 
     print(f"Replaying {filepath} ({speed}x) ...")
 
-    session = ReplaySession(path, speed=speed)
+    session = ReplaySession(path, speed=speed, max_gap=max_gap)
     # Share the replay's state dict with our adapter
     state = session.state
     adapter = TelemetryStateAdapter(state)
@@ -1170,6 +1170,11 @@ async def main():
         default="1x",
         help="Replay speed multiplier, e.g. 2x, 10x (default: 1x)",
     )
+    parser.add_argument(
+        "--keep-pauses",
+        action="store_true",
+        help="Preserve original game pauses during replay (by default pauses are skipped)",
+    )
     args = parser.parse_args()
 
     if args.capture and args.replay:
@@ -1211,7 +1216,8 @@ async def main():
                 speed = float(speed_str)
             except ValueError:
                 parser.error(f"invalid --speed value: {args.speed} (expected Nx, e.g. 2x, 10x)")
-            await f1bin_replay(args.replay, speed)
+            max_gap = None if args.keep_pauses else 0.5
+            await f1bin_replay(args.replay, speed, max_gap=max_gap)
         else:
             await udp_reader(args.capture)
 

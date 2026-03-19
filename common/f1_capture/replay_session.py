@@ -19,16 +19,20 @@ from common.f1_decoder.packet_decoder import PacketDecoder
 class ReplaySession:
     """Replays a .f1bin capture file with the same interface as CaptureSession."""
 
-    def __init__(self, path: Path, speed: float = 1.0):
+    def __init__(self, path: Path, speed: float = 1.0, max_gap: float | None = 0.5):
         """Initialize the replay session.
 
         Args:
             path: Path to the .f1bin capture file.
             speed: Playback speed multiplier (1.0 = real-time, 10.0 = 10x faster).
+            max_gap: Maximum inter-packet gap in seconds (original time) before excess
+                     is skipped. Effectively fast-forwards through game pauses. Set to
+                     None to preserve original timing including pauses.
         """
         self._reader = BinaryReader(path)
         self._decoder = PacketDecoder()
         self._speed = speed
+        self._max_gap_ns = int(max_gap * 1e9) if max_gap is not None else None
         self._running = False
 
         # Same public interface as CaptureSession
@@ -51,6 +55,8 @@ class ReplaySession:
         self.total_frames = total_frames
 
         first_ts: int | None = None
+        prev_ts: int = 0
+        skipped_ns: int = 0
         replay_start: float | None = None
 
         for frame_idx, (timestamp_ns, datagram) in enumerate(self._reader):
@@ -60,10 +66,17 @@ class ReplaySession:
             # Timing: wait to match the original packet spacing (scaled by speed)
             if first_ts is None:
                 first_ts = timestamp_ns
+                prev_ts = timestamp_ns
                 replay_start = asyncio.get_event_loop().time()
             else:
+                # Skip excess gap when game was paused
+                gap_ns = timestamp_ns - prev_ts
+                if self._max_gap_ns is not None and gap_ns > self._max_gap_ns:
+                    skipped_ns += gap_ns - self._max_gap_ns
+                prev_ts = timestamp_ns
+
                 # How far into the original recording is this packet?
-                original_elapsed_s = (timestamp_ns - first_ts) / 1e9
+                original_elapsed_s = (timestamp_ns - first_ts - skipped_ns) / 1e9
                 # How far into replay time should we be?
                 target_replay_s = original_elapsed_s / self._speed
                 # How far into replay we actually are
