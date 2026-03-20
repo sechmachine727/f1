@@ -14,7 +14,6 @@ import argparse
 import asyncio
 import json
 import os
-import time
 from pathlib import Path
 
 import websockets
