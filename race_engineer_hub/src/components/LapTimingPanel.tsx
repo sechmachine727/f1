@@ -37,7 +37,14 @@ export function LapTimingPanel({ timing, lapCompleted, className }: LapTimingPan
       <h3 className="text-[10px] font-bold tracking-wider text-muted-foreground uppercase mb-2">Lap Timing</h3>
 
       <div className="flex-1 min-h-0 overflow-y-auto scrollbar-thin">
-        <table className="w-full text-[10px] tabular-nums">
+        <table className="w-full text-[10px] tabular-nums table-fixed">
+          <colgroup>
+            <col className="w-6" />
+            <col className="w-[4.5rem]" />
+            <col className="w-[4.5rem]" />
+            <col className="w-[4.5rem]" />
+            <col />
+          </colgroup>
           <tbody>
             {/* Current lap */}
             <tr
