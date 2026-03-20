@@ -24,7 +24,10 @@ class _UdpProtocol(asyncio.DatagramProtocol):
 
     def datagram_received(self, data: bytes, addr: tuple) -> None:
         """Called by asyncio when a UDP datagram arrives."""
-        self._queue.put_nowait(data)
+        try:
+            self._queue.put_nowait(data)
+        except asyncio.QueueFull:
+            pass  # Drop packet when consumer can't keep up
 
     def error_received(self, exc: Exception) -> None:
         """Called by asyncio on transport error."""
@@ -34,7 +37,7 @@ class _UdpProtocol(asyncio.DatagramProtocol):
 class UdpListener:
     """Listens for F1 25 UDP telemetry on the given port."""
 
-    def __init__(self, port: int = 20777, queue_size: int = 4096):
+    def __init__(self, port: int = 20777, queue_size: int = 16384):
         """Initialize the listener.
 
         Args:
