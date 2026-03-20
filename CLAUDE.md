@@ -44,20 +44,26 @@ Three main systems communicate at runtime:
 
 1. **Neuro SAN agent network** (`registries/`, `run.py`) — HOCON-defined multi-agent orchestration. Agents are declared in `registries/*.hocon` and registered in `registries/manifest.hocon`. LLM config in `registries/llm_config.hocon` (default: OpenAI gpt-5.2, requires `OPENAI_API_KEY` in `.env`).
 
-2. **Telemetry server** (`telemetry_server/`) — Async Python WebSocket bridge. Receives F1 25 UDP packets, decodes them via `common.f1_decoder.PacketDecoder`, translates to WebSocket JSON via `TelemetryStateAdapter`, generates alerts, dispatches to specialist agents, and broadcasts over WebSocket. Supports `.f1bin` binary capture and replay.
+2. **Telemetry server** (`telemetry_server/`) — Async Python WebSocket bridge organised into subpackages:
+   - `telemetry_server.py` — `TelemetryServer` composition root + `main()` entry point
+   - `alerts/` — `AeroAlertProcessor`, `TyreAlertProcessor`, `PuAlertProcessor` (threshold evaluation and alert log accumulation), plus shared constants (`alert_constants.py`) and helpers (`alert_utils.py`)
+   - `dispatch/` — `BaseAgentDispatcher` (debounced batch queue/flush), specialist dispatchers (`DamageDispatcher`, `TyresDispatcher`, `PuDispatcher`), `RaceEngineerDispatcher` (routes follow-ups back to specialists), and `AgentDispatchManager` (facade for all four)
+   - `server/` — `MessageBuilder` (assembles JSON), `WebSocketServer` (client tracking + broadcast + driver radio), `TelemetryInput` (UDP listener + `.f1bin` replay)
+   - `agents/` — Neuro SAN agent wrappers (`DamageAgent`, `TyresAgent`, `PowerUnitAgent`, `RaceEngineerAgent`)
+   - `telemetry_state_adapter.py` — translates decoded packet state into flat camelCase dicts for WebSocket JSON
 
 3. **Race Engineer Hub** (`race_engineer_hub/`) — Vite + React 18 + TypeScript + Tailwind + shadcn/ui dashboard. Each hook (`src/hooks/`) opens its own WebSocket connection to the telemetry server and accumulates state.
 
 ### Data flow
 
 ```
-F1 game → UDP:20777 → telemetry_server.py → parse packets → generate alerts
-                                           → dispatch to specialist agents (async)
-                                           → broadcast JSON over WS:8765
-                                           ↓
-                              race_engineer_hub (React) ← WS hooks
-                                           ↓
-                              Driver Radio input → WS → race engineer agent
+F1 game → UDP:20777 → TelemetryInput → parse packets → AlertProcessors → generate alerts
+                                      → AgentDispatchManager → specialist agents (async)
+                                      → WebSocketServer → broadcast JSON over WS:8765
+                                      ↓
+                         race_engineer_hub (React) ← WS hooks
+                                      ↓
+                         Driver Radio input → WS → RaceEngineerDispatcher → race engineer agent
 ```
 
 ### Agent hierarchy
@@ -67,7 +73,7 @@ F1 game → UDP:20777 → telemetry_server.py → parse packets → generate ale
 - **Tyres Agent** — analyzes tyre alerts (surface temp, wear, damage, blistering)
 - **Power Unit Agent** — analyzes PU alerts (engine temp, fuel, ERS, gearbox)
 
-Each specialist agent (`telemetry_server/*_agent.py`) uses `AgentSessionFactory` + `StreamingInputProcessor` from neuro-san. Alerts are batched with a debounce timer (1-2s) before dispatch. Responses are forwarded to the race engineer agent.
+Each specialist agent (`telemetry_server/agents/*_agent.py`) uses `AgentSessionFactory` + `StreamingInputProcessor` from neuro-san. Alerts are batched via `BaseAgentDispatcher` with a debounce timer (1-2s) before dispatch. Responses are forwarded to the race engineer agent.
 
 ### Telemetry parsing
 

@@ -1,0 +1,128 @@
+"""Assembles the JSON message broadcast to WebSocket clients each frame."""
+
+from __future__ import annotations
+
+import json
+from typing import TYPE_CHECKING
+from typing import Callable
+
+if TYPE_CHECKING:
+    from telemetry_server.alerts.aero_alert_processor import AeroAlertProcessor
+    from telemetry_server.alerts.pu_alert_processor import PuAlertProcessor
+    from telemetry_server.alerts.tyre_alert_processor import TyreAlertProcessor
+    from telemetry_server.dispatch.agent_dispatch_manager import AgentDispatchManager
+    from telemetry_server.telemetry_state_adapter import TelemetryStateAdapter
+
+
+class MessageBuilder:
+    """Builds the JSON message from adapter data, alert logs, and agent responses.
+
+    Called once per telemetry frame (packet 6). Runs the three alert
+    processors and collects their new alerts for dispatch.
+    """
+
+    def __init__(
+        self,
+        adapter_fn: Callable[[], TelemetryStateAdapter],
+        aero_processor: AeroAlertProcessor,
+        tyre_processor: TyreAlertProcessor,
+        pu_processor: PuAlertProcessor,
+        dispatch_manager: AgentDispatchManager,
+        session_time_fn: Callable[[], float],
+        state_ready_fn: Callable[[], bool],
+    ) -> None:
+        """Initialise the message builder.
+
+        Args:
+            adapter_fn: Callable returning the current TelemetryStateAdapter.
+            aero_processor: The aero alert processor.
+            tyre_processor: The tyre alert processor.
+            pu_processor: The PU alert processor.
+            dispatch_manager: The agent dispatch manager (for reading responses).
+            session_time_fn: Callable returning the current session time.
+            state_ready_fn: Callable returning True when essential packets are available.
+        """
+        self._adapter_fn = adapter_fn
+        self._aero = aero_processor
+        self._tyre = tyre_processor
+        self._pu = pu_processor
+        self._dispatch = dispatch_manager
+        self._session_time_fn = session_time_fn
+        self._state_ready_fn = state_ready_fn
+
+    def build(self) -> tuple[str, list[dict], list[dict], list[dict]]:
+        """Build a JSON message from the latest merged state via the adapter.
+
+        Returns:
+            A tuple of (json_string, new_aero_alerts, new_tyre_alerts, new_pu_alerts).
+        """
+        adapter = self._adapter_fn()
+        session_time = self._session_time_fn()
+
+        aero = adapter.get_aero()
+        tyres = adapter.get_tyres()
+        compound, compound_visual = adapter.get_compound()
+        power_unit = adapter.get_power_unit()
+        session = adapter.get_session()
+        lap = adapter.get_lap()
+        track_map = adapter.get_track_map()
+
+        if self._state_ready_fn():
+            aero_snapshot = {**aero, "sessionTime": session_time}
+            new_aero_alerts = self._aero.process(aero_snapshot)
+
+            new_tyre_alerts = self._tyre.process({
+                "sessionTime": session_time,
+                "tyres": tyres,
+                "compound": compound,
+                "compoundVisual": compound_visual,
+            })
+
+            new_pu_alerts = self._pu.process({**power_unit, "sessionTime": session_time})
+        else:
+            new_aero_alerts = []
+            new_tyre_alerts = []
+            new_pu_alerts = []
+
+        msg = json.dumps({
+            "tyres": tyres,
+            "compound": compound,
+            "compoundVisual": compound_visual,
+            "tyresAgeLaps": adapter.get_tyres_age_laps(),
+            "currentLap": lap.get("currentLap", 0),
+            "speed": aero.get("speed", 0),
+            "sessionTime": session_time,
+            "powerUnit": power_unit,
+            "aero": aero,
+            "session": session,
+            "trackMap": track_map,
+            "tyreAlerts": {
+                "alerts": self._tyre.alerts_log,
+                "activeCount": len(self._tyre.conditions),
+            },
+            "puAlerts": {
+                "alerts": self._pu.alerts_log,
+                "activeCount": len(self._pu.conditions),
+            },
+            "aeroAlerts": {
+                "alerts": self._aero.alerts_log,
+                "activeCount": len(self._aero.conditions),
+            },
+            "damageReport": {
+                "response": self._dispatch.damage.response,
+                "time": self._dispatch.damage.response_time,
+            },
+            "tyresReport": {
+                "response": self._dispatch.tyres.response,
+                "time": self._dispatch.tyres.response_time,
+            },
+            "puReport": {
+                "response": self._dispatch.pu.response,
+                "time": self._dispatch.pu.response_time,
+            },
+            "raceEngineerReport": {
+                "responses": self._dispatch.race_engineer.responses_log,
+                "alerts": self._dispatch.race_engineer.alerts_log,
+            },
+        })
+        return msg, new_aero_alerts, new_tyre_alerts, new_pu_alerts
