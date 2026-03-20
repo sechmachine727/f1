@@ -12,8 +12,8 @@ import { useTyreTelemetry } from "@/hooks/useTyreTelemetry";
 import { usePowerUnitTelemetry } from "@/hooks/usePowerUnitTelemetry";
 import { useAeroTelemetry } from "@/hooks/useAeroTelemetry";
 import { useRaceEngineerReport } from "@/hooks/useRaceEngineerReport";
-import { Flag, Timer, Gauge, Clock, Info } from "lucide-react";
-import { useState, useCallback, useRef, useEffect } from "react";
+import { Flag, Timer, Gauge, Clock, CloudSun, Thermometer, MapPin } from "lucide-react";
+import { useState, useCallback } from "react";
 import type { ReportEntry } from "@/components/ExpandableReportPanel";
 
 const WEATHER_LABELS: Record<number, string> = {
@@ -28,20 +28,6 @@ const Index = () => {
   const { aeroAlerts: { alerts: aeroAlerts, activeCount: aeroActiveCount }, damageReport } = useAeroTelemetry();
   const raceEngineerReport = useRaceEngineerReport();
   const [driverMessages, setDriverMessages] = useState<ReportEntry[]>([]);
-  const [showSessionInfo, setShowSessionInfo] = useState(false);
-  const infoBubbleRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!showSessionInfo) return;
-    const handleClick = (e: MouseEvent) => {
-      if (infoBubbleRef.current && !infoBubbleRef.current.contains(e.target as Node)) {
-        setShowSessionInfo(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, [showSessionInfo]);
-
   const handleDriverSend = useCallback((text: string, time: string) => {
     setDriverMessages((prev) => [...prev, { text, time, source: "driver" as const }]);
   }, []);
@@ -69,49 +55,21 @@ const Index = () => {
           <span className="font-display text-[10px] font-bold tracking-wider text-accent bg-accent/10 border border-accent/30 px-2 py-0.5 rounded">
             {sessionType}
           </span>
-          <div className="relative" ref={infoBubbleRef}>
-            <button
-              onClick={() => setShowSessionInfo((v) => !v)}
-              className="p-1 rounded border border-border/50 bg-secondary/50 text-muted-foreground hover:text-primary hover:border-primary/50 transition-colors"
-            >
-              <Info className="h-3.5 w-3.5" />
-            </button>
-            {showSessionInfo && session && (
-              <div className="absolute top-full left-0 mt-2 z-50 bg-card border border-border/50 rounded-md shadow-xl p-3 min-w-[200px]">
-                <h3 className="font-display text-[10px] font-bold tracking-widest uppercase text-muted-foreground mb-2">
-                  Session Context
-                </h3>
-                <div className="space-y-1 text-[11px] text-card-foreground">
-                  <div className="flex justify-between gap-4">
-                    <span className="text-muted-foreground">Session</span>
-                    <span className="font-bold">{sessionType}</span>
-                  </div>
-                  <div className="flex justify-between gap-4">
-                    <span className="text-muted-foreground">Track</span>
-                    <span className="font-bold">{trackName}</span>
-                  </div>
-                  <div className="flex justify-between gap-4">
-                    <span className="text-muted-foreground">Weather</span>
-                    <span className="font-bold">{WEATHER_LABELS[session.weather] ?? "Unknown"}</span>
-                  </div>
-                  <div className="flex justify-between gap-4">
-                    <span className="text-muted-foreground">Air Temp</span>
-                    <span className="font-bold">{session.airTemp}°C</span>
-                  </div>
-                  <div className="flex justify-between gap-4">
-                    <span className="text-muted-foreground">Track Temp</span>
-                    <span className="font-bold">{session.trackTemp}°C</span>
-                  </div>
-                  {totalLaps > 0 && (
-                    <div className="flex justify-between gap-4">
-                      <span className="text-muted-foreground">Total Laps</span>
-                      <span className="font-bold">{totalLaps}</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
+          {session && (
+            <div className="flex items-center gap-1 text-[10px] text-muted-foreground uppercase tracking-wider font-display">
+              <CloudSun className="h-3 w-3 text-primary" />
+              <span>{WEATHER_LABELS[session.weather] ?? "Unknown"}</span>
+            </div>
+          )}
+          {session && (
+            <div className="flex items-center gap-1 text-[10px] text-muted-foreground uppercase tracking-wider font-display">
+              <Thermometer className="h-3 w-3 text-primary" />
+              <span>{session.airTemp}°C AIR</span>
+              <span className="text-border/80">/</span>
+              <MapPin className="h-3 w-3 text-primary" />
+              <span>{session.trackTemp}°C TRACK</span>
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-4 text-[10px] text-muted-foreground uppercase tracking-wider font-display">
           {session && session.sessionTimeLeft > 0 ? (
