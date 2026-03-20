@@ -8,6 +8,7 @@ from typing import Callable
 
 if TYPE_CHECKING:
     from telemetry_server.alerts.aero_alert_processor import AeroAlertProcessor
+    from telemetry_server.alerts.pit_alert_processor import PitAlertProcessor
     from telemetry_server.alerts.pu_alert_processor import PuAlertProcessor
     from telemetry_server.alerts.tyre_alert_processor import TyreAlertProcessor
     from telemetry_server.dispatch.agent_dispatch_manager import AgentDispatchManager
@@ -27,6 +28,7 @@ class MessageBuilder:
         aero_processor: AeroAlertProcessor,
         tyre_processor: TyreAlertProcessor,
         pu_processor: PuAlertProcessor,
+        pit_processor: PitAlertProcessor,
         dispatch_manager: AgentDispatchManager,
         session_time_fn: Callable[[], float],
         state_ready_fn: Callable[[], bool],
@@ -38,6 +40,7 @@ class MessageBuilder:
             aero_processor: The aero alert processor.
             tyre_processor: The tyre alert processor.
             pu_processor: The PU alert processor.
+            pit_processor: The pit status alert processor.
             dispatch_manager: The agent dispatch manager (for reading responses).
             session_time_fn: Callable returning the current session time.
             state_ready_fn: Callable returning True when essential packets are available.
@@ -46,6 +49,7 @@ class MessageBuilder:
         self._aero = aero_processor
         self._tyre = tyre_processor
         self._pu = pu_processor
+        self._pit = pit_processor
         self._dispatch = dispatch_manager
         self._session_time_fn = session_time_fn
         self._state_ready_fn = state_ready_fn
@@ -67,6 +71,20 @@ class MessageBuilder:
         lap = adapter.get_lap()
         track_map = adapter.get_track_map()
         pit_status = adapter.get_pit_status()
+
+        new_pit_alerts = self._pit.process(pit_status, session_time)
+        if new_pit_alerts:
+            # Add to specialist alert logs for display in all panels
+            self._aero.alerts_log.extend(new_pit_alerts)
+            self._tyre.alerts_log.extend(new_pit_alerts)
+            self._pu.alerts_log.extend(new_pit_alerts)
+
+            # Queue to all dispatchers for agent processing + race engineer display
+            formatted = [f"PIT ALERT {a['message']} {a['time']}" for a in new_pit_alerts]
+            self._dispatch.damage.queue(formatted)
+            self._dispatch.tyres.queue(formatted)
+            self._dispatch.pu.queue(formatted)
+            self._dispatch.race_engineer.queue(formatted)
 
         if self._state_ready_fn():
             aero_snapshot = {**aero, "sessionTime": session_time}
