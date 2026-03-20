@@ -1,7 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Compass, Maximize, Map, Users, ZoomIn, ZoomOut } from "lucide-react";
+import { Compass, Maximize, Map, Settings2, Users, ZoomIn, ZoomOut } from "lucide-react";
 import { useTrackMap } from "@/hooks/useTrackMap";
-import { smoothTrackPath, detectTurns } from "@/utils/trackGeometry";
+import { useTrackMapOverlays } from "@/hooks/useTrackMapOverlays";
+import type { OverlayKey } from "@/hooks/useTrackMapOverlays";
+import { smoothTrackPath, detectTurns, staticPointAtNorm, trackHeadingAtNorm, sectorPath } from "@/utils/trackGeometry";
+import type { StaticTrackData } from "@/utils/trackGeometry";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Switch } from "@/components/ui/switch";
 
 const ROTATION_STORAGE_KEY = "trackMap:rotations";
 const ZOOM_STORAGE_KEY = "trackMap:zooms";
@@ -83,11 +88,56 @@ function playerArrow(cx: number, cz: number, heading: number, size: number): str
   return `${tipX},${tipZ} ${rearLX},${rearLZ} ${rearRX},${rearRZ}`;
 }
 
+/** Find the nearest point on the static track to (px, pz) and return normalized position. */
+function nearestNorm(track: StaticTrackData, px: number, pz: number): number {
+  let bestDist = Infinity;
+  let bestIdx = 0;
+  for (let i = 0; i < track.points.length; i++) {
+    const dx = track.points[i].x - px;
+    const dz = track.points[i].z - pz;
+    const d = dx * dx + dz * dz;
+    if (d < bestDist) { bestDist = d; bestIdx = i; }
+  }
+  return track.distances[bestIdx] / track.totalLength;
+}
+
+/** Get the track heading at the point nearest to (px, pz). */
+function nearestTrackHeading(track: StaticTrackData, px: number, pz: number): number {
+  return trackHeadingAtNorm(track, nearestNorm(track, px, pz));
+}
+
+/** Compute outward normal angle for a corner at (cx, cz) based on nearest track heading. */
+function computeCornerNormal(track: StaticTrackData, cx: number, cz: number): number {
+  const heading = nearestTrackHeading(track, cx, cz);
+  return heading - Math.PI / 2;
+}
+
+const MARSHAL_FLAG_COLORS: Record<number, string> = {
+  0: "#22c55e",  // green
+  1: "#eab308",  // yellow
+  2: "#eab308",  // double yellow (same visual)
+  3: "#ef4444",  // red
+  4: "#3b82f6",  // blue
+};
+
+const SECTOR_COLORS = ["#ef4444", "#3b82f6", "#eab308"]; // S1=red, S2=blue, S3=yellow
+
+const OVERLAY_LABELS: Record<OverlayKey, string> = {
+  corners: "Corners",
+  sectorBoundaries: "Sector Lines",
+  sectorColors: "Sector Colors",
+  marshalZones: "Marshal Flags",
+  marshalSectors: "Mini Sectors",
+  drs: "DRS",
+  startFinish: "Start/Finish",
+};
+
 export function TrackMap() {
   const state = useTrackMap();
   const [rotation, setRotation] = useState(0);
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, z: 0 });
+  const { overlays, toggle: toggleOverlay } = useTrackMapOverlays();
   const [labelMode, setLabelMode] = useState<LabelMode>(() => {
     try {
       return (localStorage.getItem(LABEL_MODE_STORAGE_KEY) as LabelMode) || "driver";
@@ -101,11 +151,14 @@ export function TrackMap() {
   useEffect(() => {
     if (trackName && trackName !== trackNameRef.current) {
       trackNameRef.current = trackName;
-      setRotation(loadSavedRotation(trackName));
+      const savedRotation = loadSavedRotation(trackName);
+      // Use circuit info rotation as default when no saved rotation exists
+      const defaultRotation = state?.circuitInfo?.rotation ?? 0;
+      setRotation(savedRotation || defaultRotation);
       setZoom(loadSavedZoom(trackName));
       setPan(loadSavedPan(trackName));
     }
-  }, [trackName]);
+  }, [trackName, state?.circuitInfo?.rotation]);
 
   const handleRotationChange = useCallback((deg: number) => {
     setRotation(deg);
@@ -154,7 +207,7 @@ export function TrackMap() {
     );
   }
 
-  return <TrackMapSVG state={state!} hasCars={hasCars ?? false} rotation={rotation} onRotationChange={handleRotationChange} zoom={zoom} onZoomChange={handleZoomChange} pan={pan} onPan={handlePan} onFit={handleFit} labelMode={labelMode} onToggleLabel={handleToggleLabel} />;
+  return <TrackMapSVG state={state!} hasCars={hasCars ?? false} rotation={rotation} onRotationChange={handleRotationChange} zoom={zoom} onZoomChange={handleZoomChange} pan={pan} onPan={handlePan} onFit={handleFit} labelMode={labelMode} onToggleLabel={handleToggleLabel} overlays={overlays} onToggleOverlay={toggleOverlay} />;
 }
 
 function TrackMapSVG({
@@ -169,6 +222,8 @@ function TrackMapSVG({
   onFit,
   labelMode,
   onToggleLabel,
+  overlays,
+  onToggleOverlay,
 }: {
   state: NonNullable<ReturnType<typeof useTrackMap>>;
   hasCars: boolean;
@@ -181,8 +236,10 @@ function TrackMapSVG({
   onFit: () => void;
   labelMode: LabelMode;
   onToggleLabel: () => void;
+  overlays: Record<OverlayKey, boolean>;
+  onToggleOverlay: (key: OverlayKey) => void;
 }) {
-  const { trackOutline, cars, playerIndex, outlineComplete, trackName } = state;
+  const { trackOutline, cars, playerIndex, outlineComplete, trackName, staticTrack, trackLength, circuitInfo, marshalZones, sectorBoundaries, playerDrs } = state;
 
   const activeCars = useMemo(
     () => cars.filter((c, i) => c.active && i !== playerIndex),
@@ -220,19 +277,33 @@ function TrackMapSVG({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trackOutline.length, outlineComplete]);
 
-  // Detect turns
-  const turns = useMemo(() => {
+  // Corner positions: prefer circuit info (direct x/y), fall back to algorithmic detection
+  const corners = useMemo(() => {
+    if (circuitInfo?.corners?.length) {
+      return circuitInfo.corners.map((c) => {
+        // API coordinates: x maps to SVG x, y maps to SVG z (negated, same as outline)
+        const cx = c.x;
+        const cz = -c.y;
+        // Compute outward normal from nearest track heading
+        const normalAngle = staticTrack
+          ? computeCornerNormal(staticTrack, cx, cz)
+          : -Math.PI / 2;
+        return { number: c.number, letter: c.letter, x: cx, z: cz, normalAngle };
+      });
+    }
     if (!outlineComplete) return [];
-    return detectTurns(trackOutline, true);
+    return detectTurns(trackOutline, true).map((t) => ({
+      number: t.number, letter: "", x: t.x, z: t.z, normalAngle: t.normalAngle,
+    }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [trackOutline.length, outlineComplete]);
+  }, [circuitInfo?.corners, staticTrack, trackOutline.length, outlineComplete]);
 
   // Scale-relative sizes
   const scale = Math.max(bounds.w, bounds.h);
-  const trackWidth = scale * 0.03;
+  const trackWidth = scale * 0.025;
   const centerLineWidth = scale * 0.012;
   const otherR = scale * 0.012;
-  const playerSize = scale * 0.018;
+  const playerSize = scale * 0.022;
   const labelSize = scale * 0.022;
   const turnR = scale * 0.018;
   const turnLabelSize = scale * 0.02;
@@ -311,27 +382,51 @@ function TrackMapSVG({
           </defs>
 
           <g transform={`rotate(${rotation} ${bounds.cx} ${bounds.cz})`}>
-            {/* Track — thick dark green */}
-            <path
-              d={smoothPath}
-              fill="none"
-              stroke="#22863a"
-              strokeWidth={trackWidth}
-              strokeLinejoin="round"
-              strokeLinecap="round"
-              filter="url(#trackGlow)"
-            />
-
-            {/* Center line — thin light white */}
-            <path
-              d={smoothPath}
-              fill="none"
-              stroke="#ffffff"
-              strokeWidth={centerLineWidth}
-              strokeOpacity={1}
-              strokeLinejoin="round"
-              strokeLinecap="round"
-            />
+            {/* Track rendering: sector colors mode or default green */}
+            {overlays.sectorColors && staticTrack && sectorBoundaries && trackLength > 0 ? (() => {
+              const s2Norm = sectorBoundaries.sector2Start / trackLength;
+              const s3Norm = sectorBoundaries.sector3Start / trackLength;
+              const sectors = [
+                { start: 0, end: s2Norm, color: SECTOR_COLORS[0] },
+                { start: s2Norm, end: s3Norm, color: SECTOR_COLORS[1] },
+                { start: s3Norm, end: 1, color: SECTOR_COLORS[2] },
+              ];
+              return sectors.map((s, i) => (
+                <path
+                  key={`sector-color-${i}`}
+                  d={sectorPath(staticTrack, s.start, s.end)}
+                  fill="none"
+                  stroke={s.color}
+                  strokeWidth={centerLineWidth}
+                  strokeOpacity={0.9}
+                  strokeLinejoin="round"
+                  strokeLinecap="round"
+                />
+              ));
+            })() : (
+              <>
+                {/* Track — thick dark green */}
+                <path
+                  d={smoothPath}
+                  fill="none"
+                  stroke="#22863a"
+                  strokeWidth={trackWidth}
+                  strokeLinejoin="round"
+                  strokeLinecap="round"
+                  filter="url(#trackGlow)"
+                />
+                {/* Center line — thin light white */}
+                <path
+                  d={smoothPath}
+                  fill="none"
+                  stroke="#ffffff"
+                  strokeWidth={centerLineWidth}
+                  strokeOpacity={1}
+                  strokeLinejoin="round"
+                  strokeLinecap="round"
+                />
+              </>
+            )}
 
             {/* Other cars */}
             {activeCars.map((car, i) => (
@@ -370,14 +465,14 @@ function TrackMapSVG({
                 <g filter="url(#playerGlow)">
                   <polygon
                     points={playerArrow(playerCar.x, playerCar.z, playerCar.heading, playerSize)}
-                    fill="#ef4444"
+                    fill="#22c55e"
                   />
                 </g>
                 <text
                   x={playerCar.x}
                   y={playerCar.z - playerSize * 2}
                   textAnchor="middle"
-                  fill="#fca5a5"
+                  fill="#86efac"
                   fontSize={labelSize}
                   fontFamily="monospace"
                   fontWeight="bold"
@@ -388,12 +483,12 @@ function TrackMapSVG({
               </>
             )}
 
-            {/* Turn indicators */}
-            {turns.map((turn) => {
-              const tx = turn.x + Math.cos(turn.normalAngle) * turnOffset;
-              const tz = turn.z + Math.sin(turn.normalAngle) * turnOffset;
+            {/* Corner indicators */}
+            {overlays.corners && corners.map((corner) => {
+              const tx = corner.x + Math.cos(corner.normalAngle) * turnOffset;
+              const tz = corner.z + Math.sin(corner.normalAngle) * turnOffset;
               return (
-                <g key={`turn-${turn.number}`} transform={`rotate(${-rotation} ${tx} ${tz})`}>
+                <g key={`corner-${corner.number}${corner.letter}`} transform={`rotate(${-rotation} ${tx} ${tz})`}>
                   <circle cx={tx} cy={tz} r={turnR} fill="#646464" />
                   <text
                     x={tx}
@@ -405,11 +500,121 @@ function TrackMapSVG({
                     fontFamily="monospace"
                     fontWeight="bold"
                   >
-                    {turn.number}
+                    {corner.number}
                   </text>
                 </g>
               );
             })}
+
+            {/* Sector boundaries — S1 at start, S2 and S3 at their distances */}
+            {overlays.sectorBoundaries && staticTrack && trackLength > 0 && (() => {
+              const sectorNorms = [
+                { norm: 0, label: "S1" },
+                ...(sectorBoundaries ? [
+                  { norm: sectorBoundaries.sector2Start / trackLength, label: "S2" },
+                  { norm: sectorBoundaries.sector3Start / trackLength, label: "S3" },
+                ] : []),
+              ];
+              const lineLen = scale * 0.04;
+              return sectorNorms.map(({ norm, label }) => {
+                if (norm < 0 || norm >= 1) return null;
+                const pt = staticPointAtNorm(staticTrack, norm);
+                const heading = trackHeadingAtNorm(staticTrack, norm);
+                const perpX = -Math.sin(heading);
+                const perpZ = Math.cos(heading);
+                return (
+                  <g key={`sector-${label}`}>
+                    <line
+                      x1={pt.x - perpX * lineLen} y1={pt.z - perpZ * lineLen}
+                      x2={pt.x + perpX * lineLen} y2={pt.z + perpZ * lineLen}
+                      stroke="#ffffff" strokeWidth={scale * 0.004} strokeDasharray={`${scale * 0.006} ${scale * 0.004}`} strokeOpacity={0.7}
+                    />
+                    <text
+                      x={pt.x + perpX * lineLen * 1.5} y={pt.z + perpZ * lineLen * 1.5}
+                      textAnchor="middle" dominantBaseline="central"
+                      fill="#ffffff" fillOpacity={0.7} fontSize={turnLabelSize * 0.8}
+                      fontFamily="monospace" fontWeight="bold"
+                      transform={`rotate(${-rotation} ${pt.x + perpX * lineLen * 1.5} ${pt.z + perpZ * lineLen * 1.5})`}
+                    >
+                      {label}
+                    </text>
+                  </g>
+                );
+              });
+            })()}
+
+            {/* Marshal zones — colored dots at zone start positions */}
+            {overlays.marshalZones && staticTrack && trackLength > 0 && marshalZones.map((zone, i) => {
+              if (zone.zoneFlag <= 0) return null;
+              const pt = staticPointAtNorm(staticTrack, zone.zoneStart);
+              const color = MARSHAL_FLAG_COLORS[zone.zoneFlag] ?? "#ffffff";
+              return (
+                <circle key={`mz-${i}`} cx={pt.x} cy={pt.z} r={scale * 0.008} fill={color} fillOpacity={0.9} />
+              );
+            })}
+
+            {/* Marshal sectors — small tick marks */}
+            {overlays.marshalSectors && circuitInfo?.marshalSectors && circuitInfo.marshalSectors.map((ms) => {
+              const mx = ms.x;
+              const mz = -ms.y;
+              // Compute perpendicular from nearest track heading
+              const heading = staticTrack ? nearestTrackHeading(staticTrack, mx, mz) : 0;
+              const perpX = -Math.sin(heading);
+              const perpZ = Math.cos(heading);
+              const tickLen = scale * 0.02;
+              return (
+                <line
+                  key={`ms-${ms.number}`}
+                  x1={mx - perpX * tickLen} y1={mz - perpZ * tickLen}
+                  x2={mx + perpX * tickLen} y2={mz + perpZ * tickLen}
+                  stroke="#888888" strokeWidth={scale * 0.002} strokeOpacity={0.5}
+                />
+              );
+            })}
+
+            {/* DRS indicator near player car */}
+            {overlays.drs && playerCar && (playerCar.x !== 0 || playerCar.z !== 0) && playerDrs && (playerDrs.drsActive || playerDrs.drsAllowed) && (
+              <text
+                x={playerCar.x}
+                y={playerCar.z + playerSize * 3}
+                textAnchor="middle"
+                fill={playerDrs.drsActive ? "#22c55e" : "#6b7280"}
+                fillOpacity={playerDrs.drsActive ? 1 : 0.6}
+                fontSize={labelSize * 0.85}
+                fontFamily="monospace"
+                fontWeight="bold"
+                transform={`rotate(${-rotation} ${playerCar.x} ${playerCar.z + playerSize * 3})`}
+              >
+                DRS
+              </text>
+            )}
+
+            {/* Start/finish line — chequered flag pattern */}
+            {overlays.startFinish && staticTrack && (() => {
+              const pt = staticPointAtNorm(staticTrack, 0);
+              const heading = trackHeadingAtNorm(staticTrack, 0);
+              const perpX = -Math.sin(heading);
+              const perpZ = Math.cos(heading);
+              const flagSize = scale * 0.016;
+              const lineLen = scale * 0.035;
+              // Short perpendicular line at start
+              return (
+                <g key="start-finish">
+                  <line
+                    x1={pt.x - perpX * lineLen} y1={pt.z - perpZ * lineLen}
+                    x2={pt.x + perpX * lineLen} y2={pt.z + perpZ * lineLen}
+                    stroke="#ffffff" strokeWidth={scale * 0.005} strokeOpacity={0.9}
+                  />
+                  {/* Chequered flag icon (2x2 pattern) — placed outward (opposite side from sector labels) */}
+                  <g transform={`rotate(${-rotation} ${pt.x - perpX * lineLen * 1.8} ${pt.z - perpZ * lineLen * 1.8})`}>
+                    <rect x={pt.x - perpX * lineLen * 1.8 - flagSize} y={pt.z - perpZ * lineLen * 1.8 - flagSize} width={flagSize} height={flagSize} fill="#ffffff" />
+                    <rect x={pt.x - perpX * lineLen * 1.8} y={pt.z - perpZ * lineLen * 1.8} width={flagSize} height={flagSize} fill="#ffffff" />
+                    <rect x={pt.x - perpX * lineLen * 1.8} y={pt.z - perpZ * lineLen * 1.8 - flagSize} width={flagSize} height={flagSize} fill="#333333" />
+                    <rect x={pt.x - perpX * lineLen * 1.8 - flagSize} y={pt.z - perpZ * lineLen * 1.8} width={flagSize} height={flagSize} fill="#333333" />
+                  </g>
+                </g>
+              );
+            })()}
           </g>
         </svg>
         </div>
@@ -447,6 +652,29 @@ function TrackMapSVG({
           >
             <Users className="h-3.5 w-3.5" />
           </button>
+          <Popover>
+            <PopoverTrigger asChild>
+              <button
+                className="p-1 rounded text-muted-foreground hover:text-primary hover:bg-secondary/50 transition-colors"
+                title="Overlay settings"
+              >
+                <Settings2 className="h-3.5 w-3.5" />
+              </button>
+            </PopoverTrigger>
+            <PopoverContent side="left" align="start" className="w-auto p-1 bg-card/25 backdrop-blur-lg border-border/20">
+              {(Object.keys(OVERLAY_LABELS) as OverlayKey[]).map((key) => (
+                <label key={key} htmlFor={`overlay-${key}`} className="flex items-center gap-1.5 px-1 py-0.5 rounded hover:bg-white/5 cursor-pointer">
+                  <Switch
+                    id={`overlay-${key}`}
+                    checked={overlays[key]}
+                    onCheckedChange={() => onToggleOverlay(key)}
+                    className="h-2.5 w-4 data-[state=checked]:bg-primary data-[state=unchecked]:bg-input [&>span]:h-2 [&>span]:w-2 [&>span]:data-[state=checked]:translate-x-1.5"
+                  />
+                  <span className="text-[9px] leading-tight text-foreground/80">{OVERLAY_LABELS[key]}</span>
+                </label>
+              ))}
+            </PopoverContent>
+          </Popover>
         </div>
       </div>
     </div>
