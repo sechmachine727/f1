@@ -19,7 +19,7 @@ from pathlib import Path
 
 import websockets
 
-from common.f1_capture.binary_writer import BinaryWriter
+from common.f1_capture.capture_session import CaptureSession
 from common.f1_capture.replay_session import ReplaySession
 from common.f1_capture.udp_listener import UdpListener
 from common.f1_decoder.packet_decoder import PacketDecoder
@@ -27,8 +27,6 @@ from telemetry_server.agents.damage_agent import DamageAgent
 from telemetry_server.agents.power_unit_agent import PowerUnitAgent
 from telemetry_server.agents.race_engineer_agent import RaceEngineerAgent
 from telemetry_server.agents.tyres_agent import TyresAgent
-from telemetry_server.telemetry_state_adapter import SESSION_TYPE_LABELS
-from telemetry_server.telemetry_state_adapter import TRACK_NAMES_SHORT
 from telemetry_server.telemetry_state_adapter import TelemetryStateAdapter
 
 # ---------------------------------------------------------------------------
@@ -1052,16 +1050,13 @@ async def udp_reader(capture: bool):
 
     listener = UdpListener(port=UDP_PORT)
     decoder = PacketDecoder()
-    writer = None
 
-    capture_renamed = False
+    capture_session = None
     if capture:
         Path("data").mkdir(exist_ok=True)
-        capture_ts = time.strftime("%Y%m%d_%H%M%S")
-        capture_path = Path("data") / f"f1_25_capturing_{capture_ts}.f1bin"
-        writer = BinaryWriter(capture_path)
-        writer.open()
-        print(f"Binary capture enabled \u2192 {capture_path}")
+        capture_session = CaptureSession(
+            hz=10, port=UDP_PORT, output_dir=Path("data"), state=state,
+        )
 
     await listener.start()
     try:
@@ -1071,8 +1066,8 @@ async def udp_reader(capture: bool):
             packet_id = header["m_packetId"]
             state[packet_id] = decoder.decode(datagram)
 
-            if writer:
-                writer.write(datagram)
+            if capture_session:
+                capture_session.process(datagram, decode=False)
 
             session_time = adapter.session_time
 
@@ -1083,34 +1078,6 @@ async def udp_reader(capture: bool):
                 context = adapter.get_session_context()
                 print(f"New session detected \u2014 re-initializing agents\n{context}")
                 await asyncio.to_thread(_reinit_agents, context)
-                # Rename or rotate capture file on session change
-                if writer:
-                    sess = state.get(1, {})
-                    track = TRACK_NAMES_SHORT.get(sess.get("m_trackId", -1), "unknown")
-                    sess_type = SESSION_TYPE_LABELS.get(sess.get("m_sessionType", 0), "unknown")
-                    track_slug = track.lower().replace(" ", "_")
-                    sess_slug = sess_type.lower().replace(" ", "_")
-
-                    if not capture_renamed:
-                        # First session — rename the file in-place to keep early packets
-                        old_path = writer.path
-                        new_name = f"f1_25_{track_slug}_{sess_slug}_{capture_ts}.f1bin"
-                        new_path = old_path.parent / new_name
-                        writer.close()
-                        old_path.rename(new_path)
-                        writer = BinaryWriter(new_path)
-                        writer._file = open(new_path, "ab")  # noqa: SIM115
-                        capture_renamed = True
-                        print(f"Capture renamed \u2192 {new_name}")
-                    else:
-                        # Subsequent session — close old file, start a new one
-                        writer.close()
-                        capture_ts = time.strftime("%Y%m%d_%H%M%S")
-                        new_path = Path("data") / f"f1_25_{track_slug}_{sess_slug}_{capture_ts}.f1bin"
-                        writer = BinaryWriter(new_path)
-                        writer.open()
-                        capture_renamed = True
-                        print(f"Capture rotated \u2192 {new_path}")
 
             # Trigger on Car Telemetry (packet 6)
             if packet_id == 6:
@@ -1119,8 +1086,8 @@ async def udp_reader(capture: bool):
                 _dispatch_alerts(new_aero, new_tyre, new_pu)
     finally:
         listener.stop()
-        if writer:
-            writer.close()
+        if capture_session:
+            capture_session.close()
 
 
 # ---------------------------------------------------------------------------
