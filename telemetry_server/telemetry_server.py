@@ -15,6 +15,7 @@ import asyncio
 import os
 
 from telemetry_server.alerts.aero_alert_processor import AeroAlertProcessor
+from telemetry_server.alerts.pit_alert_processor import PitAlertProcessor
 from telemetry_server.alerts.pu_alert_processor import PuAlertProcessor
 from telemetry_server.alerts.tyre_alert_processor import TyreAlertProcessor
 from telemetry_server.dispatch.agent_dispatch_manager import AgentDispatchManager
@@ -48,6 +49,7 @@ class TelemetryServer:
         self.aero_processor = AeroAlertProcessor()
         self.tyre_processor = TyreAlertProcessor()
         self.pu_processor = PuAlertProcessor()
+        self.pit_processor = PitAlertProcessor()
 
         # Agent dispatch manager
         self.dispatch_manager = AgentDispatchManager(
@@ -65,6 +67,7 @@ class TelemetryServer:
             aero_processor=self.aero_processor,
             tyre_processor=self.tyre_processor,
             pu_processor=self.pu_processor,
+            pit_processor=self.pit_processor,
             dispatch_manager=self.dispatch_manager,
             session_time_fn=lambda: self.session_time,
             state_ready_fn=self._state_ready,

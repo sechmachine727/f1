@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { useAutoScroll } from "@/hooks/useAutoScroll";
-import { AlertTriangle, Info, CheckCircle, Maximize2 } from "lucide-react";
+import { AlertTriangle, ArrowDownToLine, Info, CheckCircle, Maximize2 } from "lucide-react";
 
 export interface Alert {
-  level: "info" | "warning" | "critical";
+  level: "info" | "warning" | "critical" | "pit";
   message: string;
   time: string;
 }
@@ -12,18 +12,21 @@ const icons = {
   info: <Info className="h-3.5 w-3.5 text-info shrink-0" />,
   warning: <AlertTriangle className="h-3.5 w-3.5 text-warning shrink-0" />,
   critical: <AlertTriangle className="h-3.5 w-3.5 text-accent shrink-0" />,
+  pit: <ArrowDownToLine className="h-3.5 w-3.5 text-primary shrink-0" />,
 };
 
 const expandedIcons = {
   info: <Info className="h-4 w-4 text-info shrink-0" />,
   warning: <AlertTriangle className="h-4 w-4 text-warning shrink-0" />,
   critical: <AlertTriangle className="h-4 w-4 text-accent shrink-0" />,
+  pit: <ArrowDownToLine className="h-4 w-4 text-primary shrink-0" />,
 };
 
 const rowStyles = {
   info: "border-info/20",
   warning: "border-warning/20",
   critical: "border-accent/20 bg-accent/5",
+  pit: "border-primary/20 bg-primary/5",
 };
 
 export function AlertBox({ title = "Alerts", alerts, activeCount }: { title?: string; alerts: Alert[]; activeCount?: number }) {
