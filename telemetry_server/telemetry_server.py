@@ -1054,6 +1054,7 @@ async def udp_reader(capture: bool):
     decoder = PacketDecoder()
     writer = None
 
+    capture_renamed = False
     if capture:
         Path("data").mkdir(exist_ok=True)
         capture_ts = time.strftime("%Y%m%d_%H%M%S")
@@ -1082,19 +1083,34 @@ async def udp_reader(capture: bool):
                 context = adapter.get_session_context()
                 print(f"New session detected \u2014 re-initializing agents\n{context}")
                 await asyncio.to_thread(_reinit_agents, context)
-                # Rotate capture file on session change
+                # Rename or rotate capture file on session change
                 if writer:
-                    writer.close()
-                    capture_ts = time.strftime("%Y%m%d_%H%M%S")
                     sess = state.get(1, {})
                     track = TRACK_NAMES_SHORT.get(sess.get("m_trackId", -1), "unknown")
                     sess_type = SESSION_TYPE_LABELS.get(sess.get("m_sessionType", 0), "unknown")
                     track_slug = track.lower().replace(" ", "_")
                     sess_slug = sess_type.lower().replace(" ", "_")
-                    new_path = Path("data") / f"f1_25_{track_slug}_{sess_slug}_{capture_ts}.f1bin"
-                    writer = BinaryWriter(new_path)
-                    writer.open()
-                    print(f"Capture rotated \u2192 {new_path}")
+
+                    if not capture_renamed:
+                        # First session — rename the file in-place to keep early packets
+                        old_path = writer.path
+                        new_name = f"f1_25_{track_slug}_{sess_slug}_{capture_ts}.f1bin"
+                        new_path = old_path.parent / new_name
+                        writer.close()
+                        old_path.rename(new_path)
+                        writer = BinaryWriter(new_path)
+                        writer._file = open(new_path, "ab")  # noqa: SIM115
+                        capture_renamed = True
+                        print(f"Capture renamed \u2192 {new_name}")
+                    else:
+                        # Subsequent session — close old file, start a new one
+                        writer.close()
+                        capture_ts = time.strftime("%Y%m%d_%H%M%S")
+                        new_path = Path("data") / f"f1_25_{track_slug}_{sess_slug}_{capture_ts}.f1bin"
+                        writer = BinaryWriter(new_path)
+                        writer.open()
+                        capture_renamed = True
+                        print(f"Capture rotated \u2192 {new_path}")
 
             # Trigger on Car Telemetry (packet 6)
             if packet_id == 6:
