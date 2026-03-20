@@ -23,7 +23,7 @@ export function EngineTelemetry() {
 
   const engineTempWarn = data.engineTemp > 120;
   const engineTempCrit = data.engineTemp > 130;
-  const status = engineTempCrit || data.engineDamage > 20
+  const status = data.engineBlown || data.engineSeized || engineTempCrit || data.engineDamage > 20
     ? "critical"
     : engineTempWarn || data.engineDamage > 5
       ? "warning"
@@ -55,6 +55,22 @@ export function EngineTelemetry() {
       <div className="grid grid-cols-2 gap-2">
         <BarGauge value={data.batteryPct} max={100} label="Battery SOC %" warn={30} critical={15} invertThresholds />
         <BarGauge value={data.fuelInTank} max={110} label="Fuel (kg)" warn={16.5} critical={5.5} invertThresholds />
+      </div>
+
+      {(data.engineBlown || data.engineSeized) && (
+        <div className="flex items-center gap-2 pt-1 text-[10px] font-bold uppercase tracking-wider text-destructive">
+          {data.engineBlown && <span>ENGINE BLOWN</span>}
+          {data.engineSeized && <span>ENGINE SEIZED</span>}
+        </div>
+      )}
+
+      <div className="grid grid-cols-3 gap-2">
+        <BarGauge value={100 - data.engineICEWear} max={100} label="ICE %" warn={40} critical={25} invertThresholds />
+        <BarGauge value={100 - data.engineTCWear} max={100} label="TC %" warn={40} critical={25} invertThresholds />
+        <BarGauge value={100 - data.engineMGUHWear} max={100} label="MGU-H %" warn={40} critical={25} invertThresholds />
+        <BarGauge value={100 - data.engineMGUKWear} max={100} label="MGU-K %" warn={40} critical={25} invertThresholds />
+        <BarGauge value={100 - data.engineESWear} max={100} label="ES %" warn={40} critical={25} invertThresholds />
+        <BarGauge value={100 - data.engineCEWear} max={100} label="CE %" warn={40} critical={25} invertThresholds />
       </div>
 
       <div className="flex items-center justify-between pt-2 border-t border-border/50 text-[10px] text-muted-foreground uppercase tracking-wider">

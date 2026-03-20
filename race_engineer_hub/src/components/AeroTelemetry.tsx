@@ -23,7 +23,7 @@ export function AeroTelemetry() {
     data.frontLeftWingDamage, data.frontRightWingDamage, data.rearWingDamage,
     data.floorDamage, data.diffuserDamage, data.sidepodDamage,
   );
-  const status = data.drsFault || maxDamage > 50
+  const status = data.drsFault || data.ersFault || maxDamage > 50
     ? "critical"
     : maxDamage > 20
       ? "warning"
@@ -47,6 +47,9 @@ export function AeroTelemetry() {
           critical={data.drsFault}
           warn={data.drs}
         />
+        {data.ersFault && (
+          <Metric label="ERS" value="FAULT" critical />
+        )}
       </div>
 
       <div className="grid grid-cols-2 gap-2">

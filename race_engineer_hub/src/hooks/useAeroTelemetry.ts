@@ -18,6 +18,7 @@ export interface AeroData {
   diffuserDamage: number;
   sidepodDamage: number;
   drsFault: boolean;
+  ersFault: boolean;
   brakeTempFL: number;
   brakeTempFR: number;
   brakeTempRL: number;

@@ -591,3 +591,38 @@ BUTTON_FLAGS: dict[int, str] = {
     0x40000000: "UDP Action 11",
     0x80000000: "UDP Action 12",
 }
+
+# ---------------------------------------------------------------------------
+# Tyre compounds
+# ---------------------------------------------------------------------------
+ACTUAL_TYRE_COMPOUND: dict[int, str] = {
+    16: "C5",
+    17: "C4",
+    18: "C3",
+    19: "C2",
+    20: "C1",
+    21: "C0",
+    22: "C6",
+    7: "inter",
+    8: "wet",
+    9: "dry_classic",
+    10: "wet_classic",
+    11: "super_soft_f2",
+    12: "soft_f2",
+    13: "medium_f2",
+    14: "hard_f2",
+    15: "wet_f2",
+}
+
+VISUAL_TYRE_COMPOUND: dict[int, str] = {
+    16: "soft",
+    17: "medium",
+    18: "hard",
+    7: "inter",
+    8: "wet",
+    19: "super_soft_f2",
+    20: "soft_f2",
+    21: "medium_f2",
+    22: "hard_f2",
+    15: "wet_f2",
+}
