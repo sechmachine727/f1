@@ -27,6 +27,8 @@ from telemetry_server.agents.damage_agent import DamageAgent
 from telemetry_server.agents.power_unit_agent import PowerUnitAgent
 from telemetry_server.agents.race_engineer_agent import RaceEngineerAgent
 from telemetry_server.agents.tyres_agent import TyresAgent
+from telemetry_server.telemetry_state_adapter import SESSION_TYPE_LABELS
+from telemetry_server.telemetry_state_adapter import TRACK_NAMES_SHORT
 from telemetry_server.telemetry_state_adapter import TelemetryStateAdapter
 
 # ---------------------------------------------------------------------------
@@ -1054,7 +1056,8 @@ async def udp_reader(capture: bool):
 
     if capture:
         Path("data").mkdir(exist_ok=True)
-        capture_path = Path("data") / f"f1_25_capture_{int(time.time())}.f1bin"
+        capture_ts = time.strftime("%Y%m%d_%H%M%S")
+        capture_path = Path("data") / f"f1_25_capturing_{capture_ts}.f1bin"
         writer = BinaryWriter(capture_path)
         writer.open()
         print(f"Binary capture enabled \u2192 {capture_path}")
@@ -1082,7 +1085,13 @@ async def udp_reader(capture: bool):
                 # Rotate capture file on session change
                 if writer:
                     writer.close()
-                    new_path = Path("data") / f"f1_25_{uid}_{int(time.time())}.f1bin"
+                    capture_ts = time.strftime("%Y%m%d_%H%M%S")
+                    sess = state.get(1, {})
+                    track = TRACK_NAMES_SHORT.get(sess.get("m_trackId", -1), "unknown")
+                    sess_type = SESSION_TYPE_LABELS.get(sess.get("m_sessionType", 0), "unknown")
+                    track_slug = track.lower().replace(" ", "_")
+                    sess_slug = sess_type.lower().replace(" ", "_")
+                    new_path = Path("data") / f"f1_25_{track_slug}_{sess_slug}_{capture_ts}.f1bin"
                     writer = BinaryWriter(new_path)
                     writer.open()
                     print(f"Capture rotated \u2192 {new_path}")
