@@ -56,7 +56,7 @@ class WebSocketServer:
         print(f"Client connected ({len(self.connected_clients)} total)")
         try:
             # Send current state immediately so the UI isn't blank
-            msg, _, _, _ = self._message_builder.build()
+            msg, _, _, _, _ = self._message_builder.build()
             await websocket.send(msg)
             # Listen for incoming messages (driver radio)
             async for raw in websocket:

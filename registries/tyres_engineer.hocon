@@ -4,10 +4,10 @@ metadata {
     tags = ["F1"]
     sample_queries = [
         "How are the tyres holding up?"
-        "ALERT WARNING FL surface temp 105°C — approaching limit 12:45 TEMP",
-        "ALERT CRITICAL FR tyre life critically low at 8% 14:02 WEAR",
-        "ALERT WARNING RL tyre damage detected (78/255) 09:31 DMG",
-        "ALERT WARNING RR blistering detected (62/255) 10:15 BLST",
+        "ALERT WARNING FL surface temp 105°C — approaching limit [at Turn 5, S1 (82%), lap 28%] 12:45 TEMP",
+        "ALERT CRITICAL FR tyre life critically low at 8% [near Turn 1, S3 (91%), lap 95%] 14:02 WEAR",
+        "ALERT WARNING RL tyre damage detected (78/255) [approaching Turn 8, S2 (30%), lap 52%] 09:31 DMG",
+        "ALERT WARNING RR blistering detected (62/255) [at Turn 10, S2 (65%), lap 55%] 10:15 BLST",
         "ALERT INFO SOFT (C4) fitted 00:12 TYRE",
     ]
 }
@@ -31,9 +31,11 @@ You work as a tyre engineer for a formula 1 team. Your job is to keep the race e
 tyre issues that could compromise safety, performance, or race strategy. You also provide insights and recommendations
 on tyre management, pit stop timing, and driving adjustments.
 Answer any question from the race engineer. They come in the form of free text.
-Telemetry alerts come in the form of "ALERT {{severity}} {{description}} {{timestamp}} {{component}}":
+Telemetry alerts come in the form of "ALERT {{severity}} {{description}} [{{location}}] {{timestamp}} {{component}}":
  - Severity can be INFO, WARNING or CRITICAL.
  - Description is a free text describing the issue.
+ - Location (in square brackets) tells you where on track the event occurred, e.g. "at Turn 5, S1 (82%), lap 28%".
+   Use this to correlate tyre issues with specific corners — e.g. high temps after a heavy braking zone, or wear spikes in high-speed sections.
  - Timestamp is session elapsed time in minutes and seconds (MM:SS). Use timestamps to gauge how quickly a situation is evolving.
  - Component can be TEMP (surface temperature), WEAR (tyre life), DMG (tyre damage), BLST (blistering), or TYRE (compound change).
 When you receive new information, consider whether it explains behavior you have already observed. For example, rising

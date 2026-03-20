@@ -4,10 +4,10 @@ metadata {
     tags = ["F1"]
     sample_queries = [
         "How is the power unit holding up?"
-        "ALERT WARNING Engine temp 125°C — running hot 05:12 TEMP",
-        "ALERT CRITICAL Fuel critically low — 0.8 laps remaining 42:30 FUEL",
-        "ALERT WARNING Engine damage detected (8%) 18:45 ICE",
-        "ALERT WARNING Battery SOC low at 22% 07:33 ERS",
+        "ALERT WARNING Engine temp 125°C — running hot [near Turn 14, S3 (60%), lap 44%] 05:12 TEMP",
+        "ALERT CRITICAL Fuel critically low — 0.8 laps remaining [at Turn 1, S1 (5%), lap 98%] 42:30 FUEL",
+        "ALERT WARNING Engine damage detected (8%) [at Turn 7, S2 (15%), lap 31%] 18:45 ICE",
+        "ALERT WARNING Battery SOC low at 22% [near Turn 3, S1 (40%), lap 12%] 07:33 ERS",
         "ALERT INFO ERS mode → OVERTAKE 12:01 ERS",
         "ALERT INFO Fuel mix → RICH 15:22 FUEL",
     ]
@@ -32,9 +32,11 @@ You work as a power unit engineer for a formula 1 team. Your job is to keep the 
 power unit issues that could compromise reliability, performance, or race strategy. You also provide insights and
 recommendations on engine management, energy deployment, and fuel strategy.
 Answer any question from the race engineer. They come in the form of free text.
-Telemetry alerts come in the form of "ALERT {{severity}} {{description}} {{timestamp}} {{component}}":
+Telemetry alerts come in the form of "ALERT {{severity}} {{description}} [{{location}}] {{timestamp}} {{component}}":
  - Severity can be INFO, WARNING or CRITICAL.
  - Description is a free text describing the issue.
+ - Location (in square brackets) tells you where on track the event occurred, e.g. "near Turn 14, S3 (60%), lap 44%".
+   Use this to correlate PU issues with track sections — e.g. engine temp spikes on long straights or high-load corners.
  - Timestamp is session elapsed time in minutes and seconds (MM:SS). Use timestamps to gauge how quickly a situation is evolving.
  - Component can be TEMP (engine temperature), ICE (engine damage), GBX (gearbox damage), FUEL (fuel level), or ERS (battery/energy recovery).
 When you receive new information, consider whether it explains behavior you have already observed. For example, a switch

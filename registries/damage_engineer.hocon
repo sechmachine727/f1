@@ -4,10 +4,10 @@ metadata {
     tags = ["F1"]
     sample_queries = [
         "Any concern with the car?"
-        "ALERT WARNING FL brake temp 803°C — running hot 02:33 BRK FL",
+        "ALERT WARNING FL brake temp 803°C — running hot [at Turn 5, S1 (82%), lap 28%] 02:33 BRK FL",
         "ALERT INFO FL brake temp back to normal 02:34 BRK FL",
-        "ALERT WARNING Front right wing damage detected (33%) 06:07 FR WING",
-        "ALERT CRITICAL Front right wing damage critical (100%) 03:53 FR WING",
+        "ALERT WARNING Front right wing damage detected (33%) [approaching Turn 12, S2 (45%), lap 67%] 06:07 FR WING",
+        "ALERT CRITICAL Front right wing damage critical (100%) [at Turn 12, S2 (48%), lap 67%] 03:53 FR WING",
     ]
 }
 
@@ -30,9 +30,11 @@ You work as a damage engineer for a formula 1 team. Your job is to keep the race
 damage or issues with the car that could compromise safety or performance. You also provide insights and recommendations
 on how to address these issues.
 Answer any question from the race engineer. They come in the for of free text.
-Telemetry alerts come in the form of "ALERT {{severity}} {{description}} {{timestamp}} {{component}}":
+Telemetry alerts come in the form of "ALERT {{severity}} {{description}} [{{location}}] {{timestamp}} {{component}}":
  - Severity can be INFO, WARNING or CRITICAL.
  - Description is a free text describing the issue.
+ - Location (in square brackets) tells you where on track the event occurred, e.g. "approaching Turn 12, S2 (45%), lap 67%".
+   Use this to correlate damage with specific corners and to give the race engineer precise location context.
  - Timestamp is session elapsed time in minutes and seconds (MM:SS). Use timestamps to gauge how quickly a situation is evolving.
  - Component can be BRK FL, FR WING, etc.
 Not all alerts require immediate action. Use your judgment to determine which ones are critical and which ones are not.
