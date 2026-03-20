@@ -66,6 +66,7 @@ class MessageBuilder:
         session = adapter.get_session()
         lap = adapter.get_lap()
         track_map = adapter.get_track_map()
+        pit_status = adapter.get_pit_status()
 
         if self._state_ready_fn():
             aero_snapshot = {**aero, "sessionTime": session_time}
@@ -96,6 +97,7 @@ class MessageBuilder:
             "aero": aero,
             "session": session,
             "trackMap": track_map,
+            "pitStatus": pit_status,
             "tyreAlerts": {
                 "alerts": self._tyre.alerts_log,
                 "activeCount": len(self._tyre.conditions),

@@ -12,7 +12,7 @@ import { useTyreTelemetry } from "@/hooks/useTyreTelemetry";
 import { usePowerUnitTelemetry } from "@/hooks/usePowerUnitTelemetry";
 import { useAeroTelemetry } from "@/hooks/useAeroTelemetry";
 import { useRaceEngineerReport } from "@/hooks/useRaceEngineerReport";
-import { Flag, Timer, Gauge, Clock, CloudSun, Thermometer, MapPin } from "lucide-react";
+import { Flag, Timer, Gauge, Clock, CloudSun, Thermometer, MapPin, CircleParking } from "lucide-react";
 import { useState, useCallback } from "react";
 import type { ReportEntry } from "@/components/ExpandableReportPanel";
 
@@ -72,6 +72,30 @@ const Index = () => {
           )}
         </div>
         <div className="flex items-center gap-4 text-[10px] text-muted-foreground uppercase tracking-wider font-display">
+          {session && session.pitStatus === 1 && (
+            <div className="flex items-center gap-1">
+              <CircleParking className="h-3 w-3 text-warning animate-pulse" />
+              <span className="text-warning font-bold animate-pulse">PIT IN</span>
+              {session.pitLaneTimerActive && (
+                <span className="text-warning">{(session.pitLaneTimeMs / 1000).toFixed(1)}s</span>
+              )}
+            </div>
+          )}
+          {session && session.pitStatus === 2 && (
+            <div className="flex items-center gap-1">
+              <CircleParking className="h-3 w-3 text-accent animate-pulse" />
+              <span className="text-accent font-bold">PIT BOX</span>
+              {session.pitStopTimeMs > 0 && (
+                <span className="text-accent">{(session.pitStopTimeMs / 1000).toFixed(1)}s</span>
+              )}
+            </div>
+          )}
+          {session && session.pitStatus === 0 && session.numPitStops > 0 && (
+            <div className="flex items-center gap-1">
+              <CircleParking className="h-3 w-3 text-primary" />
+              <span>PIT &times;{session.numPitStops}</span>
+            </div>
+          )}
           {session && session.sessionTimeLeft > 0 ? (
             <div className="flex items-center gap-1">
               <Clock className="h-3 w-3 text-warning animate-pulse" />

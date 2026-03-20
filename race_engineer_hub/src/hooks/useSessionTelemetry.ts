@@ -13,6 +13,11 @@ export interface SessionData {
   carPosition: number;
   currentLapTimeMs: number;
   lastLapTimeMs: number;
+  pitStatus: number;
+  numPitStops: number;
+  pitLaneTimerActive: boolean;
+  pitLaneTimeMs: number;
+  pitStopTimeMs: number;
 }
 
 const WS_URL = "ws://localhost:8765";
@@ -53,7 +58,15 @@ export function useSessionTelemetry(): SessionData | null {
         try {
           const msg = JSON.parse(event.data);
           if (msg.session) {
-            setData(msg.session);
+            const pit = msg.pitStatus ?? {};
+            setData({
+              ...msg.session,
+              pitStatus: pit.pitStatus ?? 0,
+              numPitStops: pit.numPitStops ?? 0,
+              pitLaneTimerActive: pit.pitLaneTimerActive ?? false,
+              pitLaneTimeMs: pit.pitLaneTimeMs ?? 0,
+              pitStopTimeMs: pit.pitStopTimeMs ?? 0,
+            });
           }
         } catch {
           // ignore malformed messages
