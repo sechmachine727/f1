@@ -23,7 +23,7 @@ from common.circuit_info.track_id_map import TrackIdMap
 from common.f1_structs.f1_constants import TRACK_NAMES
 
 API_BASE = "https://api.multiviewer.app/api/v1/circuits"
-OUTPUT_PATH = Path(__file__).resolve().parent.parent / "common" / "circuit_info" / "circuits.json"
+OUTPUT_PATH = Path(__file__).resolve().parent.parent / "race_engineer_hub" / "src" / "data" / "circuits.json"
 
 
 def fetch_circuit(circuit_key: int, year: int) -> dict | None:
