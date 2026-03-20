@@ -14,9 +14,10 @@ function formatGap(ms: number): string {
 
 interface StandingsPanelProps {
   standings: StandingsEntry[];
+  className?: string;
 }
 
-export function StandingsPanel({ standings }: StandingsPanelProps) {
+export function StandingsPanel({ standings, className }: StandingsPanelProps) {
   const playerRef = useRef<HTMLTableRowElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -36,17 +37,10 @@ export function StandingsPanel({ standings }: StandingsPanelProps) {
   }
 
   return (
-    <div className="bg-card/50 border border-border/50 rounded-lg p-3 font-display flex flex-col min-h-0">
+    <div className={`bg-card/50 border border-border/50 rounded-lg p-3 font-display flex flex-col min-h-0 ${className ?? ""}`}>
       <h3 className="text-[10px] font-bold tracking-wider text-muted-foreground uppercase mb-2">Standings</h3>
       <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto scrollbar-thin">
         <table className="w-full text-[10px] tabular-nums">
-          <thead>
-            <tr className="text-muted-foreground uppercase tracking-wider">
-              <th className="text-left font-medium pb-0.5 w-6">P</th>
-              <th className="text-left font-medium pb-0.5">Driver</th>
-              <th className="text-right font-medium pb-0.5">Gap</th>
-            </tr>
-          </thead>
           <tbody>
             {standings.map((entry) => {
               const isRetired = entry.resultStatus === 3 || entry.resultStatus === 4 || entry.resultStatus === 5;
@@ -65,7 +59,7 @@ export function StandingsPanel({ standings }: StandingsPanelProps) {
                   <td className="text-left py-0.5">{entry.position}</td>
                   <td className="text-left py-0.5">{entry.abbreviation}</td>
                   <td className="text-right py-0.5">
-                    {entry.position === 1 ? "LEADER" : formatGap(entry.gapToLeaderMs)}
+                    {entry.position === 1 ? "LEADER" : formatGap(entry.gapToFrontMs)}
                   </td>
                 </tr>
               );
