@@ -1,6 +1,68 @@
-/** Track geometry utilities: smooth path generation and turn detection. */
+/** Track geometry utilities: smooth path generation, turn detection, and arc-length interpolation. */
 
 type Point = { x: number; z: number };
+
+// ---------------------------------------------------------------------------
+// Static track data & arc-length interpolation
+// ---------------------------------------------------------------------------
+
+export interface StaticTrackData {
+  points: Array<{ x: number; z: number }>;
+  /** Cumulative arc-length distance at each point. */
+  distances: number[];
+  totalLength: number;
+}
+
+/** Precompute cumulative arc-length distances for a list of track points. */
+export function buildStaticTrack(points: Array<{ x: number; z: number }>): StaticTrackData {
+  const distances = [0];
+  let total = 0;
+  for (let i = 1; i < points.length; i++) {
+    const dx = points[i].x - points[i - 1].x;
+    const dz = points[i].z - points[i - 1].z;
+    total += Math.sqrt(dx * dx + dz * dz);
+    distances.push(total);
+  }
+  return { points, distances, totalLength: total };
+}
+
+/** Find the point on the static outline at a given normalised position (0-1). */
+export function staticPointAtNorm(track: StaticTrackData, norm: number): { x: number; z: number } {
+  const n = ((norm % 1) + 1) % 1;
+  const targetDist = n * track.totalLength;
+  let lo = 0;
+  let hi = track.distances.length - 1;
+  while (lo < hi - 1) {
+    const mid = (lo + hi) >> 1;
+    if (track.distances[mid] <= targetDist) lo = mid;
+    else hi = mid;
+  }
+  const segLen = track.distances[hi] - track.distances[lo];
+  const t = segLen > 0 ? (targetDist - track.distances[lo]) / segLen : 0;
+  return {
+    x: track.points[lo].x + t * (track.points[hi].x - track.points[lo].x),
+    z: track.points[lo].z + t * (track.points[hi].z - track.points[lo].z),
+  };
+}
+
+/** Compute the tangent direction (heading) at a normalised position on the track. */
+export function trackHeadingAtNorm(track: StaticTrackData, norm: number): number {
+  const epsilon = 0.002;
+  const a = staticPointAtNorm(track, norm - epsilon);
+  const b = staticPointAtNorm(track, norm + epsilon);
+  return Math.atan2(b.z - a.z, b.x - a.x);
+}
+
+/** Extract a sub-path between two normalised positions as an SVG path string. */
+export function sectorPath(track: StaticTrackData, normStart: number, normEnd: number, steps = 200): string {
+  const parts: string[] = [];
+  for (let i = 0; i <= steps; i++) {
+    const t = normStart + (normEnd - normStart) * (i / steps);
+    const pt = staticPointAtNorm(track, t);
+    parts.push(`${i === 0 ? "M" : "L"}${pt.x},${pt.z}`);
+  }
+  return parts.join(" ");
+}
 
 // ---------------------------------------------------------------------------
 // Catmull-Rom spline smoothing

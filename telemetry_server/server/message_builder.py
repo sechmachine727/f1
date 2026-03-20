@@ -13,6 +13,7 @@ if TYPE_CHECKING:
     from telemetry_server.alerts.tyre_alert_processor import TyreAlertProcessor
     from telemetry_server.dispatch.agent_dispatch_manager import AgentDispatchManager
     from telemetry_server.telemetry_state_adapter import TelemetryStateAdapter
+    from telemetry_server.track_location_provider import TrackLocationProvider
 
 
 class MessageBuilder:
@@ -32,6 +33,7 @@ class MessageBuilder:
         dispatch_manager: AgentDispatchManager,
         session_time_fn: Callable[[], float],
         state_ready_fn: Callable[[], bool],
+        track_location: TrackLocationProvider | None = None,
     ) -> None:
         """Initialise the message builder.
 
@@ -44,6 +46,7 @@ class MessageBuilder:
             dispatch_manager: The agent dispatch manager (for reading responses).
             session_time_fn: Callable returning the current session time.
             state_ready_fn: Callable returning True when essential packets are available.
+            track_location: Provider for enriching alerts with track position context.
         """
         self._adapter_fn = adapter_fn
         self._aero = aero_processor
@@ -53,12 +56,13 @@ class MessageBuilder:
         self._dispatch = dispatch_manager
         self._session_time_fn = session_time_fn
         self._state_ready_fn = state_ready_fn
+        self._track_location = track_location
 
-    def build(self) -> tuple[str, list[dict], list[dict], list[dict]]:
+    def build(self) -> tuple[str, list[dict], list[dict], list[dict], str]:
         """Build a JSON message from the latest merged state via the adapter.
 
         Returns:
-            A tuple of (json_string, new_aero_alerts, new_tyre_alerts, new_pu_alerts).
+            A tuple of (json_string, new_aero_alerts, new_tyre_alerts, new_pu_alerts, location_str).
         """
         adapter = self._adapter_fn()
         session_time = self._session_time_fn()
@@ -71,6 +75,8 @@ class MessageBuilder:
         lap = adapter.get_lap()
         track_map = adapter.get_track_map()
         pit_status = adapter.get_pit_status()
+        marshal_zones = adapter.get_marshal_zones()
+        sector_boundaries = adapter.get_sector_boundaries()
 
         new_pit_alerts = self._pit.process(pit_status, session_time)
         if new_pit_alerts:
@@ -102,6 +108,17 @@ class MessageBuilder:
             new_aero_alerts = []
             new_tyre_alerts = []
             new_pu_alerts = []
+
+        # Compute track location context for alert enrichment
+        location = ""
+        if self._track_location:
+            lap_distance = lap.get("lapDistance", 0)
+            track_length = session.get("trackLength", 0)
+            location = self._track_location.describe(
+                lap_distance, track_length,
+                sector_boundaries.get("sector2Start", 0),
+                sector_boundaries.get("sector3Start", 0),
+            )
 
         msg = json.dumps({
             "tyres": tyres,
@@ -144,5 +161,12 @@ class MessageBuilder:
                 "responses": self._dispatch.race_engineer.responses_log,
                 "alerts": self._dispatch.race_engineer.alerts_log,
             },
+            "marshalZones": marshal_zones,
+            "sectorBoundaries": sector_boundaries,
+            "playerDrs": {
+                "drsActive": aero.get("drs", False),
+                "drsAllowed": aero.get("drsAllowed", False),
+                "drsActivationDistance": aero.get("drsActivationDistance", 0),
+            },
         })
-        return msg, new_aero_alerts, new_tyre_alerts, new_pu_alerts
+        return msg, new_aero_alerts, new_tyre_alerts, new_pu_alerts, location

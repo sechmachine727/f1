@@ -225,6 +225,7 @@ class TelemetryStateAdapter:
 
         return {
             "sessionType": SESSION_TYPE_LABELS.get(session_type, f"SESSION {session_type}"),
+            "trackId": track_id,
             "trackName": TRACK_NAMES_SHORT.get(track_id, f"TRACK {track_id}"),
             "totalLaps": sess.get("m_totalLaps", 0),
             "sessionTimeLeft": sess.get("m_sessionTimeLeft", 0),
@@ -318,6 +319,31 @@ class TelemetryStateAdapter:
             "playerIndex": self.player_car_index,
             "cars": track_map_cars,
         }
+
+    # -- Marshal zones & sector boundaries ------------------------------------
+
+    def get_marshal_zones(self) -> list[dict]:
+        """Extract active marshal zones as [{zoneStart, zoneFlag}]."""
+        sess = self._state.get(1, {})
+        num_zones = sess.get("m_numMarshalZones", 0)
+        zones = sess.get("m_marshalZones", [])
+        return [
+            {"zoneStart": z.get("m_zoneStart", 0), "zoneFlag": z.get("m_zoneFlag", 0)}
+            for z in zones[:num_zones]
+        ]
+
+    def get_sector_boundaries(self) -> dict:
+        """Extract sector 2/3 start distances in metres."""
+        sess = self._state.get(1, {})
+        return {
+            "sector2Start": sess.get("m_sector2LapDistanceStart", 0),
+            "sector3Start": sess.get("m_sector3LapDistanceStart", 0),
+        }
+
+    def get_track_id(self) -> int:
+        """Return the raw trackId from the session packet."""
+        sess = self._state.get(1, {})
+        return sess.get("m_trackId", -1)
 
     # -- Session context (for agent initialization) ---------------------------
 
