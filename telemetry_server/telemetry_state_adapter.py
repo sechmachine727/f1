@@ -257,6 +257,7 @@ class TelemetryStateAdapter:
         """Build the pit status dict for the WebSocket message."""
         lap = self._player_car(2, "m_lapData")
         return {
+            "dataAvailable": bool(lap),
             "pitStatus": lap.get("m_pitStatus", 0),
             "numPitStops": lap.get("m_numPitStops", 0),
             "pitLaneTimerActive": bool(lap.get("m_pitLaneTimerActive", 0)),

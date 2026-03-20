@@ -41,10 +41,14 @@ class PitAlertProcessor:
             self.reset()
         self.prev_session_time = session_time
 
+        # Don't process until lap data packet has actually arrived.
+        if not pit_data.get("dataAvailable", False):
+            return []
+
         status = pit_data.get("pitStatus", 0)
         driver_status = pit_data.get("driverStatus", 0)
 
-        # First tick after init/reset: seed previous values, suppress alerts.
+        # First tick with real data: seed previous values, suppress alerts.
         if not self._initialized:
             self._prev_pit_status = status
             self._prev_driver_status = driver_status
