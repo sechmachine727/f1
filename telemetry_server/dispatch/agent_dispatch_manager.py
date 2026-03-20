@@ -77,26 +77,23 @@ class AgentDispatchManager:
         new_aero_alerts: list[dict],
         new_tyre_alerts: list[dict],
         new_pu_alerts: list[dict],
-        location: str = "",
     ) -> None:
         """Format new alerts as text and queue them to the appropriate dispatchers."""
-        loc = f" [{location}]" if location else ""
-
         if new_aero_alerts:
             self.damage.queue([
-                f"ALERT {a['level'].upper()} {a['message']}{loc} {a['time']}"
+                f"ALERT {a['level'].upper()} {a['message']} {a['time']}"
                 for a in new_aero_alerts
             ])
 
         if new_tyre_alerts:
             self.tyres.queue([
-                f"ALERT {a['level'].upper()} {a['message']}{loc} {a['time']}"
+                f"ALERT {a['level'].upper()} {a['message']} {a['time']}"
                 for a in new_tyre_alerts
             ])
 
         if new_pu_alerts:
             self.pu.queue([
-                f"ALERT {a['level'].upper()} {a['message']}{loc} {a['time']}"
+                f"ALERT {a['level'].upper()} {a['message']} {a['time']}"
                 for a in new_pu_alerts
             ])
 

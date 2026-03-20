@@ -252,10 +252,6 @@ class TelemetryStateAdapter:
             "currentLapTimeMs": lap.get("m_currentLapTimeInMS", 0),
         }
 
-    def get_all_cars_lap_data(self) -> list[dict]:
-        """Return the raw lap-data list for all cars (packet 2)."""
-        return self._state.get(2, {}).get("m_lapData", [])
-
     # -- Pit status -----------------------------------------------------------
 
     def get_pit_status(self) -> dict:
