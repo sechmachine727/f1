@@ -252,6 +252,22 @@ class TelemetryStateAdapter:
             "currentLapTimeMs": lap.get("m_currentLapTimeInMS", 0),
         }
 
+    # -- Pit status -----------------------------------------------------------
+
+    def get_pit_status(self) -> dict:
+        """Build the pit status dict for the WebSocket message."""
+        lap = self._player_car(2, "m_lapData")
+        return {
+            "dataAvailable": bool(lap),
+            "pitStatus": lap.get("m_pitStatus", 0),
+            "numPitStops": lap.get("m_numPitStops", 0),
+            "pitLaneTimerActive": bool(lap.get("m_pitLaneTimerActive", 0)),
+            "pitLaneTimeMs": lap.get("m_pitLaneTimeInLaneInMS", 0),
+            "pitStopTimeMs": lap.get("m_pitStopTimerInMS", 0),
+            "driverStatus": lap.get("m_driverStatus", 0),
+            "sessionType": self._state.get(1, {}).get("m_sessionType", 0),
+        }
+
     # -- Track map ------------------------------------------------------------
 
     def get_track_map(self) -> dict | None:

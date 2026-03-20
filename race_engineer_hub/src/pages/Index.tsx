@@ -12,7 +12,7 @@ import { useTyreTelemetry } from "@/hooks/useTyreTelemetry";
 import { usePowerUnitTelemetry } from "@/hooks/usePowerUnitTelemetry";
 import { useAeroTelemetry } from "@/hooks/useAeroTelemetry";
 import { useRaceEngineerReport } from "@/hooks/useRaceEngineerReport";
-import { Flag, Timer, Gauge, Clock, CloudSun, Thermometer, MapPin } from "lucide-react";
+import { Flag, Timer, Gauge, Clock, CloudSun, Thermometer, MapPin, CircleParking } from "lucide-react";
 import { useState, useCallback } from "react";
 import type { ReportEntry } from "@/components/ExpandableReportPanel";
 
@@ -72,6 +72,30 @@ const Index = () => {
           )}
         </div>
         <div className="flex items-center gap-4 text-[10px] text-muted-foreground uppercase tracking-wider font-display">
+          {session && session.pitStatus === 1 && (
+            <div className="flex items-center gap-1.5 bg-warning/20 border border-warning/50 rounded px-2 py-0.5 animate-pulse">
+              <CircleParking className="h-3.5 w-3.5 text-warning" />
+              <span className="text-warning font-bold text-[11px]">PIT IN</span>
+              {session.pitLaneTimerActive && (
+                <span className="text-warning font-bold tabular-nums min-w-[3.5ch] text-right">{(session.pitLaneTimeMs / 1000).toFixed(1)}s</span>
+              )}
+            </div>
+          )}
+          {session && session.pitStatus === 2 && (
+            <div className="flex items-center gap-1.5 bg-accent/20 border border-accent/50 rounded px-2 py-0.5 animate-pulse">
+              <CircleParking className="h-3.5 w-3.5 text-accent" />
+              <span className="text-accent font-bold text-[11px]">PIT BOX</span>
+              {session.pitStopTimeMs > 0 && (
+                <span className="text-accent font-bold tabular-nums">{(session.pitStopTimeMs / 1000).toFixed(1)}s</span>
+              )}
+            </div>
+          )}
+          {session && session.pitStatus === 0 && session.numPitStops > 0 && (
+            <div className="flex items-center gap-1 bg-primary/10 border border-primary/30 rounded px-2 py-0.5">
+              <CircleParking className="h-3 w-3 text-primary" />
+              <span className="text-primary font-bold">PIT &times;{session.numPitStops}</span>
+            </div>
+          )}
           {session && session.sessionTimeLeft > 0 ? (
             <div className="flex items-center gap-1">
               <Clock className="h-3 w-3 text-warning animate-pulse" />
