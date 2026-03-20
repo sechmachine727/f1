@@ -66,6 +66,8 @@ class MessageBuilder:
         session = adapter.get_session()
         lap = adapter.get_lap()
         track_map = adapter.get_track_map()
+        marshal_zones = adapter.get_marshal_zones()
+        sector_boundaries = adapter.get_sector_boundaries()
 
         if self._state_ready_fn():
             aero_snapshot = {**aero, "sessionTime": session_time}
@@ -123,6 +125,13 @@ class MessageBuilder:
             "raceEngineerReport": {
                 "responses": self._dispatch.race_engineer.responses_log,
                 "alerts": self._dispatch.race_engineer.alerts_log,
+            },
+            "marshalZones": marshal_zones,
+            "sectorBoundaries": sector_boundaries,
+            "playerDrs": {
+                "drsActive": aero.get("drs", False),
+                "drsAllowed": aero.get("drsAllowed", False),
+                "drsActivationDistance": aero.get("drsActivationDistance", 0),
             },
         })
         return msg, new_aero_alerts, new_tyre_alerts, new_pu_alerts

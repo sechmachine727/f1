@@ -1,5 +1,9 @@
 import { useEffect, useRef, useState } from "react";
+import { getCircuitInfo } from "@/data/circuitData";
 import { TRACK_OUTLINES } from "@/data/trackOutlines";
+import type { CircuitInfo, MarshalZone, SectorBoundaries, PlayerDrs } from "@/types/circuitInfo";
+import { buildStaticTrack, staticPointAtNorm, trackHeadingAtNorm } from "@/utils/trackGeometry";
+import type { StaticTrackData } from "@/utils/trackGeometry";
 
 export interface CarPosition {
   x: number;
@@ -21,6 +25,12 @@ export interface TrackMapState {
   playerIndex: number;
   outlineComplete: boolean;
   trackName: string;
+  trackLength: number;
+  staticTrack: StaticTrackData | null;
+  circuitInfo: CircuitInfo | null;
+  marshalZones: MarshalZone[];
+  sectorBoundaries: SectorBoundaries | null;
+  playerDrs: PlayerDrs | null;
 }
 
 const WS_URL = "ws://localhost:8765";
@@ -38,59 +48,19 @@ function distSq(a: { x: number; z: number }, b: { x: number; z: number }): numbe
 // Static outline helpers
 // ---------------------------------------------------------------------------
 
-interface StaticTrackData {
-  points: Array<{ x: number; z: number }>;
-  /** Cumulative arc-length distance at each point. */
-  distances: number[];
-  totalLength: number;
-}
-
-/** Load and precompute cumulative distances for a static track outline. */
-function loadStaticTrack(trackName: string): StaticTrackData | null {
+/** Build static track from game-world coordinates (fallback). */
+function loadStaticTrackFromGame(trackName: string): StaticTrackData | null {
   const coords = TRACK_OUTLINES[trackName];
   if (!coords) return null;
-
-  // Negate Z to mirror top-down view
   const points = coords.map(([x, z]) => ({ x, z: -z }));
-  const distances = [0];
-  let total = 0;
-  for (let i = 1; i < points.length; i++) {
-    const dx = points[i].x - points[i - 1].x;
-    const dz = points[i].z - points[i - 1].z;
-    total += Math.sqrt(dx * dx + dz * dz);
-    distances.push(total);
-  }
-  return { points, distances, totalLength: total };
+  return buildStaticTrack(points);
 }
 
-/** Find the point on the static outline at a given normalised position (0-1). */
-function staticPointAtNorm(track: StaticTrackData, norm: number): { x: number; z: number } {
-  // Clamp to [0, 1)
-  const n = ((norm % 1) + 1) % 1;
-  const targetDist = n * track.totalLength;
-  // Binary search for the segment containing targetDist
-  let lo = 0;
-  let hi = track.distances.length - 1;
-  while (lo < hi - 1) {
-    const mid = (lo + hi) >> 1;
-    if (track.distances[mid] <= targetDist) lo = mid;
-    else hi = mid;
-  }
-  // Interpolate between lo and hi
-  const segLen = track.distances[hi] - track.distances[lo];
-  const t = segLen > 0 ? (targetDist - track.distances[lo]) / segLen : 0;
-  return {
-    x: track.points[lo].x + t * (track.points[hi].x - track.points[lo].x),
-    z: track.points[lo].z + t * (track.points[hi].z - track.points[lo].z),
-  };
-}
-
-/** Compute the tangent direction (heading) at a normalised position on the track. */
-function trackHeadingAtNorm(track: StaticTrackData, norm: number): number {
-  const epsilon = 0.002; // small step for finite difference
-  const a = staticPointAtNorm(track, norm - epsilon);
-  const b = staticPointAtNorm(track, norm + epsilon);
-  return Math.atan2(b.z - a.z, b.x - a.x);
+/** Build static track from API circuit info outline. */
+function loadStaticTrackFromAPI(circuitInfo: CircuitInfo): StaticTrackData {
+  // API uses x/y; we map y → z (negated to match SVG convention)
+  const points = circuitInfo.outline.map(([x, y]) => ({ x, z: -y }));
+  return buildStaticTrack(points);
 }
 
 /**
@@ -122,9 +92,10 @@ export function useTrackMap(): TrackMapState | null {
   const maxLapDistRef = useRef(0);
 
   const staticTrackRef = useRef<StaticTrackData | null>(null);
+  const circuitInfoRef = useRef<CircuitInfo | null>(null);
 
   const prevSessionTimeRef = useRef(0);
-  const prevTrackNameRef = useRef("");
+  const prevTrackIdRef = useRef<number>(-1);
 
   useEffect(() => {
     let unmounted = false;
@@ -140,6 +111,7 @@ export function useTrackMap(): TrackMapState | null {
           const msg = JSON.parse(event.data);
           const trackMap = msg.trackMap;
           const sessionTime: number = msg.sessionTime ?? 0;
+          const trackId: number = msg.session?.trackId ?? -1;
           const trackName: string = msg.session?.trackName ?? "";
           const trackLength: number = msg.session?.trackLength ?? 0;
 
@@ -152,12 +124,22 @@ export function useTrackMap(): TrackMapState | null {
           prevSessionTimeRef.current = sessionTime;
 
           // Track change — reload static data, reset dynamic outline
-          if (trackName !== prevTrackNameRef.current) {
-            prevTrackNameRef.current = trackName;
+          if (trackId !== prevTrackIdRef.current) {
+            prevTrackIdRef.current = trackId;
             dynamicOutlineRef.current = [];
             dynamicCompleteRef.current = false;
             maxLapDistRef.current = 0;
-            staticTrackRef.current = trackName ? loadStaticTrack(trackName) : null;
+
+            // Look up static circuit info locally
+            const circuitInfo = getCircuitInfo(trackId);
+            circuitInfoRef.current = circuitInfo;
+
+            // Prefer API outline, fall back to game-world outline
+            if (circuitInfo?.outline?.length) {
+              staticTrackRef.current = loadStaticTrackFromAPI(circuitInfo);
+            } else {
+              staticTrackRef.current = trackName ? loadStaticTrackFromGame(trackName) : null;
+            }
           }
 
           const playerIndex: number = trackMap?.playerIndex ?? 0;
@@ -206,6 +188,12 @@ export function useTrackMap(): TrackMapState | null {
             playerIndex,
             outlineComplete,
             trackName,
+            trackLength,
+            staticTrack,
+            circuitInfo: circuitInfoRef.current,
+            marshalZones: msg.marshalZones ?? [],
+            sectorBoundaries: msg.sectorBoundaries ?? null,
+            playerDrs: msg.playerDrs ?? null,
           });
         } catch {
           // ignore malformed messages
