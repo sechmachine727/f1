@@ -77,7 +77,7 @@ const Index = () => {
               <CircleParking className="h-3.5 w-3.5 text-warning" />
               <span className="text-warning font-bold text-[11px]">PIT IN</span>
               {session.pitLaneTimerActive && (
-                <span className="text-warning font-bold tabular-nums">{(session.pitLaneTimeMs / 1000).toFixed(1)}s</span>
+                <span className="text-warning font-bold tabular-nums min-w-[3.5ch] text-right">{(session.pitLaneTimeMs / 1000).toFixed(1)}s</span>
               )}
             </div>
           )}
