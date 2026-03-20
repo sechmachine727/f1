@@ -27,6 +27,10 @@ class TrackLocationProvider:
         self._track_id: int = -1
         # Sorted list of (normalized_distance, corner_number) for the active track
         self._corners: list[tuple[float, float]] = []
+        # Pit entry distance in metres — learned at runtime from car pit transitions
+        self._pit_entry_distance: float | None = None
+        # Previous pit status per car index, for detecting 0→1 transitions
+        self._prev_pit_status: list[int] = []
 
     def set_track(self, track_id: int) -> None:
         """Precompute corner positions for a new track."""
@@ -34,6 +38,8 @@ class TrackLocationProvider:
             return
         self._track_id = track_id
         self._corners = []
+        self._pit_entry_distance = None
+        self._prev_pit_status = []
 
         circuit = self._circuits.get(str(track_id))
         if not circuit:
@@ -71,6 +77,28 @@ class TrackLocationProvider:
         # Sort by normalised distance around the lap
         corner_norms.sort(key=lambda x: x[0])
         self._corners = corner_norms
+
+    def update_pit_entry(self, cars_lap_data: list[dict]) -> None:
+        """Learn pit entry distance by watching for pitStatus 0→1 transitions across all cars.
+
+        Args:
+            cars_lap_data: List of per-car lap dicts with 'm_pitStatus' and 'm_lapDistance'.
+        """
+        if self._pit_entry_distance is not None:
+            return  # Already learned
+
+        current_statuses = [c.get("m_pitStatus", 0) for c in cars_lap_data]
+
+        if self._prev_pit_status:
+            for i, cur in enumerate(current_statuses):
+                if i < len(self._prev_pit_status) and self._prev_pit_status[i] == 0 and cur == 1:
+                    dist = cars_lap_data[i].get("m_lapDistance", 0)
+                    if dist > 0:
+                        self._pit_entry_distance = dist
+                        print(f"Pit entry learned at {dist:.0f}m from car {i}")
+                        break
+
+        self._prev_pit_status = current_statuses
 
     def describe(self, lap_distance: float, track_length: float,
                  sector2_start: float, sector3_start: float) -> str:
@@ -114,7 +142,10 @@ class TrackLocationProvider:
         # Corner
         corner_str = self._nearest_corner(norm)
 
-        parts = [p for p in [corner_str, sector_str, f"lap {lap_pct}%"] if p]
+        # Pit proximity
+        pit_str = self._pit_proximity(lap_distance, track_length)
+
+        parts = [p for p in [corner_str, sector_str, f"lap {lap_pct}%", pit_str] if p]
         return ", ".join(parts)
 
     def _nearest_corner(self, norm: float) -> str:
@@ -154,3 +185,17 @@ class TrackLocationProvider:
             return f"approaching Turn {best_corner}"
         else:
             return f"near Turn {best_corner}"
+
+    def _pit_proximity(self, lap_distance: float, track_length: float) -> str:
+        """Describe proximity to pit entry, only if known and within 500m ahead."""
+        if self._pit_entry_distance is None or track_length <= 0:
+            return ""
+
+        # Distance ahead to pit entry (wrapping around the lap)
+        ahead = self._pit_entry_distance - lap_distance
+        if ahead < 0:
+            ahead += track_length
+
+        if ahead <= 500:
+            return f"pit entry {ahead:.0f}m ahead"
+        return ""

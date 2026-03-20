@@ -93,6 +93,11 @@ class MessageBuilder:
         # Compute track location context for alert enrichment
         location = ""
         if self._track_location:
+            # Learn pit entry from all cars (cheap no-op once learned)
+            all_cars_lap = adapter.get_all_cars_lap_data()
+            if all_cars_lap:
+                self._track_location.update_pit_entry(all_cars_lap)
+
             lap_distance = lap.get("lapDistance", 0)
             track_length = session.get("trackLength", 0)
             location = self._track_location.describe(
