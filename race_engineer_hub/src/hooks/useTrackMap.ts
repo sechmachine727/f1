@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import { getCircuitInfo } from "@/data/circuitData";
-import { TRACK_OUTLINES } from "@/data/trackOutlines";
 import type { CircuitInfo, MarshalZone, SectorBoundaries, PlayerDrs } from "@/types/circuitInfo";
 import { buildStaticTrack, staticPointAtNorm, trackHeadingAtNorm } from "@/utils/trackGeometry";
 import type { StaticTrackData } from "@/utils/trackGeometry";
@@ -47,14 +46,6 @@ function distSq(a: { x: number; z: number }, b: { x: number; z: number }): numbe
 // ---------------------------------------------------------------------------
 // Static outline helpers
 // ---------------------------------------------------------------------------
-
-/** Build static track from game-world coordinates (fallback). */
-function loadStaticTrackFromGame(trackName: string): StaticTrackData | null {
-  const coords = TRACK_OUTLINES[trackName];
-  if (!coords) return null;
-  const points = coords.map(([x, z]) => ({ x, z: -z }));
-  return buildStaticTrack(points);
-}
 
 /** Build static track from API circuit info outline. */
 function loadStaticTrackFromAPI(circuitInfo: CircuitInfo): StaticTrackData {
@@ -134,11 +125,10 @@ export function useTrackMap(): TrackMapState | null {
             const circuitInfo = getCircuitInfo(trackId);
             circuitInfoRef.current = circuitInfo;
 
-            // Prefer API outline, fall back to game-world outline
             if (circuitInfo?.outline?.length) {
               staticTrackRef.current = loadStaticTrackFromAPI(circuitInfo);
             } else {
-              staticTrackRef.current = trackName ? loadStaticTrackFromGame(trackName) : null;
+              staticTrackRef.current = null;
             }
           }
 
