@@ -14,12 +14,11 @@ import argparse
 import asyncio
 import json
 import os
-import time
 from pathlib import Path
 
 import websockets
 
-from common.f1_capture.binary_writer import BinaryWriter
+from common.f1_capture.capture_session import CaptureSession
 from common.f1_capture.replay_session import ReplaySession
 from common.f1_capture.udp_listener import UdpListener
 from common.f1_decoder.packet_decoder import PacketDecoder
@@ -1050,14 +1049,13 @@ async def udp_reader(capture: bool):
 
     listener = UdpListener(port=UDP_PORT)
     decoder = PacketDecoder()
-    writer = None
 
+    capture_session = None
     if capture:
         Path("data").mkdir(exist_ok=True)
-        capture_path = Path("data") / f"f1_25_capture_{int(time.time())}.f1bin"
-        writer = BinaryWriter(capture_path)
-        writer.open()
-        print(f"Binary capture enabled \u2192 {capture_path}")
+        capture_session = CaptureSession(
+            hz=10, port=UDP_PORT, output_dir=Path("data"), state=state,
+        )
 
     await listener.start()
     try:
@@ -1067,8 +1065,8 @@ async def udp_reader(capture: bool):
             packet_id = header["m_packetId"]
             state[packet_id] = decoder.decode(datagram)
 
-            if writer:
-                writer.write(datagram)
+            if capture_session:
+                capture_session.process(datagram, decode=False)
 
             session_time = adapter.session_time
 
@@ -1079,13 +1077,6 @@ async def udp_reader(capture: bool):
                 context = adapter.get_session_context()
                 print(f"New session detected \u2014 re-initializing agents\n{context}")
                 await asyncio.to_thread(_reinit_agents, context)
-                # Rotate capture file on session change
-                if writer:
-                    writer.close()
-                    new_path = Path("data") / f"f1_25_{uid}_{int(time.time())}.f1bin"
-                    writer = BinaryWriter(new_path)
-                    writer.open()
-                    print(f"Capture rotated \u2192 {new_path}")
 
             # Trigger on Car Telemetry (packet 6)
             if packet_id == 6:
@@ -1094,8 +1085,8 @@ async def udp_reader(capture: bool):
                 _dispatch_alerts(new_aero, new_tyre, new_pu)
     finally:
         listener.stop()
-        if writer:
-            writer.close()
+        if capture_session:
+            capture_session.close()
 
 
 # ---------------------------------------------------------------------------

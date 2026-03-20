@@ -38,6 +38,7 @@ class CaptureSession:
         port: int = 20777,
         output_dir: Path = Path("data"),
         capture: bool = True,
+        state: dict[int, dict] | None = None,
     ):
         """Initialize the capture session.
 
@@ -46,11 +47,13 @@ class CaptureSession:
             port: UDP port to listen on.
             output_dir: Directory for .f1bin output files.
             capture: Whether to write .f1bin files. False for view-only mode.
+            state: Optional shared state dict. If provided, the caller owns it
+                   and CaptureSession will not clear it on session changes.
         """
         self.hz = hz
         self._capture = capture
         self._output_dir = output_dir
-        self._listener = UdpListener(port=port)
+        self._port = port
         self._decoder = PacketDecoder()
         self._writer: BinaryWriter | None = None
         self._running = False
@@ -60,7 +63,8 @@ class CaptureSession:
         self._last_capture_ns: dict[int, int] = {}
 
         # Latest decoded state per packet type (always updated, regardless of Hz)
-        self.state: dict[int, dict] = {}
+        self._owns_state = state is None
+        self.state: dict[int, dict] = state if state is not None else {}
 
         # Session tracking
         self._current_session_uid: int | None = None
@@ -73,30 +77,41 @@ class CaptureSession:
 
     async def run(self) -> None:
         """Start listening and processing packets. Blocks until stop() is called."""
-        await self._listener.start()
+        listener = UdpListener(port=self._port)
+        await listener.start()
         self._running = True
 
         try:
             while self._running:
                 try:
                     datagram = await asyncio.wait_for(
-                        self._listener.queue.get(), timeout=0.5
+                        listener.queue.get(), timeout=0.5
                     )
                 except asyncio.TimeoutError:
                     continue
-                self._process(datagram)
+                self.process(datagram)
         finally:
-            self._listener.stop()
-            if self._writer is not None:
-                self._writer.close()
-                print(f"[CaptureSession] closed capture file: {self._writer.path}")
+            listener.stop()
+            self.close()
 
     def stop(self) -> None:
         """Signal the session to stop."""
         self._running = False
 
-    def _process(self, datagram: bytes) -> None:
-        """Process one raw UDP datagram."""
+    def close(self) -> None:
+        """Close the current capture file, if any."""
+        if self._writer is not None:
+            self._writer.close()
+            print(f"[CaptureSession] closed capture file: {self._writer.path}")
+
+    def process(self, datagram: bytes, decode: bool = True) -> None:
+        """Process one raw UDP datagram.
+
+        Args:
+            datagram: Raw UDP payload bytes.
+            decode: Whether to decode the packet and update state. Set to False
+                    when the caller already handles decoding into the shared state.
+        """
         if len(datagram) < 29:
             return  # Too short to contain a header
 
@@ -111,16 +126,16 @@ class CaptureSession:
         if session_uid != self._current_session_uid:
             self._on_session_change(session_uid)
 
-        # Always decode and update latest state (for live viewers)
-        try:
-            decoded = self._decoder.decode(datagram)
-            self.state[packet_id] = decoded
-        except (KeyError, Exception):
-            pass  # Unknown packet type or decode error — skip
+        # Decode and update state (skip if caller already handles this)
+        if decode:
+            try:
+                self.state[packet_id] = self._decoder.decode(datagram)
+            except (KeyError, Exception):
+                pass  # Unknown packet type or decode error — skip
 
         # Rename capture file once we know the track and session type
         if packet_id == 1 and not self._file_renamed and self._writer is not None:
-            self._rename_capture_file(decoded)
+            self._rename_capture_file(self.state.get(1, {}))
 
         # Decide whether to write this packet to the capture file
         if not self._capture or self._writer is None:
@@ -147,7 +162,8 @@ class CaptureSession:
 
         self._current_session_uid = session_uid
         self._file_renamed = False
-        self.state.clear()
+        if self._owns_state:
+            self.state.clear()
 
         if self._capture:
             self._capture_ts = time.strftime("%Y%m%d_%H%M%S")
