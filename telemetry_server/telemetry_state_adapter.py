@@ -262,6 +262,8 @@ class TelemetryStateAdapter:
             "pitLaneTimerActive": bool(lap.get("m_pitLaneTimerActive", 0)),
             "pitLaneTimeMs": lap.get("m_pitLaneTimeInLaneInMS", 0),
             "pitStopTimeMs": lap.get("m_pitStopTimerInMS", 0),
+            "driverStatus": lap.get("m_driverStatus", 0),
+            "sessionType": self._state.get(1, {}).get("m_sessionType", 0),
         }
 
     # -- Track map ------------------------------------------------------------

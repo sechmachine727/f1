@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useAutoScroll } from "@/hooks/useAutoScroll";
 import ReactMarkdown from "react-markdown";
-import { AlertTriangle, Info, CheckCircle, Bot, Loader2, Maximize2, Circle } from "lucide-react";
+import { AlertTriangle, ArrowDownToLine, Info, CheckCircle, Bot, Loader2, Maximize2, Circle } from "lucide-react";
 import type { Alert } from "@/components/AlertBox";
 import type { TyresReportEntry } from "@/hooks/useTyreTelemetry";
 
@@ -49,18 +49,21 @@ const alertIcons = {
   info: <Info className="h-3.5 w-3.5 text-info shrink-0" />,
   warning: <AlertTriangle className="h-3.5 w-3.5 text-warning shrink-0" />,
   critical: <AlertTriangle className="h-3.5 w-3.5 text-accent shrink-0" />,
+  pit: <ArrowDownToLine className="h-3.5 w-3.5 text-primary shrink-0" />,
 };
 
 const expandedAlertIcons = {
   info: <Info className="h-4 w-4 text-info shrink-0" />,
   warning: <AlertTriangle className="h-4 w-4 text-warning shrink-0" />,
   critical: <AlertTriangle className="h-4 w-4 text-accent shrink-0" />,
+  pit: <ArrowDownToLine className="h-4 w-4 text-primary shrink-0" />,
 };
 
 const rowStyles = {
   info: "border-info/20",
   warning: "border-warning/20",
   critical: "border-accent/20 bg-accent/5",
+  pit: "border-primary/20 bg-primary/5",
 };
 
 interface TyreAlertPanelProps {
