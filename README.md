@@ -101,7 +101,7 @@ python -m telemetry_server --replay data/f1_25_capture.f1bin --speed 10x
 
 ## F1 Race Engineer Hub Concept
 
-![race_engineer_hub.png](race_engineer_hub.png)
+<img src="race_engineer_hub.png" alt="Race Engineer Hub dashboard" width="800">
 
 1. The top 3 panels report telemetry straight from the game.
 2. Under each telemetry panel, the 'alerts' are produced by Neuro SAN

@@ -58,11 +58,11 @@ class MessageBuilder:
         self._state_ready_fn = state_ready_fn
         self._track_location = track_location
 
-    def build(self) -> tuple[str, list[dict], list[dict], list[dict], str]:
+    def build(self) -> tuple[str, list[dict], list[dict], list[dict]]:
         """Build a JSON message from the latest merged state via the adapter.
 
         Returns:
-            A tuple of (json_string, new_aero_alerts, new_tyre_alerts, new_pu_alerts, location_str).
+            A tuple of (json_string, new_aero_alerts, new_tyre_alerts, new_pu_alerts).
         """
         adapter = self._adapter_fn()
         session_time = self._session_time_fn()
@@ -112,13 +112,20 @@ class MessageBuilder:
         # Compute track location context for alert enrichment
         location = ""
         if self._track_location:
-            lap_distance = lap.get("lapDistance", 0)
-            track_length = session.get("trackLength", 0)
             location = self._track_location.describe(
-                lap_distance, track_length,
+                lap.get("lapDistance", 0),
+                session.get("trackLength", 0),
                 sector_boundaries.get("sector2Start", 0),
                 sector_boundaries.get("sector3Start", 0),
+                current_lap=lap.get("currentLap", 0),
+                pit_status=pit_status.get("pitStatus", 0),
             )
+
+        # Enrich alert messages with location (mutates shared dicts in alerts_log)
+        if location:
+            loc_tag = f" [{location}]"
+            for a in new_aero_alerts + new_tyre_alerts + new_pu_alerts:
+                a["message"] += loc_tag
 
         msg = json.dumps({
             "tyres": tyres,
@@ -169,4 +176,4 @@ class MessageBuilder:
                 "drsActivationDistance": aero.get("drsActivationDistance", 0),
             },
         })
-        return msg, new_aero_alerts, new_tyre_alerts, new_pu_alerts, location
+        return msg, new_aero_alerts, new_tyre_alerts, new_pu_alerts

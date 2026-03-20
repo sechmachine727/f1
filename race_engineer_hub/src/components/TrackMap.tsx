@@ -15,15 +15,15 @@ const LABEL_MODE_STORAGE_KEY = "trackMap:labelMode";
 
 type LabelMode = "driver" | "team";
 
-function loadSavedRotation(trackName: string): number {
+function loadSavedRotation(trackName: string): number | null {
   try {
     const stored = localStorage.getItem(ROTATION_STORAGE_KEY);
     if (stored) {
       const map = JSON.parse(stored) as Record<string, number>;
-      return map[trackName] ?? 0;
+      return map[trackName] ?? null;
     }
   } catch { /* ignore */ }
-  return 0;
+  return null;
 }
 
 function saveRotation(trackName: string, deg: number) {
@@ -154,7 +154,7 @@ export function TrackMap() {
       const savedRotation = loadSavedRotation(trackName);
       // Use circuit info rotation as default when no saved rotation exists
       const defaultRotation = state?.circuitInfo?.rotation ?? 0;
-      setRotation(savedRotation || defaultRotation);
+      setRotation(savedRotation ?? defaultRotation);
       setZoom(loadSavedZoom(trackName));
       setPan(loadSavedPan(trackName));
     }
