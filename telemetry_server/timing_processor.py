@@ -5,6 +5,7 @@ from common.f1_structs.f1_constants import TEAM_ABBREVIATIONS
 from common.f1_structs.f1_constants import VISUAL_TYRE_COMPOUND
 
 NUM_CARS = 22
+RACE_SESSION_TYPES = {10, 11, 12, 15, 17}  # RACE, RACE 2, RACE 3, RACE SHORT, SPRINT
 
 
 def _combine_sector_time(minutes_part: int, ms_part: int) -> int:
@@ -72,16 +73,27 @@ class TimingProcessor:
             "lapHistory": lap_history,
         }
 
-    def get_standings(self, player_idx: int, state: dict[int, dict]) -> list[dict]:
-        """Build the race standings from packet 2 (lap data) and packet 4 (participants).
+    def get_standings(
+        self, player_idx: int, state: dict[int, dict],
+        session_type: int = 0, session_histories: dict[int, dict] | None = None,
+    ) -> list[dict]:
+        """Build standings from telemetry. Race sessions use live positions; practice/quali use best lap times.
 
         Args:
             player_idx: Index of the player's car.
             state: Shared packet state dict keyed by packet ID.
+            session_type: Raw session type value from packet 1.
+            session_histories: Per-car session history data keyed by car index.
 
         Returns:
             List of standing entries sorted by position.
         """
+        if session_type not in RACE_SESSION_TYPES and session_histories:
+            return self._get_practice_quali_standings(player_idx, state, session_histories)
+        return self._get_race_standings(player_idx, state)
+
+    def _get_race_standings(self, player_idx: int, state: dict[int, dict]) -> list[dict]:
+        """Build race standings from packet 2 (lap data) and packet 4 (participants)."""
         lap_pkt = state.get(2, {})
         lap_cars = lap_pkt.get("m_lapData", [])
         parts_pkt = state.get(4, {})
@@ -134,6 +146,80 @@ class TimingProcessor:
             })
 
         standings.sort(key=lambda s: s["position"])
+        return standings
+
+    def _get_practice_quali_standings(
+        self, player_idx: int, state: dict[int, dict], session_histories: dict[int, dict],
+    ) -> list[dict]:
+        """Build standings ordered by best lap time for practice/qualifying sessions."""
+        lap_pkt = state.get(2, {})
+        lap_cars = lap_pkt.get("m_lapData", [])
+        parts_pkt = state.get(4, {})
+        parts_cars = parts_pkt.get("m_participants", [])
+        status_pkt = state.get(7, {})
+        status_cars = status_pkt.get("m_carStatusData", [])
+
+        entries = []
+        for i in range(min(len(lap_cars), NUM_CARS)):
+            car = lap_cars[i]
+            part = parts_cars[i] if i < len(parts_cars) else {}
+            status_car = status_cars[i] if i < len(status_cars) else {}
+
+            result_status = car.get("m_resultStatus", 0)
+            if result_status == 0:
+                continue
+
+            history = session_histories.get(i, {})
+            personal_best = self._get_personal_best(history)
+            best_lap_ms = personal_best["lapMs"]
+            if best_lap_ms <= 0:
+                continue
+
+            driver_id = part.get("m_driverId", 255)
+            abbrev = DRIVER_ABBREVIATIONS.get(driver_id, "")
+            if not abbrev:
+                raw_name = part.get("m_name", "")
+                name = raw_name.split("\x00")[0] if isinstance(raw_name, str) else ""
+                abbrev = name[:3].upper() if name else "???"
+
+            team_id = part.get("m_teamId", 255)
+
+            entries.append({
+                "carIndex": i,
+                "bestLapMs": best_lap_ms,
+                "abbreviation": abbrev,
+                "teamId": team_id,
+                "teamAbbreviation": TEAM_ABBREVIATIONS.get(team_id, ""),
+                "currentLap": car.get("m_currentLapNum", 0),
+                "isPlayer": i == player_idx,
+                "driverStatus": car.get("m_driverStatus", 0),
+                "resultStatus": result_status,
+                "visualCompound": VISUAL_TYRE_COMPOUND.get(status_car.get("m_visualTyreCompound", 0), ""),
+            })
+
+        entries.sort(key=lambda e: e["bestLapMs"])
+
+        standings = []
+        leader_ms = entries[0]["bestLapMs"] if entries else 0
+        prev_ms = leader_ms
+        for pos, entry in enumerate(entries, start=1):
+            gap_to_leader = entry["bestLapMs"] - leader_ms if pos > 1 else 0
+
+            standings.append({
+                "position": pos,
+                "abbreviation": entry["abbreviation"],
+                "teamId": entry["teamId"],
+                "teamAbbreviation": entry["teamAbbreviation"],
+                "gapToLeaderMs": gap_to_leader,
+                "gapToFrontMs": gap_to_leader,
+                "currentLap": entry["currentLap"],
+                "isPlayer": entry["isPlayer"],
+                "driverStatus": entry["driverStatus"],
+                "resultStatus": entry["resultStatus"],
+                "lastLapTimeMs": entry["bestLapMs"],
+                "visualCompound": entry["visualCompound"],
+            })
+
         return standings
 
     @staticmethod

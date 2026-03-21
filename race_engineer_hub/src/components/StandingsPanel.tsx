@@ -30,10 +30,12 @@ const COMPOUND_STYLES: Record<string, { letter: string; color: string }> = {
 
 interface StandingsPanelProps {
   standings: StandingsEntry[];
+  sessionType?: string;
   className?: string;
 }
 
-export function StandingsPanel({ standings, className }: StandingsPanelProps) {
+export function StandingsPanel({ standings, sessionType, className }: StandingsPanelProps) {
+  const isRaceSession = sessionType ? /RACE|SPRINT/.test(sessionType) : true;
   const playerRef = useRef<HTMLTableRowElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -46,7 +48,9 @@ export function StandingsPanel({ standings, className }: StandingsPanelProps) {
   if (standings.length === 0) {
     return (
       <div className="bg-card/50 border border-border/50 rounded-lg px-2 py-1.5 font-display">
-        <h3 className="text-[10px] font-bold tracking-wider text-muted-foreground uppercase mb-1">Standings</h3>
+        <h3 className="text-[10px] font-bold tracking-wider text-muted-foreground uppercase mb-1">
+        {isRaceSession ? "Standings" : "Best Times"}
+      </h3>
         <div className="text-[10px] text-muted-foreground">Waiting for data...</div>
       </div>
     );
@@ -54,7 +58,9 @@ export function StandingsPanel({ standings, className }: StandingsPanelProps) {
 
   return (
     <div className={`bg-card/50 border border-border/50 rounded-lg px-2 py-1.5 font-display flex flex-col min-h-0 ${className ?? ""}`}>
-      <h3 className="text-[10px] font-bold tracking-wider text-muted-foreground uppercase mb-1">Standings</h3>
+      <h3 className="text-[10px] font-bold tracking-wider text-muted-foreground uppercase mb-1">
+        {isRaceSession ? "Standings" : "Best Times"}
+      </h3>
       <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto scrollbar-thin">
         <table className="w-full text-[10px] tabular-nums">
           <tbody>
@@ -75,7 +81,7 @@ export function StandingsPanel({ standings, className }: StandingsPanelProps) {
                   <td className="text-left py-px">{entry.position}</td>
                   <td className="text-left py-px">{entry.abbreviation}</td>
                   <td className="text-right py-px">
-                    {entry.position === 1 ? formatLapTime(entry.lastLapTimeMs) : formatGap(entry.gapToFrontMs)}
+                    {entry.position === 1 ? formatLapTime(entry.lastLapTimeMs) : formatGap(isRaceSession ? entry.gapToFrontMs : entry.gapToLeaderMs)}
                   </td>
                   <td className="text-center py-px w-4">
                     {COMPOUND_STYLES[entry.visualCompound] ? (

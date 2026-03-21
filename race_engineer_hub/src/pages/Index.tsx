@@ -136,7 +136,7 @@ const Index = () => {
         </div>
         <div className="flex flex-col gap-1.5 min-h-0">
           <LapTimingPanel timing={timing} lapCompleted={lapCompleted} className="flex-1 min-h-0" />
-          <StandingsPanel standings={standings} className="flex-1 min-h-0" />
+          <StandingsPanel standings={standings} sessionType={sessionType} className="flex-1 min-h-0" />
         </div>
         <div className="min-h-0">
           <TrackMap />

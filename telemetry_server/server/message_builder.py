@@ -146,7 +146,10 @@ class MessageBuilder:
             timing_data = self._timing.get_player_lap_timing(
                 player_idx, cur_state, self._session_histories_fn(),
             )
-            standings_data = self._timing.get_standings(player_idx, cur_state)
+            session_type = cur_state.get(1, {}).get("m_sessionType", 0)
+            standings_data = self._timing.get_standings(
+                player_idx, cur_state, session_type, self._session_histories_fn(),
+            )
 
         msg = json.dumps({
             "tyres": tyres,
