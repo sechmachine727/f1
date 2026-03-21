@@ -129,7 +129,7 @@ const Index = () => {
       </div>
 
       {/* Bottom: Race Engineer + Driver Radio | Timing + Standings | Track Map */}
-      <div className="shrink-0 grid grid-cols-1 lg:grid-cols-4 gap-3 h-[22rem]">
+      <div className="shrink-0 grid grid-cols-1 gap-3 h-[22rem]" style={{ gridTemplateColumns: "1fr 1fr auto 1fr" }}>
         <div className="lg:col-span-2 flex flex-col gap-2 min-h-0">
           <RaceEngineerPanel report={raceEngineerReport} driverMessages={driverMessages} className="flex-1 min-h-0" />
           <DriverRadioInput onSend={handleDriverSend} onSessionReset={handleSessionReset} />
