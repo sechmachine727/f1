@@ -12,6 +12,7 @@ export interface LapHistoryEntry {
   s1Color?: SectorColor;
   s2Color?: SectorColor;
   s3Color?: SectorColor;
+  deltaMs?: number;
 }
 
 export interface BestTimes {
@@ -86,7 +87,7 @@ export function useTimingData(): {
   const flashTimer = useRef<ReturnType<typeof setTimeout>>();
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout>>();
-  const colorCache = useRef<Map<number, { s1: SectorColor; s2: SectorColor; s3: SectorColor }>>(new Map());
+  const colorCache = useRef<Map<number, { s1: SectorColor; s2: SectorColor; s3: SectorColor; deltaMs: number | undefined }>>(new Map());
 
   useEffect(() => {
     let unmounted = false;
@@ -119,6 +120,7 @@ export function useTimingData(): {
                   s1: getSectorColor(lap.s1Ms, pb.s1Ms, ob.s1Ms),
                   s2: getSectorColor(lap.s2Ms, pb.s2Ms, ob.s2Ms),
                   s3: getSectorColor(lap.s3Ms, pb.s3Ms, ob.s3Ms),
+                  deltaMs: pb.lapMs > 0 && lap.lapTimeMs > 0 ? lap.lapTimeMs - pb.lapMs : undefined,
                 });
               }
             }
@@ -126,7 +128,7 @@ export function useTimingData(): {
             // Attach cached colors to history entries
             const coloredHistory = t.lapHistory.map((lap) => {
               const cached = colorCache.current.get(lap.lapNum);
-              return cached ? { ...lap, s1Color: cached.s1, s2Color: cached.s2, s3Color: cached.s3 } : lap;
+              return cached ? { ...lap, s1Color: cached.s1, s2Color: cached.s2, s3Color: cached.s3, deltaMs: cached.deltaMs } : lap;
             });
 
             setTiming({ ...t, lapHistory: coloredHistory });

@@ -9,6 +9,18 @@ const SECTOR_COLOR_MAP: Record<string, string> = {
   white: "text-muted-foreground",
 };
 
+function formatDelta(deltaMs: number | undefined): string {
+  if (deltaMs === undefined) return "";
+  const sign = deltaMs < 0 ? "-" : "+";
+  const abs = Math.abs(deltaMs) / 1000;
+  return `${sign}${abs.toFixed(3)}`;
+}
+
+function deltaColor(deltaMs: number | undefined): string {
+  if (deltaMs === undefined) return "text-muted-foreground";
+  return deltaMs < 0 ? "text-green-400" : deltaMs > 0 ? "text-red-400" : "text-muted-foreground";
+}
+
 interface LapTimingPanelProps {
   timing: TimingData | null;
   lapCompleted: boolean;
@@ -50,6 +62,7 @@ export function LapTimingPanel({ timing, lapCompleted, className }: LapTimingPan
               <td className={`text-right py-px min-w-[3.5rem] ${SECTOR_COLOR_MAP[s2Color]}`}>{formatSectorTime(timing.sector2Ms)}</td>
               <td className="text-right py-px min-w-[3.5rem] text-muted-foreground">{formatSectorTime(0)}</td>
               <td className={`text-right py-px min-w-[4rem] font-bold ${lapCompleted ? "animate-pulse" : ""}`}>{formatLapTime(timing.currentLapTimeMs)}</td>
+              <td className="text-right py-px min-w-[3.5rem] text-muted-foreground"></td>
             </tr>
 
             {/* Completed laps */}
@@ -73,6 +86,7 @@ export function LapTimingPanel({ timing, lapCompleted, className }: LapTimingPan
                     {formatSectorTime(lap.s3Ms)}
                   </td>
                   <td className="text-right py-px min-w-[4rem] font-bold">{formatLapTime(lap.lapTimeMs)}</td>
+                  <td className={`text-right py-px min-w-[3.5rem] ${deltaColor(lap.deltaMs)}`}>{formatDelta(lap.deltaMs)}</td>
                 </tr>
               );
             })}
