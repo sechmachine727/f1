@@ -46,10 +46,10 @@ export function LapTimingPanel({ timing, lapCompleted, className }: LapTimingPan
               }`}
             >
               <td className="text-left py-px font-bold">{timing.currentLap}</td>
-              <td className={`text-right py-px ${SECTOR_COLOR_MAP[s1Color]}`}>{formatSectorTime(timing.sector1Ms)}</td>
-              <td className={`text-right py-px ${SECTOR_COLOR_MAP[s2Color]}`}>{formatSectorTime(timing.sector2Ms)}</td>
-              <td className="text-right py-px text-muted-foreground">{formatSectorTime(0)}</td>
-              <td className={`text-right py-px font-bold ${lapCompleted ? "animate-pulse" : ""}`}>{formatLapTime(timing.currentLapTimeMs)}</td>
+              <td className={`text-right py-px min-w-[3.5rem] ${SECTOR_COLOR_MAP[s1Color]}`}>{formatSectorTime(timing.sector1Ms)}</td>
+              <td className={`text-right py-px min-w-[3.5rem] ${SECTOR_COLOR_MAP[s2Color]}`}>{formatSectorTime(timing.sector2Ms)}</td>
+              <td className="text-right py-px min-w-[3.5rem] text-muted-foreground">{formatSectorTime(0)}</td>
+              <td className={`text-right py-px min-w-[4rem] font-bold ${lapCompleted ? "animate-pulse" : ""}`}>{formatLapTime(timing.currentLapTimeMs)}</td>
             </tr>
 
             {/* Completed laps */}
@@ -63,16 +63,16 @@ export function LapTimingPanel({ timing, lapCompleted, className }: LapTimingPan
                   }`}
                 >
                   <td className="text-left py-px">{lap.lapNum}</td>
-                  <td className={`text-right py-px ${SECTOR_COLOR_MAP[lap.s1Color ?? getSectorColor(lap.s1Ms, personalBest.s1Ms, overallBest.s1Ms)]}`}>
+                  <td className={`text-right py-px min-w-[3.5rem] ${SECTOR_COLOR_MAP[lap.s1Color ?? getSectorColor(lap.s1Ms, personalBest.s1Ms, overallBest.s1Ms)]}`}>
                     {formatSectorTime(lap.s1Ms)}
                   </td>
-                  <td className={`text-right py-px ${SECTOR_COLOR_MAP[lap.s2Color ?? getSectorColor(lap.s2Ms, personalBest.s2Ms, overallBest.s2Ms)]}`}>
+                  <td className={`text-right py-px min-w-[3.5rem] ${SECTOR_COLOR_MAP[lap.s2Color ?? getSectorColor(lap.s2Ms, personalBest.s2Ms, overallBest.s2Ms)]}`}>
                     {formatSectorTime(lap.s2Ms)}
                   </td>
-                  <td className={`text-right py-px ${SECTOR_COLOR_MAP[lap.s3Color ?? getSectorColor(lap.s3Ms, personalBest.s3Ms, overallBest.s3Ms)]}`}>
+                  <td className={`text-right py-px min-w-[3.5rem] ${SECTOR_COLOR_MAP[lap.s3Color ?? getSectorColor(lap.s3Ms, personalBest.s3Ms, overallBest.s3Ms)]}`}>
                     {formatSectorTime(lap.s3Ms)}
                   </td>
-                  <td className="text-right py-px font-bold">{formatLapTime(lap.lapTimeMs)}</td>
+                  <td className="text-right py-px min-w-[4rem] font-bold">{formatLapTime(lap.lapTimeMs)}</td>
                 </tr>
               );
             })}

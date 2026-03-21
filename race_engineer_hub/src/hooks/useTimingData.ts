@@ -52,7 +52,7 @@ const RECONNECT_INTERVAL_MS = 2000;
 const LAP_FLASH_DURATION_MS = 2000;
 
 export function formatSectorTime(ms: number): string {
-  if (ms <= 0) return "--.--.---";
+  if (ms <= 0) return "\u2014";
   const totalSeconds = ms / 1000;
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
