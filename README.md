@@ -35,6 +35,49 @@ Start a Neuro SAN race engineer agent network:
 python -m run
 ```
 
+## LLM Configuration
+
+The agent network uses [Neuro SAN Studio](https://github.com/cognizant-ai-lab/neuro-san-studio) for multi-agent orchestration. LLM provider settings live in `registries/llm_config.hocon`. To switch providers, set the `class` and `model_name` keys:
+
+```hocon
+"llm_config": {
+    "class": "anthropic",
+    "model_name": "claude-sonnet-4-20250514",
+}
+```
+
+| LLM Provider   | `class` Value  | Links for model names |
+|----------------|----------------|-----------------------|
+| Amazon Bedrock | `bedrock`      | [Bedrock model IDs](https://docs.aws.amazon.com/bedrock/latest/userguide/model-ids.html) |
+| Anthropic      | `anthropic`    | [Claude models](https://platform.claude.com/docs/en/about-claude/models/overview) |
+| Azure OpenAI   | `azure-openai` | [Azure OpenAI models](https://learn.microsoft.com/azure/ai-services/openai/concepts/models) |
+| Google Gemini  | `gemini`       | [Gemini models](https://ai.google.dev/gemini-api/docs/models) |
+| NVIDIA         | `nvidia`       | [NVIDIA models](https://build.nvidia.com/explore/discover) |
+| Ollama         | `ollama`       | [Ollama library](https://ollama.com/library) |
+| OpenAI         | `openai`       | [OpenAI models](https://platform.openai.com/docs/models) |
+
+Add your provider's API key to `.env` (loaded automatically on startup):
+```
+OPENAI_API_KEY=sk-...
+# or ANTHROPIC_API_KEY=sk-ant-...
+```
+
+For full details on LLM configuration options (temperature, max_tokens, per-agent overrides, etc.), see the [Neuro SAN Studio User Guide](https://github.com/cognizant-ai-lab/neuro-san-studio/blob/main/docs/user_guide.md).
+
+## Observability
+
+The agent network supports observability via [Neuro SAN Studio](https://github.com/cognizant-ai-lab/neuro-san-studio) plugins. Available providers:
+
+- **LangSmith** — add to `.env` (no plugin required):
+  ```
+  LANGSMITH_TRACING=true
+  LANGSMITH_API_KEY=lsv2_...
+  ```
+- **Langfuse** — trace collection, cost tracking, and performance metrics (supports cloud and self-hosted)
+- **Arize Phoenix** — AI observability and tracing
+
+For setup instructions, see the [Neuro SAN Studio Observability docs](https://github.com/cognizant-ai-lab/neuro-san-studio/blob/main/docs/plugins.md#observability).
+
 ## Telemetry
 
 [EA F1 UDP specification](https://forums.ea.com/blog/f1-games-game-info-hub-en/ea-sports%E2%84%A2-f1%C2%AE25-udp-specification/12187347)
@@ -97,6 +140,18 @@ python -m telemetry_server --replay data/f1_25_capture.f1bin
 Add `--speed` to fast-forward the replay:
 ```shell
 python -m telemetry_server --replay data/f1_25_capture.f1bin --speed 10x
+```
+
+### Telemetry-only mode
+
+Use `--no-agents` to run the telemetry server without initializing AI agents. This is useful for testing the UI and telemetry pipeline without needing LLM API keys:
+```shell
+python -m telemetry_server --no-agents
+```
+
+It can be combined with `--replay`:
+```shell
+python -m telemetry_server --no-agents --replay data/f1_25_capture.f1bin --speed 10x
 ```
 
 ## F1 Race Engineer Hub Concept
