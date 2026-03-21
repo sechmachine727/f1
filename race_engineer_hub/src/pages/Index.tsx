@@ -7,12 +7,15 @@ import { DamageAlertPanel } from "@/components/DamageAlertPanel";
 import { RaceEngineerPanel } from "@/components/RaceEngineerPanel";
 import { DriverRadioInput } from "@/components/DriverRadioInput";
 import { TrackMap } from "@/components/TrackMap";
-import { useSessionTelemetry, formatLapTime, formatTimeLeft } from "@/hooks/useSessionTelemetry";
+import { LapTimingPanel } from "@/components/LapTimingPanel";
+import { StandingsPanel } from "@/components/StandingsPanel";
+import { useSessionTelemetry, formatTimeLeft } from "@/hooks/useSessionTelemetry";
 import { useTyreTelemetry } from "@/hooks/useTyreTelemetry";
 import { usePowerUnitTelemetry } from "@/hooks/usePowerUnitTelemetry";
 import { useAeroTelemetry } from "@/hooks/useAeroTelemetry";
 import { useRaceEngineerReport } from "@/hooks/useRaceEngineerReport";
-import { Flag, Timer, Gauge, Clock, CloudSun, Thermometer, MapPin, CircleParking } from "lucide-react";
+import { useTimingData } from "@/hooks/useTimingData";
+import { Flag, Clock, CloudSun, Thermometer, MapPin, CircleParking } from "lucide-react";
 import { useState, useCallback } from "react";
 import type { ReportEntry } from "@/components/ExpandableReportPanel";
 
@@ -27,6 +30,7 @@ const Index = () => {
   const { puAlerts: { alerts: puAlerts, activeCount: puActiveCount }, puReport } = usePowerUnitTelemetry();
   const { aeroAlerts: { alerts: aeroAlerts, activeCount: aeroActiveCount }, damageReport } = useAeroTelemetry();
   const raceEngineerReport = useRaceEngineerReport();
+  const { timing, standings, lapCompleted } = useTimingData();
   const [driverMessages, setDriverMessages] = useState<ReportEntry[]>([]);
   const handleDriverSend = useCallback((text: string, time: string) => {
     setDriverMessages((prev) => [...prev, { text, time, source: "driver" as const }]);
@@ -39,8 +43,6 @@ const Index = () => {
   const sessionType = session?.sessionType ?? "—";
   const trackName = session?.trackName ?? "—";
   const timeLeftStr = session ? formatTimeLeft(session.sessionTimeLeft) : "—";
-  const position = session?.carPosition ?? 0;
-  const lastLapStr = session ? formatLapTime(session.lastLapTimeMs) : "—";
   const totalLaps = session?.totalLaps ?? 0;
 
   return (
@@ -107,14 +109,6 @@ const Index = () => {
               <span>{totalLaps} LAPS</span>
             </div>
           ) : null}
-          <div className="flex items-center gap-1">
-            <Gauge className="h-3 w-3 text-primary" />
-            <span>P{position || "—"}</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <Timer className="h-3 w-3 text-primary" />
-            <span className="text-primary font-bold">{lastLapStr}</span>
-          </div>
         </div>
       </header>
 
@@ -134,11 +128,15 @@ const Index = () => {
         </div>
       </div>
 
-      {/* Bottom: Race Engineer + Driver Radio (left 2/3) | Track Map (right 1/3) */}
-      <div className="shrink-0 grid grid-cols-1 lg:grid-cols-3 gap-3 h-[22rem]">
+      {/* Bottom: Race Engineer + Driver Radio | Timing + Standings | Track Map */}
+      <div className="shrink-0 grid grid-cols-1 lg:grid-cols-4 gap-3 h-[22rem]">
         <div className="lg:col-span-2 flex flex-col gap-2 min-h-0">
           <RaceEngineerPanel report={raceEngineerReport} driverMessages={driverMessages} className="flex-1 min-h-0" />
           <DriverRadioInput onSend={handleDriverSend} onSessionReset={handleSessionReset} />
+        </div>
+        <div className="flex flex-col gap-2 min-h-0">
+          <LapTimingPanel timing={timing} lapCompleted={lapCompleted} />
+          <StandingsPanel standings={standings} />
         </div>
         <div className="min-h-0">
           <TrackMap />

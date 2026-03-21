@@ -23,6 +23,7 @@ from telemetry_server.server.message_builder import MessageBuilder
 from telemetry_server.server.telemetry_input import TelemetryInput
 from telemetry_server.server.websocket_server import WebSocketServer
 from telemetry_server.telemetry_state_adapter import TelemetryStateAdapter
+from telemetry_server.timing_processor import TimingProcessor
 from telemetry_server.track_location_provider import TrackLocationProvider
 
 WS_HOST = "0.0.0.0"
@@ -39,8 +40,12 @@ class TelemetryServer:
     def __init__(self) -> None:
         """Wire all components via dependency injection."""
         self.state: dict[int, dict] = {}
+        self.session_histories: dict[int, dict] = {}
         self.adapter: TelemetryStateAdapter = self._create_adapter(self.state)
         self.session_time: float = 0.0
+
+        # Timing processor
+        self.timing_processor = TimingProcessor()
 
         # Track location provider (for enriching alerts with corner/sector info)
         self.track_location = TrackLocationProvider()
@@ -72,6 +77,9 @@ class TelemetryServer:
             session_time_fn=lambda: self.session_time,
             state_ready_fn=self._state_ready,
             track_location=self.track_location,
+            timing_processor=self.timing_processor,
+            state_fn=lambda: self.state,
+            session_histories_fn=lambda: self.session_histories,
         )
 
         # WebSocket server
@@ -84,6 +92,19 @@ class TelemetryServer:
 
         # Telemetry input (UDP / replay)
         self.telemetry_input = TelemetryInput(server=self)
+
+    def store_packet(self, packet_id: int, decoded: dict) -> None:
+        """Store a decoded packet, accumulating per-car session histories for packet 11.
+
+        Args:
+            packet_id: The F1 packet ID.
+            decoded: The decoded packet dict.
+        """
+        self.state[packet_id] = decoded
+        if packet_id == 11:
+            car_idx = decoded.get("m_carIdx", -1)
+            if 0 <= car_idx < 22:
+                self.session_histories[car_idx] = decoded
 
     @staticmethod
     def _create_adapter(state: dict[int, dict]) -> TelemetryStateAdapter:

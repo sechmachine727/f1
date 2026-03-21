@@ -13,6 +13,7 @@ if TYPE_CHECKING:
     from telemetry_server.alerts.tyre_alert_processor import TyreAlertProcessor
     from telemetry_server.dispatch.agent_dispatch_manager import AgentDispatchManager
     from telemetry_server.telemetry_state_adapter import TelemetryStateAdapter
+    from telemetry_server.timing_processor import TimingProcessor
     from telemetry_server.track_location_provider import TrackLocationProvider
 
 
@@ -34,6 +35,9 @@ class MessageBuilder:
         session_time_fn: Callable[[], float],
         state_ready_fn: Callable[[], bool],
         track_location: TrackLocationProvider | None = None,
+        timing_processor: TimingProcessor | None = None,
+        state_fn: Callable[[], dict] | None = None,
+        session_histories_fn: Callable[[], dict] | None = None,
     ) -> None:
         """Initialise the message builder.
 
@@ -47,6 +51,9 @@ class MessageBuilder:
             session_time_fn: Callable returning the current session time.
             state_ready_fn: Callable returning True when essential packets are available.
             track_location: Provider for enriching alerts with track position context.
+            timing_processor: Processor for lap timing and standings data.
+            state_fn: Callable returning the current packet state dict.
+            session_histories_fn: Callable returning per-car session histories.
         """
         self._adapter_fn = adapter_fn
         self._aero = aero_processor
@@ -57,6 +64,9 @@ class MessageBuilder:
         self._session_time_fn = session_time_fn
         self._state_ready_fn = state_ready_fn
         self._track_location = track_location
+        self._timing = timing_processor
+        self._state_fn = state_fn
+        self._session_histories_fn = session_histories_fn
 
     def build(self) -> tuple[str, list[dict], list[dict], list[dict]]:
         """Build a JSON message from the latest merged state via the adapter.
@@ -127,6 +137,17 @@ class MessageBuilder:
             for a in new_aero_alerts + new_tyre_alerts + new_pu_alerts:
                 a["message"] += loc_tag
 
+        # Compute timing and standings
+        timing_data = None
+        standings_data = None
+        if self._timing and self._state_fn and self._session_histories_fn:
+            player_idx = adapter.player_car_index
+            cur_state = self._state_fn()
+            timing_data = self._timing.get_player_lap_timing(
+                player_idx, cur_state, self._session_histories_fn(),
+            )
+            standings_data = self._timing.get_standings(player_idx, cur_state)
+
         msg = json.dumps({
             "tyres": tyres,
             "compound": compound,
@@ -175,5 +196,7 @@ class MessageBuilder:
                 "drsAllowed": aero.get("drsAllowed", False),
                 "drsActivationDistance": aero.get("drsActivationDistance", 0),
             },
+            "timing": timing_data,
+            "standings": standings_data,
         })
         return msg, new_aero_alerts, new_tyre_alerts, new_pu_alerts
