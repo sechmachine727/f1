@@ -52,7 +52,7 @@ class TelemetryInput:
                 datagram = await listener.queue.get()
                 header = decoder.decode_header(datagram)
                 packet_id = header["m_packetId"]
-                server.state[packet_id] = decoder.decode(datagram)
+                server.store_packet(packet_id, decoder.decode(datagram))
 
                 if capture_session:
                     capture_session.process(datagram, decode=False)
@@ -63,6 +63,7 @@ class TelemetryInput:
                 uid = server.adapter.session_uid
                 if packet_id == 1 and uid != self._prev_session_uid:
                     self._prev_session_uid = uid
+                    server.session_histories = {}
                     server.track_location.set_track(server.adapter.get_track_id())
                     context = server.adapter.get_session_context()
                     if server.agents_enabled:
@@ -108,10 +109,18 @@ class TelemetryInput:
                 prev_count = session.packets_received
                 server.session_time = server.adapter.session_time
 
+                # Accumulate per-car session histories from replay state
+                pkt11 = server.state.get(11)
+                if pkt11:
+                    car_idx = pkt11.get("m_carIdx", -1)
+                    if 0 <= car_idx < 22:
+                        server.session_histories[car_idx] = pkt11
+
                 # Detect new session
                 uid = server.adapter.session_uid
                 if uid and uid != self._prev_session_uid:
                     self._prev_session_uid = uid
+                    server.session_histories = {}
                     server.track_location.set_track(server.adapter.get_track_id())
                     context = server.adapter.get_session_context()
                     if server.agents_enabled:
