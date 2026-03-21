@@ -42,10 +42,12 @@ export function StandingsPanel({ standings, sessionType, className }: StandingsP
   const playerRef = useRef<HTMLTableRowElement>(null);
   const expandedPlayerRef = useRef<HTMLTableRowElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const hasScrolledToPlayer = useRef(false);
 
   useEffect(() => {
-    if (playerRef.current) {
+    if (playerRef.current && !hasScrolledToPlayer.current) {
       playerRef.current.scrollIntoView({ block: "center", behavior: "smooth" });
+      hasScrolledToPlayer.current = true;
     }
   }, [standings]);
 
