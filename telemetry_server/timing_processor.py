@@ -2,6 +2,7 @@
 
 from common.f1_structs.f1_constants import DRIVER_ABBREVIATIONS
 from common.f1_structs.f1_constants import TEAM_ABBREVIATIONS
+from common.f1_structs.f1_constants import VISUAL_TYRE_COMPOUND
 
 NUM_CARS = 22
 
@@ -85,11 +86,14 @@ class TimingProcessor:
         lap_cars = lap_pkt.get("m_lapData", [])
         parts_pkt = state.get(4, {})
         parts_cars = parts_pkt.get("m_participants", [])
+        status_pkt = state.get(7, {})
+        status_cars = status_pkt.get("m_carStatusData", [])
 
         standings = []
         for i in range(min(len(lap_cars), NUM_CARS)):
             car = lap_cars[i]
             part = parts_cars[i] if i < len(parts_cars) else {}
+            status_car = status_cars[i] if i < len(status_cars) else {}
 
             position = car.get("m_carPosition", 0)
             result_status = car.get("m_resultStatus", 0)
@@ -125,6 +129,8 @@ class TimingProcessor:
                 "isPlayer": i == player_idx,
                 "driverStatus": car.get("m_driverStatus", 0),
                 "resultStatus": result_status,
+                "lastLapTimeMs": car.get("m_lastLapTimeInMS", 0),
+                "visualCompound": VISUAL_TYRE_COMPOUND.get(status_car.get("m_visualTyreCompound", 0), ""),
             })
 
         standings.sort(key=lambda s: s["position"])

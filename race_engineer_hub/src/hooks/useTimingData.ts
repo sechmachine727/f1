@@ -46,6 +46,8 @@ export interface StandingsEntry {
   isPlayer: boolean;
   driverStatus: number;
   resultStatus: number;
+  lastLapTimeMs: number;
+  visualCompound: string;
 }
 
 const WS_URL = "ws://localhost:8765";
