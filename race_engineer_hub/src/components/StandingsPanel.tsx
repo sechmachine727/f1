@@ -37,7 +37,7 @@ interface StandingsPanelProps {
 
 export function StandingsPanel({ standings, sessionType, className }: StandingsPanelProps) {
   const isRaceSession = sessionType ? /RACE|SPRINT/.test(sessionType) : true;
-  const title = isRaceSession ? "Standings" : "Best Times";
+  const title = "Standings";
   const [expanded, setExpanded] = useState(false);
   const playerRef = useRef<HTMLTableRowElement>(null);
   const expandedPlayerRef = useRef<HTMLTableRowElement>(null);
