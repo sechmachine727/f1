@@ -47,10 +47,10 @@ export function StandingsPanel({ standings, sessionType, className }: StandingsP
 
   if (standings.length === 0) {
     return (
-      <div className="bg-card/50 border border-border/50 rounded-lg px-2 py-1.5 font-display">
+      <div className={`bg-card/50 border border-border/50 rounded-lg px-2 py-1.5 font-display flex flex-col min-h-0 ${className ?? ""}`}>
         <h3 className="text-[10px] font-bold tracking-wider text-muted-foreground uppercase mb-1">
-        {isRaceSession ? "Standings" : "Best Times"}
-      </h3>
+          {isRaceSession ? "Standings" : "Best Times"}
+        </h3>
         <div className="text-[10px] text-muted-foreground">Waiting for data...</div>
       </div>
     );
