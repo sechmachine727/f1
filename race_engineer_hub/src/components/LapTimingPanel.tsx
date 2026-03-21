@@ -18,8 +18,8 @@ interface LapTimingPanelProps {
 export function LapTimingPanel({ timing, lapCompleted, className }: LapTimingPanelProps) {
   if (!timing) {
     return (
-      <div className={`bg-card/50 border border-border/50 rounded-lg p-3 font-display flex flex-col min-h-0 ${className ?? ""}`}>
-        <h3 className="text-[10px] font-bold tracking-wider text-muted-foreground uppercase mb-2">Lap Timing</h3>
+      <div className={`bg-card/50 border border-border/50 rounded-lg px-2 py-1.5 font-display flex flex-col min-h-0 ${className ?? ""}`}>
+        <h3 className="text-[10px] font-bold tracking-wider text-muted-foreground uppercase mb-1">Lap Timing</h3>
         <div className="text-[10px] text-muted-foreground">Waiting for data...</div>
       </div>
     );
@@ -33,18 +33,11 @@ export function LapTimingPanel({ timing, lapCompleted, className }: LapTimingPan
   const bestLapMs = personalBest.lapMs;
 
   return (
-    <div className={`bg-card/50 border border-border/50 rounded-lg p-3 font-display flex flex-col min-h-0 ${className ?? ""}`}>
-      <h3 className="text-[10px] font-bold tracking-wider text-muted-foreground uppercase mb-2">Lap Timing</h3>
+    <div className={`bg-card/50 border border-border/50 rounded-lg px-2 py-1.5 font-display flex flex-col min-h-0 ${className ?? ""}`}>
+      <h3 className="text-[10px] font-bold tracking-wider text-muted-foreground uppercase mb-1">Lap Timing</h3>
 
       <div className="flex-1 min-h-0 overflow-y-auto scrollbar-thin">
-        <table className="w-full text-[10px] tabular-nums table-fixed">
-          <colgroup>
-            <col className="w-6" />
-            <col className="w-[4.5rem]" />
-            <col className="w-[4.5rem]" />
-            <col className="w-[4.5rem]" />
-            <col />
-          </colgroup>
+        <table className="text-[10px] tabular-nums" style={{ borderSpacing: "10px 0", borderCollapse: "separate" }}>
           <tbody>
             {/* Current lap */}
             <tr
@@ -52,11 +45,11 @@ export function LapTimingPanel({ timing, lapCompleted, className }: LapTimingPan
                 lapCompleted ? "bg-green-500/15 text-green-400" : timing.currentLapInvalid ? "text-red-400/60" : "bg-accent/10 text-foreground"
               }`}
             >
-              <td className="text-left py-0.5 font-bold">{timing.currentLap}</td>
-              <td className={`text-right py-0.5 ${SECTOR_COLOR_MAP[s1Color]}`}>{formatSectorTime(timing.sector1Ms)}</td>
-              <td className={`text-right py-0.5 ${SECTOR_COLOR_MAP[s2Color]}`}>{formatSectorTime(timing.sector2Ms)}</td>
-              <td className="text-right py-0.5 text-muted-foreground">{formatSectorTime(0)}</td>
-              <td className={`text-right py-0.5 font-bold ${lapCompleted ? "animate-pulse" : ""}`}>{formatLapTime(timing.currentLapTimeMs)}</td>
+              <td className="text-left py-px font-bold">{timing.currentLap}</td>
+              <td className={`text-right py-px ${SECTOR_COLOR_MAP[s1Color]}`}>{formatSectorTime(timing.sector1Ms)}</td>
+              <td className={`text-right py-px ${SECTOR_COLOR_MAP[s2Color]}`}>{formatSectorTime(timing.sector2Ms)}</td>
+              <td className="text-right py-px text-muted-foreground">{formatSectorTime(0)}</td>
+              <td className={`text-right py-px font-bold ${lapCompleted ? "animate-pulse" : ""}`}>{formatLapTime(timing.currentLapTimeMs)}</td>
             </tr>
 
             {/* Completed laps */}
@@ -69,17 +62,17 @@ export function LapTimingPanel({ timing, lapCompleted, className }: LapTimingPan
                     isBest ? "bg-purple-500/15 text-purple-300" : lap.valid ? "text-foreground" : "text-muted-foreground/50"
                   }`}
                 >
-                  <td className="text-left py-0.5">{lap.lapNum}</td>
-                  <td className={`text-right py-0.5 ${SECTOR_COLOR_MAP[lap.s1Color ?? getSectorColor(lap.s1Ms, personalBest.s1Ms, overallBest.s1Ms)]}`}>
+                  <td className="text-left py-px">{lap.lapNum}</td>
+                  <td className={`text-right py-px ${SECTOR_COLOR_MAP[lap.s1Color ?? getSectorColor(lap.s1Ms, personalBest.s1Ms, overallBest.s1Ms)]}`}>
                     {formatSectorTime(lap.s1Ms)}
                   </td>
-                  <td className={`text-right py-0.5 ${SECTOR_COLOR_MAP[lap.s2Color ?? getSectorColor(lap.s2Ms, personalBest.s2Ms, overallBest.s2Ms)]}`}>
+                  <td className={`text-right py-px ${SECTOR_COLOR_MAP[lap.s2Color ?? getSectorColor(lap.s2Ms, personalBest.s2Ms, overallBest.s2Ms)]}`}>
                     {formatSectorTime(lap.s2Ms)}
                   </td>
-                  <td className={`text-right py-0.5 ${SECTOR_COLOR_MAP[lap.s3Color ?? getSectorColor(lap.s3Ms, personalBest.s3Ms, overallBest.s3Ms)]}`}>
+                  <td className={`text-right py-px ${SECTOR_COLOR_MAP[lap.s3Color ?? getSectorColor(lap.s3Ms, personalBest.s3Ms, overallBest.s3Ms)]}`}>
                     {formatSectorTime(lap.s3Ms)}
                   </td>
-                  <td className="text-right py-0.5 font-bold">{formatLapTime(lap.lapTimeMs)}</td>
+                  <td className="text-right py-px font-bold">{formatLapTime(lap.lapTimeMs)}</td>
                 </tr>
               );
             })}

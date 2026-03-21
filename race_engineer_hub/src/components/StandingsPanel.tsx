@@ -29,16 +29,16 @@ export function StandingsPanel({ standings, className }: StandingsPanelProps) {
 
   if (standings.length === 0) {
     return (
-      <div className="bg-card/50 border border-border/50 rounded-lg p-3 font-display">
-        <h3 className="text-[10px] font-bold tracking-wider text-muted-foreground uppercase mb-2">Standings</h3>
+      <div className="bg-card/50 border border-border/50 rounded-lg px-2 py-1.5 font-display">
+        <h3 className="text-[10px] font-bold tracking-wider text-muted-foreground uppercase mb-1">Standings</h3>
         <div className="text-[10px] text-muted-foreground">Waiting for data...</div>
       </div>
     );
   }
 
   return (
-    <div className={`bg-card/50 border border-border/50 rounded-lg p-3 font-display flex flex-col min-h-0 ${className ?? ""}`}>
-      <h3 className="text-[10px] font-bold tracking-wider text-muted-foreground uppercase mb-2">Standings</h3>
+    <div className={`bg-card/50 border border-border/50 rounded-lg px-2 py-1.5 font-display flex flex-col min-h-0 ${className ?? ""}`}>
+      <h3 className="text-[10px] font-bold tracking-wider text-muted-foreground uppercase mb-1">Standings</h3>
       <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto scrollbar-thin">
         <table className="w-full text-[10px] tabular-nums">
           <tbody>
@@ -56,9 +56,9 @@ export function StandingsPanel({ standings, className }: StandingsPanelProps) {
                         : "text-foreground"
                   }`}
                 >
-                  <td className="text-left py-0.5">{entry.position}</td>
-                  <td className="text-left py-0.5">{entry.abbreviation}</td>
-                  <td className="text-right py-0.5">
+                  <td className="text-left py-px">{entry.position}</td>
+                  <td className="text-left py-px">{entry.abbreviation}</td>
+                  <td className="text-right py-px">
                     {entry.position === 1 ? "LEADER" : formatGap(entry.gapToFrontMs)}
                   </td>
                 </tr>

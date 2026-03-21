@@ -134,7 +134,7 @@ const Index = () => {
           <RaceEngineerPanel report={raceEngineerReport} driverMessages={driverMessages} className="flex-1 min-h-0" />
           <DriverRadioInput onSend={handleDriverSend} onSessionReset={handleSessionReset} />
         </div>
-        <div className="flex flex-col gap-2 min-h-0">
+        <div className="flex flex-col gap-1.5 min-h-0">
           <LapTimingPanel timing={timing} lapCompleted={lapCompleted} className="flex-1 min-h-0" />
           <StandingsPanel standings={standings} className="flex-1 min-h-0" />
         </div>
