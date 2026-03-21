@@ -96,8 +96,12 @@ class TelemetryServer:
 
     async def run(self, args: argparse.Namespace) -> None:
         """Start the WebSocket server and the telemetry input source."""
+        self.agents_enabled = not args.no_agents
         os.environ.setdefault("AGENT_MANIFEST_FILE", "registries/manifest.hocon")
-        self.dispatch_manager.init_agents()
+        if self.agents_enabled:
+            self.dispatch_manager.init_agents()
+        else:
+            print("Agents disabled — running in telemetry-only mode")
 
         print(f"Starting WebSocket server on ws://{WS_HOST}:{WS_PORT}")
         async with self.websocket_server.serve():
@@ -136,6 +140,11 @@ async def main() -> None:
         "--keep-pauses",
         action="store_true",
         help="Preserve original game pauses during replay (by default pauses are skipped)",
+    )
+    parser.add_argument(
+        "--no-agents",
+        action="store_true",
+        help="Disable AI agent initialization — stream telemetry only",
     )
     args = parser.parse_args()
 
