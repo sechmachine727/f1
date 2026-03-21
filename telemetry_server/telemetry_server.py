@@ -14,6 +14,8 @@ import argparse
 import asyncio
 import os
 
+from dotenv import load_dotenv
+
 from telemetry_server.alerts.aero_alert_processor import AeroAlertProcessor
 from telemetry_server.alerts.pit_alert_processor import PitAlertProcessor
 from telemetry_server.alerts.pu_alert_processor import PuAlertProcessor
@@ -140,6 +142,8 @@ class TelemetryServer:
 
 async def main() -> None:
     """Parse CLI arguments and start the telemetry server."""
+    load_dotenv()
+
     parser = argparse.ArgumentParser(description="F1 25 telemetry WebSocket bridge")
     parser.add_argument(
         "--capture",
