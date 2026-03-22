@@ -67,6 +67,8 @@ class MessageBuilder:
         self._timing = timing_processor
         self._state_fn = state_fn
         self._session_histories_fn = session_histories_fn
+        self._cached_tyre_sets: dict | None = None
+        self._last_tyre_sets_lap: int = -1
 
     def build(self) -> tuple[str, list[dict], list[dict], list[dict]]:
         """Build a JSON message from the latest merged state via the adapter.
@@ -80,11 +82,19 @@ class MessageBuilder:
         aero = adapter.get_aero()
         tyres = adapter.get_tyres()
         compound, compound_visual = adapter.get_compound()
-        tyre_sets = adapter.get_tyre_sets()
         power_unit = adapter.get_power_unit()
         session = adapter.get_session()
         weather_forecast = adapter.get_weather_forecast()
         lap = adapter.get_lap()
+
+        # Only refresh tyre sets once per lap to avoid unnecessary real-time updates
+        current_lap = lap.get("currentLap", 0)
+        if current_lap != self._last_tyre_sets_lap:
+            self._last_tyre_sets_lap = current_lap
+            tyre_sets = adapter.get_tyre_sets()
+            self._cached_tyre_sets = tyre_sets
+        else:
+            tyre_sets = None
         track_map = adapter.get_track_map()
         pit_status = adapter.get_pit_status()
         marshal_zones = adapter.get_marshal_zones()
