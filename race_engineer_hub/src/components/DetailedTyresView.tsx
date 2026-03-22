@@ -149,19 +149,8 @@ function Panel({ title, icon, children, className = "", raw = false }: {
 // ── Sub-panel 1: Tyres Telemetry ───────────────────────────────────────────
 
 function TyresTelemetryPanel({ data }: { data: TyreTelemetryData }) {
-  const compoundText = data.compound
-    ? `${data.compoundVisual.toUpperCase()} (${data.compound})`
-    : "\u2014";
-  const compoundColor = COMPOUND_COLORS[data.compoundVisual] ?? undefined;
-
   return (
     <div className="flex flex-col gap-2">
-      <div className="flex items-center justify-between text-[10px] text-muted-foreground uppercase tracking-wider">
-        <span style={compoundColor ? { color: compoundColor } : undefined} className="font-bold">
-          {compoundText}
-        </span>
-        <span>Age: {data.tyresAgeLaps} laps</span>
-      </div>
       <div className="grid grid-cols-2 gap-2">
         {POSITIONS.map((p) => {
           const t = data.tyres[p.key];
@@ -186,6 +175,26 @@ function TyresTelemetryPanel({ data }: { data: TyreTelemetryData }) {
           );
         })}
       </div>
+    </div>
+  );
+}
+
+// ── Sub-panel: Tyre Compound ────────────────────────────────────────────────
+
+function CompoundPanel({ data }: { data: TyreTelemetryData }) {
+  const compoundText = data.compound
+    ? `${data.compoundVisual.toUpperCase()} (${data.compound})`
+    : "\u2014";
+  const compoundColor = COMPOUND_COLORS[data.compoundVisual] ?? undefined;
+
+  return (
+    <div className="flex items-center justify-between py-1">
+      <span style={compoundColor ? { color: compoundColor } : undefined} className="font-display text-base font-bold">
+        {compoundText}
+      </span>
+      <span className="text-sm text-muted-foreground">
+        Age: <span className="font-display font-bold text-foreground">{data.tyresAgeLaps}</span> laps
+      </span>
     </div>
   );
 }
@@ -582,8 +591,18 @@ export function DetailedTyresView({
               )}
             </Panel>
 
-            {/* Row 1 right: Weather (stacked) */}
+            {/* Row 1 right: Compound + Weather (stacked) */}
             <div className="flex flex-col gap-3">
+              <Panel
+                title="Tyre Compound"
+                icon={<Circle className="h-3.5 w-3.5 text-primary" />}
+              >
+                {tyreData ? (
+                  <CompoundPanel data={tyreData} />
+                ) : (
+                  <span className="text-[11px] text-muted-foreground">Waiting for telemetry...</span>
+                )}
+              </Panel>
               <Panel
                 title="Current Weather"
                 icon={<CloudSun className="h-3.5 w-3.5 text-primary" />}
