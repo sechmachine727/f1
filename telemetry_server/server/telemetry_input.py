@@ -74,9 +74,9 @@ class TelemetryInput:
 
                 # Trigger on Car Telemetry (packet 6)
                 if packet_id == 6:
-                    msg, new_aero, new_tyre, new_pu, agent_loc = server.message_builder.build()
+                    msg, new_aero, new_tyre, new_pu = server.message_builder.build()
                     await server.websocket_server.broadcast(msg)
-                    server.dispatch_manager.dispatch_alerts(new_aero, new_tyre, new_pu, agent_loc)
+                    server.dispatch_manager.dispatch_alerts(new_aero, new_tyre, new_pu)
         finally:
             listener.stop()
             if capture_session:
