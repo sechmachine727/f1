@@ -138,6 +138,36 @@ class TelemetryStateAdapter:
         s = self._player_car(7, "m_carStatusData")
         return s.get("m_tyresAgeLaps", 0)
 
+    # -- Tyre Sets ------------------------------------------------------------
+
+    def get_tyre_sets(self) -> dict:
+        """Build the tyre sets data dict from packet 12.
+
+        Returns available tyre sets with compound info, wear, lifespan,
+        and which set is currently fitted.
+        """
+        pkt = self._state.get(12, {})
+        if not pkt:
+            return {"sets": [], "fittedIdx": 0}
+
+        raw_sets = pkt.get("m_tyreSetData", [])
+        fitted_idx = pkt.get("m_fittedIdx", 0)
+
+        sets = []
+        for ts in raw_sets:
+            if not ts.get("m_available", 0):
+                continue
+            sets.append({
+                "actualCompound": ACTUAL_TYRE_COMPOUND.get(ts.get("m_actualTyreCompound", 0), "?"),
+                "visualCompound": VISUAL_TYRE_COMPOUND.get(ts.get("m_visualTyreCompound", 0), "?"),
+                "wear": ts.get("m_wear", 0),
+                "lifeSpan": ts.get("m_lifeSpan", 0),
+                "usableLife": ts.get("m_usableLife", 0),
+                "lapDeltaTime": ts.get("m_lapDeltaTime", 0),
+                "fitted": bool(ts.get("m_fitted", 0)),
+            })
+        return {"sets": sets, "fittedIdx": fitted_idx}
+
     # -- Power Unit -----------------------------------------------------------
 
     def get_power_unit(self) -> dict:

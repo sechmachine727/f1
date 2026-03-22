@@ -27,7 +27,7 @@ const WEATHER_LABELS: Record<number, string> = {
 
 const Index = () => {
   const session = useSessionTelemetry();
-  const { tyreAlerts: { alerts: tyreAlerts, activeCount: tyreActiveCount }, tyresReport, wearHistory, data: tyreData } = useTyreTelemetry();
+  const { tyreAlerts: { alerts: tyreAlerts, activeCount: tyreActiveCount }, tyresReport, wearHistory, data: tyreData, tyreSets } = useTyreTelemetry();
   const { puAlerts: { alerts: puAlerts, activeCount: puActiveCount }, puReport } = usePowerUnitTelemetry();
   const { aeroAlerts: { alerts: aeroAlerts, activeCount: aeroActiveCount }, damageReport } = useAeroTelemetry();
   const raceEngineerReport = useRaceEngineerReport();
@@ -154,6 +154,7 @@ const Index = () => {
         tyreAlerts={tyreAlerts}
         tyreActiveCount={tyreActiveCount}
         engineerResponses={tyresReport.responses}
+        tyreSets={tyreSets}
       />
     </div>
   );

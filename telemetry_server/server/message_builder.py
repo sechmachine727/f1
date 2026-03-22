@@ -80,6 +80,7 @@ class MessageBuilder:
         aero = adapter.get_aero()
         tyres = adapter.get_tyres()
         compound, compound_visual = adapter.get_compound()
+        tyre_sets = adapter.get_tyre_sets()
         power_unit = adapter.get_power_unit()
         session = adapter.get_session()
         weather_forecast = adapter.get_weather_forecast()
@@ -165,6 +166,7 @@ class MessageBuilder:
             "aero": aero,
             "session": session,
             "weatherForecast": weather_forecast,
+            "tyreSets": tyre_sets,
             "trackMap": track_map,
             "pitStatus": pit_status,
             "tyreAlerts": {

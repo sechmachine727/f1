@@ -11,6 +11,21 @@ export interface TyreData {
   brakeTemp: number;
 }
 
+export interface TyreSetInfo {
+  actualCompound: string;
+  visualCompound: string;
+  wear: number;
+  lifeSpan: number;
+  usableLife: number;
+  lapDeltaTime: number;
+  fitted: boolean;
+}
+
+export interface TyreSetsData {
+  sets: TyreSetInfo[];
+  fittedIdx: number;
+}
+
 export interface TyreTelemetryData {
   tyres: Record<"fl" | "fr" | "rl" | "rr", TyreData>;
   compound: string;
@@ -52,21 +67,26 @@ const RECONNECT_INTERVAL_MS = 2000;
 
 const EMPTY_ALERTS: TyreAlerts = { alerts: [], activeCount: 0 };
 
+const EMPTY_TYRE_SETS: TyreSetsData = { sets: [], fittedIdx: -1 };
+
 export function useTyreTelemetry(): {
   data: TyreTelemetryData | null;
   tyreAlerts: TyreAlerts;
   tyresReport: TyresReport;
   wearHistory: LapWearRecord[];
+  tyreSets: TyreSetsData;
 } {
   const [data, setData] = useState<TyreTelemetryData | null>(null);
   const [tyreAlerts, setTyreAlerts] = useState<TyreAlerts>(EMPTY_ALERTS);
   const [tyresReport, setTyresReport] = useState<TyresReport>({ responses: [] });
   const [wearHistory, setWearHistory] = useState<LapWearRecord[]>([]);
+  const [tyreSets, setTyreSets] = useState<TyreSetsData>(EMPTY_TYRE_SETS);
   const lastTyresResponse = useRef<string | null>(null);
   const lastRecordedFractionalLap = useRef<number>(0);
   const lastAppendedLap = useRef<number>(0);
   const prevPitStatus = useRef<number>(0);
   const prevSessionTime = useRef<number>(0);
+  const prevFittedIdx = useRef<number>(-1);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout>>();
 
@@ -88,6 +108,13 @@ export function useTyreTelemetry(): {
             trackLength: msg.session?.trackLength ?? 0,
             sectorBoundaries: msg.sectorBoundaries ?? { sector2Start: 0, sector3Start: 0 },
           });
+
+          // Only update tyre sets when the fitted set changes
+          const newTyreSets = msg.tyreSets;
+          if (newTyreSets && newTyreSets.fittedIdx !== prevFittedIdx.current) {
+            prevFittedIdx.current = newTyreSets.fittedIdx;
+            setTyreSets(newTyreSets);
+          }
 
           // Session reset detection
           if (msg.sessionTime !== undefined && msg.sessionTime < prevSessionTime.current - 5) {
@@ -172,5 +199,5 @@ export function useTyreTelemetry(): {
     };
   }, []);
 
-  return { data, tyreAlerts, tyresReport, wearHistory };
+  return { data, tyreAlerts, tyresReport, wearHistory, tyreSets };
 }

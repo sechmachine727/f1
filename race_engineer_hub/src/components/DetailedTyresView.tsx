@@ -1,7 +1,7 @@
 import React from "react";
 import { useAutoScroll } from "@/hooks/useAutoScroll";
 import type { SessionData, WeatherForecastSample } from "@/hooks/useSessionTelemetry";
-import type { LapWearRecord, TyreTelemetryData, TyresReportEntry } from "@/hooks/useTyreTelemetry";
+import type { LapWearRecord, TyreTelemetryData, TyreSetsData, TyresReportEntry } from "@/hooks/useTyreTelemetry";
 import type { Alert } from "@/components/AlertBox";
 import { BarGauge } from "./TelemetryCard";
 import ReactMarkdown from "react-markdown";
@@ -269,6 +269,64 @@ function WeatherForecastPanel({ forecast }: { forecast: WeatherForecastSample[] 
     </div>
   );
 }
+
+// ── Sub-panel: Tyre Sets ────────────────────────────────────────────────────
+
+const COMPOUND_ORDER = ["soft", "medium", "hard", "inter", "wet"];
+
+const TyreSetsPanel = React.memo(function TyreSetsPanel({ tyreSets }: { tyreSets: TyreSetsData }) {
+  if (tyreSets.sets.length === 0) {
+    return <span className="text-[11px] text-muted-foreground">No tyre set data available</span>;
+  }
+
+  // Flatten sets sorted by compound order
+  const sorted = [...tyreSets.sets].sort(
+    (a, b) => COMPOUND_ORDER.indexOf(a.visualCompound) - COMPOUND_ORDER.indexOf(b.visualCompound)
+  );
+
+  return (
+    <table className="w-full text-[10px] border-collapse">
+      <thead>
+        <tr className="text-[9px] text-muted-foreground uppercase tracking-wider font-display">
+          <th className="text-left py-0.5 pr-2">Compound</th>
+          <th className="text-right py-0.5 px-2">Wear</th>
+          <th className="text-right py-0.5 px-2">Life</th>
+          <th className="text-right py-0.5 pl-2">Delta</th>
+        </tr>
+      </thead>
+      <tbody>
+        {sorted.map((s, i) => {
+          const color = COMPOUND_COLORS[s.visualCompound] ?? "white";
+          return (
+            <tr key={i} className={s.fitted ? "bg-primary/10" : ""}>
+              <td className="py-0.5 pr-2">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-2 h-2 rounded-sm shrink-0" style={{ backgroundColor: color }} />
+                  <span className="font-bold uppercase" style={{ color }}>{s.visualCompound}</span>
+                  {s.fitted && <span className="text-[8px] font-display font-bold text-primary tracking-wider">FIT</span>}
+                </div>
+              </td>
+              <td className="text-right py-0.5 px-2 font-bold">{s.wear}%</td>
+              <td className="text-right py-0.5 px-2">
+                <span className="font-bold">{s.lifeSpan}</span>
+                <span className="text-muted-foreground">/{s.usableLife}</span>
+              </td>
+              <td className="text-right py-0.5 pl-2">
+                {s.lapDeltaTime !== 0 ? (
+                  <span className={`font-bold ${s.lapDeltaTime > 0 ? "text-accent" : "text-primary"}`}>
+                    {s.lapDeltaTime > 0 ? "+" : ""}{(s.lapDeltaTime / 1000).toFixed(3)}s
+                  </span>
+                ) : (
+                  <span className="text-muted-foreground">—</span>
+                )}
+              </td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  );
+});
 
 // ── Sub-panel 4: Historical Tyre Wear Chart ────────────────────────────────
 
@@ -538,6 +596,7 @@ interface DetailedTyresViewProps {
   tyreAlerts: Alert[];
   tyreActiveCount: number;
   engineerResponses: TyresReportEntry[];
+  tyreSets: TyreSetsData;
 }
 
 export function DetailedTyresView({
@@ -549,6 +608,7 @@ export function DetailedTyresView({
   tyreAlerts,
   tyreActiveCount,
   engineerResponses,
+  tyreSets,
 }: DetailedTyresViewProps) {
   if (!open) return null;
 
@@ -578,20 +638,7 @@ export function DetailedTyresView({
         {/* Grid content */}
         <div className="flex-1 overflow-y-auto p-3">
           <div className="grid grid-cols-2 gap-3" style={{ gridTemplateRows: "auto auto minmax(10rem, 1fr)" }}>
-            {/* Row 1 left: Tyres Telemetry */}
-            <Panel
-              title="Tyres Telemetry"
-              icon={<Circle className="h-3.5 w-3.5 text-primary" />}
-              className="row-span-1"
-            >
-              {tyreData ? (
-                <TyresTelemetryPanel data={tyreData} />
-              ) : (
-                <span className="text-[11px] text-muted-foreground">Waiting for telemetry...</span>
-              )}
-            </Panel>
-
-            {/* Row 1 right: Compound + Weather (stacked) */}
+            {/* Row 1 left: Compound + Tyres Telemetry (stacked) */}
             <div className="flex flex-col gap-3">
               <Panel
                 title="Tyre Compound"
@@ -603,6 +650,20 @@ export function DetailedTyresView({
                   <span className="text-[11px] text-muted-foreground">Waiting for telemetry...</span>
                 )}
               </Panel>
+              <Panel
+                title="Tyres Telemetry"
+                icon={<Circle className="h-3.5 w-3.5 text-primary" />}
+              >
+                {tyreData ? (
+                  <TyresTelemetryPanel data={tyreData} />
+                ) : (
+                  <span className="text-[11px] text-muted-foreground">Waiting for telemetry...</span>
+                )}
+              </Panel>
+            </div>
+
+            {/* Row 1 right: Weather + Forecast + Tyre Sets (stacked) */}
+            <div className="flex flex-col gap-3">
               <Panel
                 title="Current Weather"
                 icon={<CloudSun className="h-3.5 w-3.5 text-primary" />}
@@ -618,6 +679,12 @@ export function DetailedTyresView({
                 icon={<Droplets className="h-3.5 w-3.5 text-primary" />}
               >
                 <WeatherForecastPanel forecast={session?.weatherForecast ?? []} />
+              </Panel>
+              <Panel
+                title="Tyre Sets"
+                icon={<Circle className="h-3.5 w-3.5 text-primary" />}
+              >
+                <TyreSetsPanel tyreSets={tyreSets} />
               </Panel>
             </div>
 
