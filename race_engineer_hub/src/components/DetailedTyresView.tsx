@@ -124,11 +124,12 @@ const rowStyles = {
 
 // ── Sub-panel wrapper ──────────────────────────────────────────────────────
 
-function Panel({ title, icon, children, className = "" }: {
+function Panel({ title, icon, children, className = "", raw = false }: {
   title: string;
   icon: React.ReactNode;
   children: React.ReactNode;
   className?: string;
+  raw?: boolean;
 }) {
   return (
     <div className={`bg-card border border-border/50 rounded-md overflow-hidden flex flex-col ${className}`}>
@@ -136,9 +137,11 @@ function Panel({ title, icon, children, className = "" }: {
         {icon}
         <span className="font-display text-xs font-bold tracking-widest uppercase text-foreground">{title}</span>
       </div>
-      <div className="flex-1 overflow-y-auto p-2">
-        {children}
-      </div>
+      {raw ? children : (
+        <div className="flex-1 overflow-y-auto p-2">
+          {children}
+        </div>
+      )}
     </div>
   );
 }
@@ -625,6 +628,7 @@ export function DetailedTyresView({
               title="Tyres Agent"
               icon={<Circle className="h-3.5 w-3.5 text-primary" />}
               className="col-span-2 max-h-[20rem]"
+              raw
             >
               <TyresAgentPanel alerts={tyreAlerts} engineerResponses={engineerResponses} />
             </Panel>

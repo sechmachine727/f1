@@ -64,6 +64,7 @@ export function useTyreTelemetry(): {
   const [wearHistory, setWearHistory] = useState<LapWearRecord[]>([]);
   const lastTyresResponse = useRef<string | null>(null);
   const lastRecordedFractionalLap = useRef<number>(0);
+  const lastAppendedLap = useRef<number>(0);
   const prevPitStatus = useRef<number>(0);
   const prevSessionTime = useRef<number>(0);
   const wsRef = useRef<WebSocket | null>(null);
@@ -92,6 +93,7 @@ export function useTyreTelemetry(): {
           if (msg.sessionTime !== undefined && msg.sessionTime < prevSessionTime.current - 5) {
             setWearHistory([]);
             lastRecordedFractionalLap.current = 0;
+            lastAppendedLap.current = 0;
           }
           if (msg.sessionTime !== undefined) {
             prevSessionTime.current = msg.sessionTime;
@@ -112,12 +114,14 @@ export function useTyreTelemetry(): {
 
             // Throttle: record every ~5% of a lap, only moving forward
             const step = 0.05;
-            if (fractionalLap >= lastRecordedFractionalLap.current + step) {
+            const roundedLap = Math.round(fractionalLap * 100) / 100;
+            if (fractionalLap >= lastRecordedFractionalLap.current + step && roundedLap > lastAppendedLap.current) {
               lastRecordedFractionalLap.current = fractionalLap;
+              lastAppendedLap.current = roundedLap;
               setWearHistory((prev) => [
                 ...prev,
                 {
-                  lap: Math.round(fractionalLap * 100) / 100,
+                  lap: roundedLap,
                   fl: msg.tyres.fl.wear,
                   fr: msg.tyres.fr.wear,
                   rl: msg.tyres.rl.wear,
