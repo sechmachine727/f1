@@ -97,19 +97,18 @@ export function useTyreTelemetry(): {
             prevSessionTime.current = msg.sessionTime;
           }
 
-          // Detect pit exit: reset so recording resumes immediately
-          const pitStatus = msg.pitStatus?.pitStatus ?? 0;
-          if (prevPitStatus.current !== 0 && pitStatus === 0) {
-            lastRecordedFractionalLap.current = 0;
-          }
-          prevPitStatus.current = pitStatus;
-
           // Record wear continuously using fractional laps (skip when in pit lane)
+          const pitStatus = msg.pitStatus?.pitStatus ?? 0;
           const trackLength = msg.session?.trackLength ?? 0;
           if (msg.currentLap >= 1 && msg.tyres && trackLength > 0 && pitStatus === 0) {
             const lapDist = msg.lapDistance ?? 0;
             const fraction = Math.max(0, Math.min(lapDist / trackLength, 1));
             const fractionalLap = msg.currentLap + fraction;
+
+            // On pit exit, resume recording from current position (not backwards)
+            if (prevPitStatus.current !== 0) {
+              lastRecordedFractionalLap.current = fractionalLap - 0.05;
+            }
 
             // Throttle: record every ~5% of a lap, only moving forward
             const step = 0.05;
@@ -128,6 +127,7 @@ export function useTyreTelemetry(): {
               ]);
             }
           }
+          prevPitStatus.current = pitStatus;
 
           if (msg.tyreAlerts) {
             setTyreAlerts(msg.tyreAlerts);
