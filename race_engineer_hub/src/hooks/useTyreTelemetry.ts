@@ -96,16 +96,17 @@ export function useTyreTelemetry(): {
             prevSessionTime.current = msg.sessionTime;
           }
 
-          // Record wear continuously using fractional laps
+          // Record wear continuously using fractional laps (skip when in pit lane)
           const trackLength = msg.session?.trackLength ?? 0;
-          if (msg.currentLap >= 1 && msg.tyres && trackLength > 0) {
+          const pitStatus = msg.pitStatus?.pitStatus ?? 0;
+          if (msg.currentLap >= 1 && msg.tyres && trackLength > 0 && pitStatus === 0) {
             const lapDist = msg.lapDistance ?? 0;
             const fraction = Math.max(0, Math.min(lapDist / trackLength, 1));
             const fractionalLap = msg.currentLap + fraction;
 
-            // Throttle: record every ~5% of a lap
+            // Throttle: record every ~5% of a lap, only moving forward
             const step = 0.05;
-            if (fractionalLap - lastRecordedFractionalLap.current >= step || fractionalLap < lastRecordedFractionalLap.current) {
+            if (fractionalLap >= lastRecordedFractionalLap.current + step) {
               lastRecordedFractionalLap.current = fractionalLap;
               setWearHistory((prev) => [
                 ...prev,
