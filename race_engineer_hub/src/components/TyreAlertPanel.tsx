@@ -70,9 +70,10 @@ interface TyreAlertPanelProps {
   alerts: Alert[];
   activeCount: number;
   engineerResponses: TyresReportEntry[];
+  onExpand?: () => void;
 }
 
-export function TyreAlertPanel({ alerts, activeCount, engineerResponses }: TyreAlertPanelProps) {
+export function TyreAlertPanel({ alerts, activeCount, engineerResponses, onExpand }: TyreAlertPanelProps) {
   const [expanded, setExpanded] = useState(false);
   const items = mergeItems(alerts, engineerResponses);
   const scrollRef = useAutoScroll<HTMLDivElement>(items.length);
@@ -111,7 +112,7 @@ export function TyreAlertPanel({ alerts, activeCount, engineerResponses }: TyreA
       <div className="bg-card border border-border/50 rounded-md overflow-hidden flex flex-col flex-1 min-h-36">
         <div
           className="flex items-center gap-1.5 px-3 py-2 border-b border-border/50 bg-secondary/30 select-none cursor-pointer shrink-0"
-          onDoubleClick={() => setExpanded(true)}
+          onDoubleClick={() => onExpand ? onExpand() : setExpanded(true)}
         >
           <Circle className="h-4 w-4 text-primary" />
           <span className="font-display text-sm font-bold tracking-widest uppercase text-foreground">Tyres Agent</span>

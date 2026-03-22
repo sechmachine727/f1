@@ -24,7 +24,9 @@ export function useAutoScroll<T extends HTMLElement>(dep: unknown, threshold = 5
       elRef.current = node;
 
       if (node) {
-        isNearBottom.current = node.scrollHeight - node.scrollTop - node.clientHeight <= threshold;
+        // Scroll to bottom on initial attach
+        node.scrollTop = node.scrollHeight;
+        isNearBottom.current = true;
         const onScroll = () => {
           isNearBottom.current = node.scrollHeight - node.scrollTop - node.clientHeight <= threshold;
         };

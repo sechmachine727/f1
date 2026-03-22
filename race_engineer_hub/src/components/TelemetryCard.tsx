@@ -6,6 +6,7 @@ interface TelemetryCardProps {
   icon: ReactNode;
   children: ReactNode;
   status?: "nominal" | "warning" | "critical";
+  onExpand?: () => void;
 }
 
 const statusStyles = {
@@ -20,7 +21,7 @@ const statusLabels = {
   critical: { text: "CRITICAL", class: "text-accent" },
 };
 
-export function TelemetryCard({ title, icon, children, status = "nominal" }: TelemetryCardProps) {
+export function TelemetryCard({ title, icon, children, status = "nominal", onExpand }: TelemetryCardProps) {
   const [expanded, setExpanded] = useState(false);
   const s = statusLabels[status];
 
@@ -29,7 +30,7 @@ export function TelemetryCard({ title, icon, children, status = "nominal" }: Tel
       <div className={`bg-card rounded-md border ${statusStyles[status]} p-3 flex flex-col gap-2 telemetry-grid shrink-0`}>
         <div
           className="flex items-center justify-between select-none cursor-pointer"
-          onDoubleClick={() => setExpanded(true)}
+          onDoubleClick={() => onExpand ? onExpand() : setExpanded(true)}
         >
           <div className="flex items-center gap-2">
             {icon}

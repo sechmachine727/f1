@@ -1,5 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 
+export interface WeatherForecastSample {
+  timeOffset: number;
+  weather: number;
+  trackTemperature: number;
+  trackTemperatureChange: number;
+  airTemperature: number;
+  airTemperatureChange: number;
+  rainPercentage: number;
+}
+
 export interface SessionData {
   sessionType: string;
   trackName: string;
@@ -18,6 +28,7 @@ export interface SessionData {
   pitLaneTimerActive: boolean;
   pitLaneTimeMs: number;
   pitStopTimeMs: number;
+  weatherForecast: WeatherForecastSample[];
 }
 
 const WS_URL = "ws://localhost:8765";
@@ -66,6 +77,7 @@ export function useSessionTelemetry(): SessionData | null {
               pitLaneTimerActive: pit.pitLaneTimerActive ?? false,
               pitLaneTimeMs: pit.pitLaneTimeMs ?? 0,
               pitStopTimeMs: pit.pitStopTimeMs ?? 0,
+              weatherForecast: msg.weatherForecast ?? [],
             });
           }
         } catch {

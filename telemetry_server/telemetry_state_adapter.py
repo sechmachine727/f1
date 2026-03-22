@@ -138,6 +138,40 @@ class TelemetryStateAdapter:
         s = self._player_car(7, "m_carStatusData")
         return s.get("m_tyresAgeLaps", 0)
 
+    # -- Tyre Sets ------------------------------------------------------------
+
+    def get_tyre_sets(self) -> dict:
+        """Build the tyre sets data dict from packet 12.
+
+        Returns available tyre sets with compound info, wear, lifespan,
+        and which set is currently fitted.
+        """
+        pkt = self._state.get(12, {})
+        if not pkt:
+            return {"sets": [], "fittedIdx": 0}
+
+        raw_sets = pkt.get("m_tyreSetData", [])
+        fitted_idx = pkt.get("m_fittedIdx", 0)
+
+        sets = []
+        for idx, ts in enumerate(raw_sets):
+            if not ts.get("m_actualTyreCompound", 0):
+                continue
+            if not ts.get("m_available", 0):
+                continue
+            sets.append({
+                "index": idx,
+                "actualCompound": ACTUAL_TYRE_COMPOUND.get(ts.get("m_actualTyreCompound", 0), "?"),
+                "visualCompound": VISUAL_TYRE_COMPOUND.get(ts.get("m_visualTyreCompound", 0), "?"),
+                "wear": ts.get("m_wear", 0),
+                "available": bool(ts.get("m_available", 0)),
+                "lifeSpan": ts.get("m_lifeSpan", 0),
+                "usableLife": ts.get("m_usableLife", 0),
+                "lapDeltaTime": ts.get("m_lapDeltaTime", 0),
+                "fitted": bool(ts.get("m_fitted", 0)),
+            })
+        return {"sets": sets, "fittedIdx": fitted_idx}
+
     # -- Power Unit -----------------------------------------------------------
 
     def get_power_unit(self) -> dict:
@@ -238,6 +272,37 @@ class TelemetryStateAdapter:
             "currentLapTimeMs": lap.get("m_currentLapTimeInMS", 0),
             "lastLapTimeMs": lap.get("m_lastLapTimeInMS", 0),
         }
+
+    # -- Weather forecast ------------------------------------------------------
+
+    def get_weather_forecast(self) -> list[dict]:
+        """Return filtered weather forecast samples for the current session type.
+
+        Filters to the current session type and excludes offset=0 entries,
+        matching the logic in terminal_viewer.py.
+        """
+        sess = self._state.get(1, {})
+        n_samples = sess.get("m_numWeatherForecastSamples", 0)
+        samples = sess.get("m_weatherForecastSamples", [])
+        cur_session_type = sess.get("m_sessionType", 0)
+
+        result = []
+        for fc in samples[:n_samples]:
+            if fc.get("m_sessionType", 0) != cur_session_type:
+                continue
+            offset = fc.get("m_timeOffset", 0)
+            if offset == 0:
+                continue
+            result.append({
+                "timeOffset": offset,
+                "weather": fc.get("m_weather", 0),
+                "trackTemperature": fc.get("m_trackTemperature", 0),
+                "trackTemperatureChange": fc.get("m_trackTemperatureChange", 0),
+                "airTemperature": fc.get("m_airTemperature", 0),
+                "airTemperatureChange": fc.get("m_airTemperatureChange", 0),
+                "rainPercentage": fc.get("m_rainPercentage", 0),
+            })
+        return result
 
     # -- Lap ------------------------------------------------------------------
 
