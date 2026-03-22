@@ -102,6 +102,11 @@ class TelemetryServer:
             packet_id: The F1 packet ID.
             decoded: The decoded packet dict.
         """
+        if packet_id == 12:
+            car_idx = decoded.get("m_carIdx", -1)
+            player_idx = decoded.get("m_playerCarIndex", 0)
+            if car_idx != player_idx:
+                return
         self.state[packet_id] = decoded
         if packet_id == 11:
             car_idx = decoded.get("m_carIdx", -1)

@@ -98,6 +98,10 @@ class ReplaySession:
                 header = self._decoder.decode_header(datagram)
                 packet_id = header["m_packetId"]
                 decoded = self._decoder.decode(datagram)
+                if packet_id == 12:
+                    if decoded.get("m_carIdx", -1) != decoded.get("m_playerCarIndex", 0):
+                        self.packets_captured += 1
+                        continue
                 self.state[packet_id] = decoded
                 self.packets_captured += 1
             except (KeyError, Exception):

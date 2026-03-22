@@ -154,13 +154,15 @@ class TelemetryStateAdapter:
         fitted_idx = pkt.get("m_fittedIdx", 0)
 
         sets = []
-        for ts in raw_sets:
-            if not ts.get("m_available", 0):
+        for idx, ts in enumerate(raw_sets):
+            if not ts.get("m_actualTyreCompound", 0):
                 continue
             sets.append({
+                "index": idx,
                 "actualCompound": ACTUAL_TYRE_COMPOUND.get(ts.get("m_actualTyreCompound", 0), "?"),
                 "visualCompound": VISUAL_TYRE_COMPOUND.get(ts.get("m_visualTyreCompound", 0), "?"),
                 "wear": ts.get("m_wear", 0),
+                "available": bool(ts.get("m_available", 0)),
                 "lifeSpan": ts.get("m_lifeSpan", 0),
                 "usableLife": ts.get("m_usableLife", 0),
                 "lapDeltaTime": ts.get("m_lapDeltaTime", 0),

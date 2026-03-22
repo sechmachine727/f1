@@ -12,9 +12,11 @@ export interface TyreData {
 }
 
 export interface TyreSetInfo {
+  index: number;
   actualCompound: string;
   visualCompound: string;
   wear: number;
+  available: boolean;
   lifeSpan: number;
   usableLife: number;
   lapDeltaTime: number;
@@ -86,7 +88,6 @@ export function useTyreTelemetry(): {
   const lastAppendedLap = useRef<number>(0);
   const prevPitStatus = useRef<number>(0);
   const prevSessionTime = useRef<number>(0);
-  const prevFittedIdx = useRef<number>(-1);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout>>();
 
@@ -109,11 +110,8 @@ export function useTyreTelemetry(): {
             sectorBoundaries: msg.sectorBoundaries ?? { sector2Start: 0, sector3Start: 0 },
           });
 
-          // Only update tyre sets when the fitted set changes
-          const newTyreSets = msg.tyreSets;
-          if (newTyreSets && newTyreSets.fittedIdx !== prevFittedIdx.current) {
-            prevFittedIdx.current = newTyreSets.fittedIdx;
-            setTyreSets(newTyreSets);
+          if (msg.tyreSets) {
+            setTyreSets(msg.tyreSets);
           }
 
           // Session reset detection

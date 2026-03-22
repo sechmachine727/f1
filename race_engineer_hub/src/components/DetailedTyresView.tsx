@@ -285,6 +285,7 @@ const TyreSetsPanel = React.memo(function TyreSetsPanel({ tyreSets }: { tyreSets
     <table className="w-full text-[10px] border-collapse">
       <thead>
         <tr className="text-[9px] text-muted-foreground uppercase tracking-wider font-display">
+          <th className="text-right py-0.5 pr-2">#</th>
           <th className="text-left py-0.5 pr-2">Compound</th>
           <th className="text-right py-0.5 px-2">Wear</th>
           <th className="text-right py-0.5 px-2">Life</th>
@@ -292,10 +293,11 @@ const TyreSetsPanel = React.memo(function TyreSetsPanel({ tyreSets }: { tyreSets
         </tr>
       </thead>
       <tbody>
-        {sorted.map((s, i) => {
+        {sorted.map((s) => {
           const color = COMPOUND_COLORS[s.visualCompound] ?? "white";
           return (
-            <tr key={i} className={s.fitted ? "bg-primary/10" : ""}>
+            <tr key={s.index} className={`${s.fitted ? "bg-primary/10" : ""} ${!s.available ? "opacity-35" : ""}`}>
+              <td className="text-right py-0.5 pr-2 text-muted-foreground">{s.index}</td>
               <td className="py-0.5 pr-2">
                 <div className="flex items-center gap-1.5">
                   <div className="w-2 h-2 rounded-sm shrink-0" style={{ backgroundColor: color }} />
@@ -674,6 +676,7 @@ export function DetailedTyresView({
               <Panel
                 title="Tyre Sets"
                 icon={<Circle className="h-3.5 w-3.5 text-primary" />}
+                className="max-h-[16rem]"
               >
                 <TyreSetsPanel tyreSets={tyreSets} />
               </Panel>
