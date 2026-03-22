@@ -261,31 +261,48 @@ function WeatherForecastPanel({ forecast }: { forecast: WeatherForecastSample[] 
 // ── Sub-panel 4: Historical Tyre Wear Chart ────────────────────────────────
 
 function HistoricalWearChart({ wearHistory, tyreData }: { wearHistory: LapWearRecord[]; tyreData: TyreTelemetryData | null }) {
-  // Compute sector fractional offsets within each lap
-  const sectorLines = React.useMemo(() => {
-    if (!tyreData || !wearHistory.length) return [];
+  // Compute sector fractional offsets and explicit x-axis ticks
+  const { sectorLines, lapLines, xTicks } = React.useMemo(() => {
+    const empty = { sectorLines: [] as number[], lapLines: [] as number[], xTicks: [] as number[] };
+    if (!tyreData || !wearHistory.length) return empty;
     const trackLength = tyreData.trackLength;
-    if (trackLength <= 0) return [];
+    if (trackLength <= 0) return empty;
 
     const s2Frac = tyreData.sectorBoundaries.sector2Start / trackLength;
     const s3Frac = tyreData.sectorBoundaries.sector3Start / trackLength;
 
-    // Generate sector reference lines for each completed lap in the data
     const firstLap = Math.floor(wearHistory[0].lap);
     const lastLap = Math.floor(wearHistory[wearHistory.length - 1].lap);
-    const lines: { x: number; label: string }[] = [];
+    const sectors: number[] = [];
+    const laps: number[] = [];
+    const ticks: number[] = [];
+
     for (let lap = firstLap; lap <= lastLap; lap++) {
-      lines.push({ x: Math.round((lap + s2Frac) * 100) / 100, label: "S2" });
-      lines.push({ x: Math.round((lap + s3Frac) * 100) / 100, label: "S3" });
+      ticks.push(lap);
+      laps.push(lap);
+      const s2x = Math.round((lap + s2Frac) * 100) / 100;
+      const s3x = Math.round((lap + s3Frac) * 100) / 100;
+      ticks.push(s2x, s3x);
+      sectors.push(s2x, s3x);
     }
-    return lines;
+    return { sectorLines: sectors, lapLines: laps, xTicks: ticks };
   }, [tyreData, wearHistory]);
 
-  // Custom x-axis tick: show integer laps as "Lap N", skip fractional
-  const formatXTick = (value: number) => {
-    if (Math.abs(value - Math.round(value)) < 0.01) return `L${Math.round(value)}`;
+  // Format tick: integer = "L{n} S1", sector boundaries = "S2"/"S3"
+  const formatXTick = React.useCallback((value: number) => {
+    if (!tyreData) return "";
+    const trackLength = tyreData.trackLength;
+    if (trackLength <= 0) return "";
+
+    const s2Frac = tyreData.sectorBoundaries.sector2Start / trackLength;
+    const s3Frac = tyreData.sectorBoundaries.sector3Start / trackLength;
+    const lapPart = value - Math.floor(value);
+
+    if (Math.abs(lapPart - s2Frac) < 0.02) return "S2";
+    if (Math.abs(lapPart - s3Frac) < 0.02) return "S3";
+    if (Math.abs(lapPart) < 0.01) return `L${Math.round(value)}`;
     return "";
-  };
+  }, [tyreData]);
 
   if (wearHistory.length === 0) {
     return (
@@ -303,9 +320,9 @@ function HistoricalWearChart({ wearHistory, tyreData }: { wearHistory: LapWearRe
           dataKey="lap"
           type="number"
           domain={["dataMin", "dataMax"]}
+          ticks={xTicks}
           tickFormatter={formatXTick}
-          tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
-          label={{ value: "Lap", position: "insideBottom", offset: -2, fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+          tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }}
         />
         <YAxis
           domain={[0, "auto"]}
@@ -323,14 +340,22 @@ function HistoricalWearChart({ wearHistory, tyreData }: { wearHistory: LapWearRe
           labelFormatter={(v: number) => `Lap ${v.toFixed(2)}`}
         />
         <Legend wrapperStyle={{ fontSize: "10px" }} />
-        {sectorLines.map((sl, i) => (
+        {lapLines.map((x, i) => (
           <ReferenceLine
-            key={i}
-            x={sl.x}
+            key={`lap-${i}`}
+            x={x}
+            stroke="hsl(var(--foreground))"
+            strokeWidth={1.5}
+            opacity={0.5}
+          />
+        ))}
+        {sectorLines.map((x, i) => (
+          <ReferenceLine
+            key={`sec-${i}`}
+            x={x}
             stroke="hsl(var(--muted-foreground))"
             strokeDasharray="2 4"
-            opacity={0.4}
-            label={{ value: sl.label, position: "top", fontSize: 8, fill: "hsl(var(--muted-foreground))" }}
+            opacity={0.2}
           />
         ))}
         <Line type="monotone" dataKey="fl" name="FL" stroke={WHEEL_COLORS.fl} strokeWidth={2} dot={false} isAnimationActive={false} />
