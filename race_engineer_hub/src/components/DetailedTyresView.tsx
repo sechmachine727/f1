@@ -557,7 +557,7 @@ function TyresAgentPanel({ alerts, engineerResponses }: {
       {items.map((item, i) => {
         if (item.kind === "alert") {
           return (
-            <div key={`a-${i}`} className={`flex items-start gap-2 px-4 py-3 border-b last:border-b-0 ${rowStyles[item.level]}`}>
+            <div key={`a-${i}`} className={`flex items-start gap-2 px-4 py-2 border-b last:border-b-0 ${rowStyles[item.level]}`}>
               {alertIcons[item.level]}
               <span className="text-sm leading-relaxed text-card-foreground flex-1">{item.message}</span>
               <span className="text-[10px] text-muted-foreground tracking-wider shrink-0">{item.time}</span>
@@ -565,7 +565,7 @@ function TyresAgentPanel({ alerts, engineerResponses }: {
           );
         }
         return (
-          <div key={`e-${i}`} className="flex items-start gap-2 px-4 py-3 border-b last:border-b-0 border-border/20">
+          <div key={`e-${i}`} className="flex items-start gap-2 px-4 py-2 border-b last:border-b-0 border-border/20">
             <Bot className="h-4 w-4 text-info shrink-0 mt-0.5" />
             <div className="prose prose-sm prose-invert max-w-none text-sm leading-relaxed text-card-foreground flex-1 [&>p]:m-0">
               <ReactMarkdown>{item.text}</ReactMarkdown>
@@ -575,7 +575,7 @@ function TyresAgentPanel({ alerts, engineerResponses }: {
         );
       })}
       {items.length === 0 && (
-        <div className="flex items-center gap-2 px-4 py-4">
+        <div className="flex items-center gap-2 px-4 py-3">
           <CheckCircle className="h-4 w-4 text-primary" />
           <span className="text-sm text-muted-foreground">No alerts</span>
         </div>
@@ -635,10 +635,10 @@ export function DetailedTyresView({
         </div>
 
         {/* Grid content */}
-        <div className="flex-1 overflow-y-auto p-3">
-          <div className="grid grid-cols-2 gap-3" style={{ gridTemplateRows: "auto auto minmax(10rem, 1fr)" }}>
+        <div className="flex-1 overflow-y-auto p-2">
+          <div className="grid grid-cols-2 gap-2" style={{ gridTemplateRows: "auto auto minmax(8rem, 1fr)" }}>
             {/* Row 1 left: Compound + Tyres Telemetry (stacked) */}
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-2">
               <Panel
                 title="Tyre Compound"
                 icon={<Circle className="h-3.5 w-3.5 text-primary" />}
@@ -662,7 +662,7 @@ export function DetailedTyresView({
             </div>
 
             {/* Row 1 right: Weather + Forecast + Tyre Sets (stacked) */}
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-2">
               <Panel
                 title="Weather"
                 icon={<CloudSun className="h-3.5 w-3.5 text-primary" />}
@@ -686,7 +686,7 @@ export function DetailedTyresView({
             <Panel
               title="Historical Tyre Wear"
               icon={<TrendingDown className="h-3.5 w-3.5 text-primary" />}
-              className="min-h-[14rem]"
+              className="min-h-[12rem]"
             >
               <HistoricalWearChart wearHistory={wearHistory} tyreData={tyreData} />
             </Panel>
@@ -707,7 +707,7 @@ export function DetailedTyresView({
             <Panel
               title="Tyres Agent"
               icon={<Circle className="h-3.5 w-3.5 text-primary" />}
-              className="col-span-2 max-h-[20rem]"
+              className="col-span-2 max-h-[14rem]"
               raw
             >
               <TyresAgentPanel alerts={tyreAlerts} engineerResponses={engineerResponses} />
