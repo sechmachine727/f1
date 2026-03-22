@@ -157,6 +157,8 @@ class TelemetryStateAdapter:
         for idx, ts in enumerate(raw_sets):
             if not ts.get("m_actualTyreCompound", 0):
                 continue
+            if not ts.get("m_available", 0):
+                continue
             sets.append({
                 "index": idx,
                 "actualCompound": ACTUAL_TYRE_COMPOUND.get(ts.get("m_actualTyreCompound", 0), "?"),

@@ -308,7 +308,7 @@ const TyreSetsPanel = React.memo(function TyreSetsPanel({ tyreSets }: { tyreSets
               <td className="text-right py-0.5 px-2 font-bold">{s.wear}%</td>
               <td className="text-right py-0.5 px-2">
                 <span className="font-bold">{s.lifeSpan}</span>
-                <span className="text-muted-foreground">/{s.usableLife}</span>
+                <span>/{s.usableLife}</span>
               </td>
               <td className="text-right py-0.5 pl-2">
                 {s.lapDeltaTime !== 0 ? (
