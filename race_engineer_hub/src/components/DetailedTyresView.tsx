@@ -12,7 +12,6 @@ import {
   CheckCircle,
   Circle,
   CloudSun,
-  Droplets,
   Info,
   Thermometer,
   TrendingDown,
@@ -199,73 +198,71 @@ function CompoundPanel({ data }: { data: TyreTelemetryData }) {
   );
 }
 
-// ── Sub-panel 2: Current Weather ───────────────────────────────────────────
+// ── Sub-panel 2: Combined Weather (Current + Forecast) ─────────────────────
 
-function CurrentWeatherPanel({ session }: { session: SessionData }) {
+function WeatherPanel({ session }: { session: SessionData }) {
+  const forecast = session.weatherForecast ?? [];
+
   return (
-    <div className="flex flex-col gap-3 py-1">
-      <div className="flex items-center gap-2">
-        <CloudSun className="h-5 w-5 text-primary" />
-        <span className="font-display text-base font-bold text-foreground">
-          {WEATHER_LABELS[session.weather] ?? "Unknown"}
-        </span>
-      </div>
-      <div className="grid grid-cols-2 gap-2 text-sm">
-        <div className="flex items-center gap-1.5">
+    <div className="flex gap-4">
+      {/* Current Weather (left) */}
+      <div className="flex flex-col gap-2 py-1 shrink-0">
+        <span className="text-[9px] font-display font-bold uppercase tracking-wider text-muted-foreground">Current</span>
+        <div className="flex items-center gap-2">
+          <CloudSun className="h-5 w-5 text-primary" />
+          <span className="font-display text-base font-bold text-foreground">
+            {WEATHER_LABELS[session.weather] ?? "Unknown"}
+          </span>
+        </div>
+        <div className="flex items-center gap-1.5 text-sm">
           <Thermometer className="h-4 w-4 text-primary" />
           <span className="text-muted-foreground">Air</span>
           <span className="font-display font-bold text-foreground">{session.airTemp}°C</span>
         </div>
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 text-sm">
           <Thermometer className="h-4 w-4 text-warning" />
           <span className="text-muted-foreground">Track</span>
           <span className="font-display font-bold text-foreground">{session.trackTemp}°C</span>
         </div>
       </div>
-    </div>
-  );
-}
 
-// ── Sub-panel 3: Weather Forecast ──────────────────────────────────────────
-
-function WeatherForecastPanel({ forecast }: { forecast: WeatherForecastSample[] }) {
-  if (forecast.length === 0) {
-    return <span className="text-[11px] text-muted-foreground">No forecast available</span>;
-  }
-
-  return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-[10px]">
-        <thead>
-          <tr className="text-muted-foreground uppercase tracking-wider border-b border-border/30">
-            <th className="text-left py-1 px-1 font-display">Offset</th>
-            <th className="text-left py-1 px-1 font-display">Weather</th>
-            <th className="text-right py-1 px-1 font-display">Track</th>
-            <th className="text-right py-1 px-1 font-display">Air</th>
-            <th className="text-right py-1 px-1 font-display">Rain</th>
-          </tr>
-        </thead>
-        <tbody>
-          {forecast.map((fc, i) => {
-            const rainColor = fc.rainPercentage > 50 ? "text-accent" : fc.rainPercentage > 20 ? "text-warning" : "text-primary";
-            return (
-              <tr key={i} className="border-b border-border/20">
-                <td className="py-1 px-1 text-muted-foreground">+{fc.timeOffset}m</td>
-                <td className="py-1 px-1 text-foreground">{WEATHER_LABELS[fc.weather] ?? "?"}</td>
-                <td className="py-1 px-1 text-right text-foreground">
-                  {fc.trackTemperature}°C {TEMP_CHANGE_LABELS[fc.trackTemperatureChange] ?? ""}
-                </td>
-                <td className="py-1 px-1 text-right text-foreground">
-                  {fc.airTemperature}°C {TEMP_CHANGE_LABELS[fc.airTemperatureChange] ?? ""}
-                </td>
-                <td className={`py-1 px-1 text-right font-bold ${rainColor}`}>
-                  {fc.rainPercentage > 0 ? `${fc.rainPercentage}%` : "\u2014"}
-                </td>
+      {/* Forecast (right) */}
+      {forecast.length > 0 && (
+        <div className="flex-1 overflow-x-auto border-l border-border/30 pl-4">
+          <span className="text-[9px] font-display font-bold uppercase tracking-wider text-muted-foreground">Forecast</span>
+          <table className="w-full text-[10px] mt-1">
+            <thead>
+              <tr className="text-muted-foreground uppercase tracking-wider border-b border-border/30">
+                <th className="text-left py-1 px-1 font-display">Offset</th>
+                <th className="text-left py-1 px-1 font-display">Weather</th>
+                <th className="text-right py-1 px-1 font-display">Track</th>
+                <th className="text-right py-1 px-1 font-display">Air</th>
+                <th className="text-right py-1 px-1 font-display">Rain</th>
               </tr>
-            );
-          })}
-        </tbody>
-      </table>
+            </thead>
+            <tbody>
+              {forecast.map((fc, i) => {
+                const rainColor = fc.rainPercentage > 50 ? "text-accent" : fc.rainPercentage > 20 ? "text-warning" : "text-primary";
+                return (
+                  <tr key={i} className="border-b border-border/20">
+                    <td className="py-1 px-1 text-muted-foreground">+{fc.timeOffset}m</td>
+                    <td className="py-1 px-1 text-foreground">{WEATHER_LABELS[fc.weather] ?? "?"}</td>
+                    <td className="py-1 px-1 text-right text-foreground">
+                      {fc.trackTemperature}°C {TEMP_CHANGE_LABELS[fc.trackTemperatureChange] ?? ""}
+                    </td>
+                    <td className="py-1 px-1 text-right text-foreground">
+                      {fc.airTemperature}°C {TEMP_CHANGE_LABELS[fc.airTemperatureChange] ?? ""}
+                    </td>
+                    <td className={`py-1 px-1 text-right font-bold ${rainColor}`}>
+                      {fc.rainPercentage > 0 ? `${fc.rainPercentage}%` : "\u2014"}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
@@ -665,20 +662,14 @@ export function DetailedTyresView({
             {/* Row 1 right: Weather + Forecast + Tyre Sets (stacked) */}
             <div className="flex flex-col gap-3">
               <Panel
-                title="Current Weather"
+                title="Weather"
                 icon={<CloudSun className="h-3.5 w-3.5 text-primary" />}
               >
                 {session ? (
-                  <CurrentWeatherPanel session={session} />
+                  <WeatherPanel session={session} />
                 ) : (
                   <span className="text-[11px] text-muted-foreground">Waiting for session data...</span>
                 )}
-              </Panel>
-              <Panel
-                title="Weather Forecast"
-                icon={<Droplets className="h-3.5 w-3.5 text-primary" />}
-              >
-                <WeatherForecastPanel forecast={session?.weatherForecast ?? []} />
               </Panel>
               <Panel
                 title="Tyre Sets"
