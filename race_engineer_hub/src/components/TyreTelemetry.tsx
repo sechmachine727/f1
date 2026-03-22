@@ -17,7 +17,7 @@ const COMPOUND_COLORS: Record<string, string> = {
   wet: "#0072CE",
 };
 
-export function TyreTelemetry() {
+export function TyreTelemetry({ onExpand }: { onExpand?: () => void }) {
   const { data } = useTyreTelemetry();
 
   if (!data) {
@@ -26,6 +26,7 @@ export function TyreTelemetry() {
         title="Tyres"
         icon={<Circle className="h-4 w-4 text-primary" />}
         status="nominal"
+        onExpand={onExpand}
       >
         <div className="flex items-center justify-center py-6 text-[10px] text-muted-foreground uppercase tracking-wider font-display">
           Waiting for telemetry…
@@ -48,6 +49,7 @@ export function TyreTelemetry() {
       title="Tyres"
       icon={<Circle className="h-4 w-4 text-primary" />}
       status={status}
+      onExpand={onExpand}
     >
       <div className="grid grid-cols-2 gap-2">
         {POSITIONS.map((p) => {

@@ -82,6 +82,7 @@ class MessageBuilder:
         compound, compound_visual = adapter.get_compound()
         power_unit = adapter.get_power_unit()
         session = adapter.get_session()
+        weather_forecast = adapter.get_weather_forecast()
         lap = adapter.get_lap()
         track_map = adapter.get_track_map()
         pit_status = adapter.get_pit_status()
@@ -157,11 +158,13 @@ class MessageBuilder:
             "compoundVisual": compound_visual,
             "tyresAgeLaps": adapter.get_tyres_age_laps(),
             "currentLap": lap.get("currentLap", 0),
+            "lapDistance": lap.get("lapDistance", 0),
             "speed": aero.get("speed", 0),
             "sessionTime": session_time,
             "powerUnit": power_unit,
             "aero": aero,
             "session": session,
+            "weatherForecast": weather_forecast,
             "trackMap": track_map,
             "pitStatus": pit_status,
             "tyreAlerts": {

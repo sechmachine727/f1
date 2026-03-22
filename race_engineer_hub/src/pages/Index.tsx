@@ -9,6 +9,7 @@ import { DriverRadioInput } from "@/components/DriverRadioInput";
 import { TrackMap } from "@/components/TrackMap";
 import { LapTimingPanel } from "@/components/LapTimingPanel";
 import { StandingsPanel } from "@/components/StandingsPanel";
+import { DetailedTyresView } from "@/components/DetailedTyresView";
 import { useSessionTelemetry, formatTimeLeft } from "@/hooks/useSessionTelemetry";
 import { useTyreTelemetry } from "@/hooks/useTyreTelemetry";
 import { usePowerUnitTelemetry } from "@/hooks/usePowerUnitTelemetry";
@@ -26,11 +27,12 @@ const WEATHER_LABELS: Record<number, string> = {
 
 const Index = () => {
   const session = useSessionTelemetry();
-  const { tyreAlerts: { alerts: tyreAlerts, activeCount: tyreActiveCount }, tyresReport } = useTyreTelemetry();
+  const { tyreAlerts: { alerts: tyreAlerts, activeCount: tyreActiveCount }, tyresReport, wearHistory, data: tyreData } = useTyreTelemetry();
   const { puAlerts: { alerts: puAlerts, activeCount: puActiveCount }, puReport } = usePowerUnitTelemetry();
   const { aeroAlerts: { alerts: aeroAlerts, activeCount: aeroActiveCount }, damageReport } = useAeroTelemetry();
   const raceEngineerReport = useRaceEngineerReport();
   const { timing, standings, lapCompleted } = useTimingData();
+  const [detailedTyresOpen, setDetailedTyresOpen] = useState(false);
   const [driverMessages, setDriverMessages] = useState<ReportEntry[]>([]);
   const handleDriverSend = useCallback((text: string, time: string) => {
     setDriverMessages((prev) => [...prev, { text, time, source: "driver" as const }]);
@@ -115,8 +117,8 @@ const Index = () => {
       {/* Telemetry Grid + Alerts */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 mb-3 flex-1 min-h-0">
         <div className="flex flex-col gap-2 min-h-0">
-          <TyreTelemetry />
-          <TyreAlertPanel alerts={tyreAlerts} activeCount={tyreActiveCount} engineerResponses={tyresReport.responses} />
+          <TyreTelemetry onExpand={() => setDetailedTyresOpen(true)} />
+          <TyreAlertPanel alerts={tyreAlerts} activeCount={tyreActiveCount} engineerResponses={tyresReport.responses} onExpand={() => setDetailedTyresOpen(true)} />
         </div>
         <div className="flex flex-col gap-2 min-h-0">
           <EngineTelemetry />
@@ -142,6 +144,17 @@ const Index = () => {
           <TrackMap />
         </div>
       </div>
+
+      <DetailedTyresView
+        open={detailedTyresOpen}
+        onClose={() => setDetailedTyresOpen(false)}
+        tyreData={tyreData}
+        wearHistory={wearHistory}
+        session={session}
+        tyreAlerts={tyreAlerts}
+        tyreActiveCount={tyreActiveCount}
+        engineerResponses={tyresReport.responses}
+      />
     </div>
   );
 };
