@@ -64,6 +64,7 @@ export function useTyreTelemetry(): {
   const [wearHistory, setWearHistory] = useState<LapWearRecord[]>([]);
   const lastTyresResponse = useRef<string | null>(null);
   const lastRecordedFractionalLap = useRef<number>(0);
+  const prevPitStatus = useRef<number>(0);
   const prevSessionTime = useRef<number>(0);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout>>();
@@ -96,9 +97,15 @@ export function useTyreTelemetry(): {
             prevSessionTime.current = msg.sessionTime;
           }
 
+          // Detect pit exit: reset so recording resumes immediately
+          const pitStatus = msg.pitStatus?.pitStatus ?? 0;
+          if (prevPitStatus.current !== 0 && pitStatus === 0) {
+            lastRecordedFractionalLap.current = 0;
+          }
+          prevPitStatus.current = pitStatus;
+
           // Record wear continuously using fractional laps (skip when in pit lane)
           const trackLength = msg.session?.trackLength ?? 0;
-          const pitStatus = msg.pitStatus?.pitStatus ?? 0;
           if (msg.currentLap >= 1 && msg.tyres && trackLength > 0 && pitStatus === 0) {
             const lapDist = msg.lapDistance ?? 0;
             const fraction = Math.max(0, Math.min(lapDist / trackLength, 1));
