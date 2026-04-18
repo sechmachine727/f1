@@ -50,7 +50,7 @@
 
         #"class": "openai",
         #"model_name": "gpt-5.2",
-        "model_name": "claude-haiku",
+        "model_name": "claude-sonnet",
 
     }
 }
