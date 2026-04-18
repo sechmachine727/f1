@@ -3,7 +3,7 @@
 # ---------------------------------------------------------------------------
 # Aero / damage
 # ---------------------------------------------------------------------------
-DAMAGE_REFIRE_STEP = 10  # re-alert every 10 % worsening
+DAMAGE_REFIRE_STEP = 20  # re-alert every 20 % worsening
 
 DAMAGE_PARTS = [
     {"key": "frontLeftWingDamage",  "label": "Front left wing",  "tag": "FL WING",  "clearMsg": "front left wing damage stabilised"},
@@ -24,7 +24,7 @@ BRAKE_TEMPS = [
 # ---------------------------------------------------------------------------
 # Tyres
 # ---------------------------------------------------------------------------
-TYRE_DAMAGE_REFIRE_STEP = 25  # re-alert every step when worsening (0-255 scale)
+TYRE_DAMAGE_REFIRE_STEP = 50  # re-alert every step when worsening (0-255 scale)
 
 TYRE_WHEEL_LABELS = {"fl": "FL", "fr": "FR", "rl": "RL", "rr": "RR"}
 TYRE_WHEELS = ("fl", "fr", "rl", "rr")
@@ -40,7 +40,7 @@ TYRE_CLEAR_LABELS = {
 # ---------------------------------------------------------------------------
 # Power unit
 # ---------------------------------------------------------------------------
-PU_DAMAGE_REFIRE_STEP = 10  # re-alert every 10% worsening
+PU_DAMAGE_REFIRE_STEP = 20  # re-alert every 20% worsening
 PU_DAMAGE_KEYS = {"eng_dmg", "gbx_dmg"}
 
 PU_ALERT_DEFS = {

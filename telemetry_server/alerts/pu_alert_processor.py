@@ -45,7 +45,7 @@ class PuAlertProcessor:
         engine_temp = snapshot.get("engineTemp", 0)
         engine_damage = snapshot.get("engineDamage", 0)
         gearbox_damage = snapshot.get("gearboxDamage", 0)
-        fuel_remaining_laps = snapshot.get("fuelRemainingLaps", 0)
+        fuel_delta_laps = snapshot.get("fuelRemainingLaps", 0)
         battery_pct = snapshot.get("batteryPct", 0)
 
         # Engine temperature
@@ -66,11 +66,11 @@ class PuAlertProcessor:
         elif gearbox_damage > 5:
             current_conditions["gbx_dmg"] = {"level": "warn", "value": gearbox_damage}
 
-        # Fuel remaining laps
-        if fuel_remaining_laps < 1:
-            current_conditions["fuel"] = {"level": "crit", "value": fuel_remaining_laps}
-        elif fuel_remaining_laps < 3:
-            current_conditions["fuel"] = {"level": "warn", "value": fuel_remaining_laps}
+        # Fuel delta vs plan (negative = running short)
+        if fuel_delta_laps < -2.0:
+            current_conditions["fuel"] = {"level": "crit", "value": fuel_delta_laps}
+        elif fuel_delta_laps < -1.0:
+            current_conditions["fuel"] = {"level": "warn", "value": fuel_delta_laps}
 
         # Battery SOC
         if battery_pct < 15:
@@ -117,9 +117,9 @@ class PuAlertProcessor:
                     )
                 elif key == "fuel":
                     msg = (
-                        f"Fuel critically low \u2014 {fuel_remaining_laps:.1f} laps remaining"
+                        f"Fuel critical \u2014 {fuel_delta_laps:+.1f} laps vs plan"
                         if cur["level"] == "crit"
-                        else f"Fuel running low \u2014 {fuel_remaining_laps:.1f} laps remaining"
+                        else f"Fuel short \u2014 {fuel_delta_laps:+.1f} laps vs plan"
                     )
                 elif key == "battery":
                     msg = (

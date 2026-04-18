@@ -26,7 +26,7 @@ class DamageDispatcher(BaseAgentDispatcher):
             session_time_fn: Callable returning current session time.
             race_engineer: The race engineer dispatcher to forward responses to.
         """
-        super().__init__(agent=agent, batch_delay=1.0, name="DamageAgent", session_time_fn=session_time_fn)
+        super().__init__(agent=agent, batch_delay=2.0, name="DamageAgent", session_time_fn=session_time_fn)
         self._race_engineer = race_engineer
 
     def _on_response(self, response: str) -> None:

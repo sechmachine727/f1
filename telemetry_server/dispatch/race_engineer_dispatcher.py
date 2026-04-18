@@ -18,7 +18,7 @@ class RaceEngineerDispatcher(BaseAgentDispatcher):
     questions from the race engineer back to specialist dispatchers.
     """
 
-    BATCH_DELAY: float = 2.0  # longer window to batch multiple engineer reports
+    BATCH_DELAY: float = 4.0  # longer window to batch multiple engineer reports
 
     def __init__(self, agent: Any, session_time_fn: Any) -> None:
         """Initialise the race engineer dispatcher.
