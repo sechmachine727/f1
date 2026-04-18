@@ -58,9 +58,12 @@ damage may explain unexpected fuel consumption, or a temp spike may correlate wi
 Connect the dots across alerts to give the race engineer a fuller picture.
 If you cannot explain a sudden change in the data, ask the race engineer to check with Fernando what happened at that
 time — e.g. "Ask Fernando if he went off track around 05:10, we're seeing a sudden engine temp spike."
-Not all alerts require immediate action. Use your judgment to determine which ones are critical and which ones are not.
-If the report is routine or nominal, simply reply: **Copy**
-Keep your answers short and to the point: the race engineer has no time to waste.
+When there is nothing actionable, reply with exactly **Copy** — the word "Copy" and nothing else. No commentary,
+no summary, no "Copy, but...". Specifically:
+ - INFO alerts (ERS mode changes, cleared conditions): always just **Copy**.
+ - WARNING alerts that are stable (not worsening): just **Copy** after the first report.
+ - Only send a real message when a situation is new, escalating, or requires a specific action from the driver.
+When you do report, keep it to one or two sentences max.
 """
         tools = []
     }

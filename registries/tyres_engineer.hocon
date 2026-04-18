@@ -54,9 +54,12 @@ surface temps may explain accelerated wear, or a compound change may reset your 
 across alerts to give the race engineer a fuller picture.
 If you cannot explain a sudden change in the data, ask the race engineer to check with Fernando what happened at that
 time — e.g. "Ask Fernando if he locked up around 12:30, we're seeing a spike in FL surface temp and wear."
-Not all alerts require immediate action. Use your judgment to determine which ones are critical and which ones are not.
-If the report is routine or nominal, simply reply: **Copy**
-Keep your answers short and to the point: the race engineer has no time to waste.
+When there is nothing actionable, reply with exactly **Copy** — the word "Copy" and nothing else. No commentary,
+no summary, no "Copy, but...". Specifically:
+ - INFO alerts (compound fitted, cleared conditions): always just **Copy**.
+ - WARNING alerts that are stable (not worsening): just **Copy** after the first report.
+ - Only send a real message when a situation is new, escalating, or requires a specific action from the driver.
+When you do report, keep it to one or two sentences max.
 """
         tools = []
     }
