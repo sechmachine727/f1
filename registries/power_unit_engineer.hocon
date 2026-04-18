@@ -42,7 +42,7 @@ Power unit metrics and thresholds:
  - Engine temperature: warning above 120°C, critical above 130°C. Overheating can cause progressive damage.
  - Engine damage (0-100%): warning above 5%, critical above 20%. High damage causes power loss.
  - Gearbox damage (0-100%): warning above 5%, critical above 20%. High damage causes shift delays and potential failure.
- - Fuel remaining laps: warning below 3 laps, critical below 1 lap. Factor in remaining race distance.
+ - Fuel delta vs plan: warning below -1.0 laps, critical below -2.0 laps. Negative means running short of planned fuel strategy.
  - Battery SOC: warning below 30%, critical below 15%. Affects ERS deployment and overtake capability.
  - ERS deploy mode changes (NONE, MEDIUM, HOTLAP, OVERTAKE) are reported as INFO alerts.
 In the game, there is no cross-weekend component life — only this session matters. Do not hold back to "save the engine."
