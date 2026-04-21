@@ -221,5 +221,5 @@ data/
 # Logs
 logs/
 
-# Cruse's database
-cruse_threads.db
+# Local databases
+*.db
