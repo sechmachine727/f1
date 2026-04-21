@@ -30,7 +30,7 @@
 
     # LLM config
     "llm_config": {
-        "model_name": "gpt-4o",
+        "model_name": "gpt-5.4-mini",
     }
 
    "instructions_prefix": """
