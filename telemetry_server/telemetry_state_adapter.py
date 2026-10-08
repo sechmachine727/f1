@@ -44,6 +44,7 @@ FUEL_MIX_LABELS: dict[int, str] = {0: "LEAN", 1: "STANDARD", 2: "RICH", 3: "MAX"
 ERS_MODE_LABELS: dict[int, str] = {0: "NONE", 1: "MEDIUM", 2: "HOTLAP", 3: "OVERTAKE"}
 
 ERS_MAX_ENERGY_J = 4_000_000  # 4 MJ per F1 regulations
+WATTS_PER_KILOWATT = 1000.0
 
 
 class TelemetryStateAdapter:
@@ -188,8 +189,9 @@ class TelemetryStateAdapter:
             "fuelInTank": round(s.get("m_fuelInTank", 0), 2),
             "fuelRemainingLaps": round(s.get("m_fuelRemainingLaps", 0), 1),
             "fuelMix": FUEL_MIX_LABELS.get(s.get("m_fuelMix", 1), "STANDARD"),
-            "icePowerKW": round(s.get("m_enginePowerICE", 0), 1),
-            "mgukPowerKW": round(s.get("m_enginePowerMGUK", 0), 1),
+            # The game reports engine power in watts; the dashboard gauge wants kilowatts.
+            "icePowerKW": round(s.get("m_enginePowerICE", 0) / WATTS_PER_KILOWATT, 1),
+            "mgukPowerKW": round(s.get("m_enginePowerMGUK", 0) / WATTS_PER_KILOWATT, 1),
             "ersStoreEnergy": round(ers_store, 0),
             "batteryPct": battery_pct,
             "ersDeployMode": ERS_MODE_LABELS.get(s.get("m_ersDeployMode", 0), "NONE"),
