@@ -31,6 +31,10 @@
     # LLM config
     "llm_config": {
         "model_name": "gpt-5.4-mini",
+        # Custom OpenAI-compatible endpoint overrides; see registries/llm_config.hocon.
+        "class": ${?LLM_CLASS},
+        "model_name": ${?LLM_MODEL_NAME},
+        "openai_api_base": ${?OPENAI_API_BASE},
     }
 
    "instructions_prefix": """
