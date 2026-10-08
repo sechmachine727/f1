@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { Alert } from "@/components/AlertBox";
+import { WS_URL } from "@/lib/wsUrl";
 
 export interface TyreData {
   surfaceTemp: number;
@@ -64,7 +65,6 @@ export interface LapWearRecord {
   compound: string;
 }
 
-const WS_URL = "ws://localhost:8765";
 const RECONNECT_INTERVAL_MS = 2000;
 
 const EMPTY_ALERTS: TyreAlerts = { alerts: [], activeCount: 0 };

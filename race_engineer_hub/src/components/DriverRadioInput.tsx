@@ -1,7 +1,7 @@
 import { useRef, useState, useEffect, useCallback } from "react";
 import { Radio, Send } from "lucide-react";
 
-const WS_URL = "ws://localhost:8765";
+import { WS_URL } from "@/lib/wsUrl";
 
 interface DriverRadioInputProps {
   onSend?: (text: string, time: string) => void;

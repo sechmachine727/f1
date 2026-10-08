@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { getCircuitInfo } from "@/data/circuitData";
+import { WS_URL } from "@/lib/wsUrl";
 import type { CircuitInfo, MarshalZone, SectorBoundaries, PlayerDrs } from "@/types/circuitInfo";
 import { buildStaticTrack, staticPointAtNorm, trackHeadingAtNorm } from "@/utils/trackGeometry";
 import type { StaticTrackData } from "@/utils/trackGeometry";
@@ -32,7 +33,6 @@ export interface TrackMapState {
   playerDrs: PlayerDrs | null;
 }
 
-const WS_URL = "ws://localhost:8765";
 const RECONNECT_INTERVAL_MS = 2000;
 /** Minimum squared distance (metres) between consecutive dynamic outline points. */
 const MIN_DIST_SQ = 25; // 5 m

@@ -3,6 +3,7 @@
 <!-- TOC -->
 * [Formula 1 racing team](#formula-1-racing-team)
   * [Setup](#setup)
+  * [Docker](#docker)
   * [Telemetry](#telemetry)
   * [F1 Race Engineer Hub](#f1-race-engineer-hub)
     * [Race Engineer Hub UI](#race-engineer-hub-ui)
@@ -44,6 +45,33 @@ Install the requirements:
 ```bash
 pip install -r requirements.txt
 ```
+
+## Docker
+
+Build and run everything — telemetry bridge, agents, and the dashboard — in one container:
+
+```bash
+cp .env.example .env   # add your LLM API key
+docker compose up -d --build
+```
+
+Open [http://localhost:8081](http://localhost:8081) for the Race Engineer Hub. In F1 25, set
+**Settings → Telemetry Settings** to send UDP to the host machine's IP on port **20777**.
+
+Ports: `20777/udp` telemetry in, `8765/tcp` telemetry WebSocket, `8081/tcp` dashboard.
+
+Configuration to edit:
+
+* `.env` — LLM keys and observability settings (compose loads it when present).
+* `registries/`, `mcp/`, `toolbox/` — agent, LLM, and tool HOCON configs (bind-mounted, live).
+* `data/` — `.f1bin` captures (bind-mounted).
+* `docker-compose.yml` — uncomment a `command:` for telemetry-only (`--no-agents`) or replay mode,
+  or set `build.args.VITE_WS_URL` to pin the WebSocket endpoint the UI connects to.
+
+By default the dashboard connects to `ws://<the host serving the page>:8765`, so it works over
+localhost or a LAN address without a rebuild. The image is published to
+`ghcr.io/sechmachine727/f1`; a freshly created GHCR package is private, so flip its visibility in
+the package settings if another machine needs to pull it anonymously.
 
 ## Telemetry
 
