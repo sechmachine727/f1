@@ -1,0 +1,28 @@
+# Version control / agent config
+.git
+.github
+.agents
+.codex
+
+# Python
+.venv
+venv
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Frontend
+node_modules/
+dist/
+
+# Runtime state and secrets
+data/
+logs/
+*.f1bin
+.env
+
+# Docs / images
+*.png
+
+# Local-only lockfile
+race_engineer_hub/bun.lockb

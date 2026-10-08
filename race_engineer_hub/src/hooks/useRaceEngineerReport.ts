@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { Alert } from "@/components/AlertBox";
+import { WS_URL } from "@/lib/wsUrl";
 
 export interface RaceEngineerReportEntry {
   text: string;
@@ -11,7 +12,6 @@ export interface RaceEngineerReport {
   alerts: Alert[];
 }
 
-const WS_URL = "ws://localhost:8765";
 const RECONNECT_INTERVAL_MS = 2000;
 
 export function useRaceEngineerReport(): RaceEngineerReport {

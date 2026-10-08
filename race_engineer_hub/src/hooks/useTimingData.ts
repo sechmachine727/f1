@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
+import { WS_URL } from "@/lib/wsUrl";
+
 export type SectorColor = "purple" | "green" | "yellow" | "white";
 
 export interface LapHistoryEntry {
@@ -50,7 +52,6 @@ export interface StandingsEntry {
   visualCompound: string;
 }
 
-const WS_URL = "ws://localhost:8765";
 const RECONNECT_INTERVAL_MS = 2000;
 const LAP_FLASH_DURATION_MS = 2000;
 

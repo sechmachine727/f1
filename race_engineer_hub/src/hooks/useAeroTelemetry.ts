@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { Alert } from "@/components/AlertBox";
+import { WS_URL } from "@/lib/wsUrl";
 
 export interface AeroData {
   speed: number;
@@ -40,7 +41,6 @@ export interface DamageReport {
   responses: DamageReportEntry[];
 }
 
-const WS_URL = "ws://localhost:8765";
 const RECONNECT_INTERVAL_MS = 2000;
 
 const EMPTY_ALERTS: AeroAlerts = { alerts: [], activeCount: 0 };

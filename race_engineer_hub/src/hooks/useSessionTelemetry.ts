@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
+import { WS_URL } from "@/lib/wsUrl";
+
 export interface WeatherForecastSample {
   timeOffset: number;
   weather: number;
@@ -31,7 +33,6 @@ export interface SessionData {
   weatherForecast: WeatherForecastSample[];
 }
 
-const WS_URL = "ws://localhost:8765";
 const RECONNECT_INTERVAL_MS = 2000;
 
 /** Format milliseconds as M:SS.mmm */
