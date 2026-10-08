@@ -90,6 +90,9 @@ jobs:
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-24.04
     steps:
+      # The manifest step runs scripts/docker_manifest_args.sh, so the repo must be present.
+      - uses: actions/checkout@v7
+
       - name: Download digests
         uses: actions/download-artifact@v8
         with:
@@ -119,14 +122,15 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Create multi-platform manifest
-        working-directory: /tmp/digests
+        env:
+          DIGESTS_DIR: /tmp/digests
+          TAGS: ${{ steps.meta.outputs.tags }}
         run: |
           docker buildx imagetools create \
-            $(jq -cR 'split(",")' <<< "${{ steps.meta.outputs.tags }}") \
-            $(printf '${{ env.IMAGE }}@sha256:%s ' *)
+            $(bash scripts/docker_manifest_args.sh "$TAGS" "$IMAGE" "$DIGESTS_DIR")
 
       - name: Inspect manifest
-        run: docker buildx imagetools inspect ${{ env.IMAGE }}:${{ steps.meta.outputs.version }}
+        run: docker buildx imagetools inspect "$(head -n1 <<< "${{ steps.meta.outputs.tags }}")"
 
       - name: Smoke test
         run: |

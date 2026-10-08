@@ -52,5 +52,19 @@
         #"model_name": "gpt-5.2",
         "model_name": "claude-sonnet",
 
+        # Custom OpenAI-compatible endpoint overrides. When these environment
+        # variables are unset, the key is dropped and the default above stands.
+        # To route the team at any OpenAI-compatible server (Ollama, LM Studio,
+        # vLLM, LiteLLM, OpenRouter, ...) set all of:
+        #   LLM_CLASS=openai
+        #   LLM_MODEL_NAME=<the model name that server expects>
+        #   OPENAI_API_BASE=<server base URL, e.g. http://127.0.0.1:11434/v1>
+        #   OPENAI_API_KEY=<server key, or any placeholder if it needs none>
+        # MODEL_NAME is free-form; an explicit CLASS bypasses the model lookup,
+        # so the model does not have to be one neuro-san already knows.
+        "class": ${?LLM_CLASS},
+        "model_name": ${?LLM_MODEL_NAME},
+        "openai_api_base": ${?OPENAI_API_BASE},
+
     }
 }

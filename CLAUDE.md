@@ -32,6 +32,9 @@ cd race_engineer_hub && npm install
 # Python syntax check (from repo root)
 python3 -m py_compile telemetry_server/telemetry_server.py
 
+# Python tests (from repo root)
+python3 -m pytest
+
 # TypeScript type check (from race_engineer_hub/)
 cd race_engineer_hub && npx tsc --noEmit
 ```
@@ -102,3 +105,9 @@ Each specialist agent (`telemetry_server/agents/*_agent.py`) uses `AgentSessionF
 
 - `OPENAI_API_KEY` — required for LLM calls
 - `AGENT_MANIFEST_FILE` — defaults to `registries/manifest.hocon`
+
+Custom OpenAI-compatible endpoint (leave unset for the committed default):
+
+ - `LLM_CLASS` — provider class, set to `openai` for a custom endpoint
+ - `LLM_MODEL_NAME` — model name exactly as the server expects it
+ - `OPENAI_API_BASE` — server base URL, including the `/v1` path

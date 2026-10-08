@@ -3,6 +3,7 @@
 <!-- TOC -->
 * [Formula 1 racing team](#formula-1-racing-team)
   * [Setup](#setup)
+  * [Tests](#tests)
   * [Docker](#docker)
   * [Telemetry](#telemetry)
   * [F1 Race Engineer Hub](#f1-race-engineer-hub)
@@ -15,6 +16,7 @@
   * [Reinforcement Learning](#reinforcement-learning)
   * [Agent network](#agent-network)
   * [LLM Configuration](#llm-configuration)
+    * [Custom OpenAI-compatible endpoints](#custom-openai-compatible-endpoints)
   * [Observability](#observability)
 <!-- TOC -->
 
@@ -45,6 +47,17 @@ Install the requirements:
 ```bash
 pip install -r requirements.txt
 ```
+
+## Tests
+
+Run the Python test suite from the repository root:
+
+```bash
+python -m pytest
+```
+
+CI runs it on every pull request and on pushes to `main`. The suite covers the LLM endpoint
+configuration and the release manifest builder.
 
 ## Docker
 
@@ -201,6 +214,35 @@ Add your provider's API key to `.env` (loaded automatically on startup):
 ANTHROPIC_API_KEY=sk-ant-...
 # or OPENAI_API_KEY=sk-...
 ```
+
+### Custom OpenAI-compatible endpoints
+
+Any server that implements the OpenAI Chat Completions API works. Set these in `.env` (or the
+environment) and every agent network talks to it:
+
+| Variable | Example | Purpose |
+|----------|---------|---------|
+| `LLM_CLASS` | `openai` | Selects the OpenAI client; required for a custom endpoint |
+| `LLM_MODEL_NAME` | `llama3.1` | Model name exactly as the server expects it |
+| `OPENAI_API_BASE` | `http://127.0.0.1:11434/v1` | Server base URL, including the `/v1` path |
+| `OPENAI_API_KEY` | `ollama` | Any placeholder if the server does not check keys |
+
+```bash
+# Ollama on the same machine
+LLM_CLASS=openai
+LLM_MODEL_NAME=llama3.1
+OPENAI_API_BASE=http://127.0.0.1:11434/v1
+OPENAI_API_KEY=ollama
+```
+
+Leave these unset and the committed defaults apply: the four specialist agents use
+`claude-sonnet` (`registries/llm_config.hocon`) and the racing-team network uses `gpt-5.4-mini`
+(`registries/formula_1_racing_team.hocon`). Setting these variables overrides both. Setting
+`LLM_CLASS` bypasses Neuro SAN's model table, so the model does not have to be one Neuro SAN
+already knows. The model must support tool calling, because the agents call tools.
+
+Agents run inside the container under Docker, so a server on the host is reachable at
+`http://host.docker.internal:<port>/v1` (`--add-host=host.docker.internal:host-gateway` on Linux).
 
 For full details on LLM configuration options (temperature, max_tokens, per-agent overrides, etc.), see the [Neuro SAN Studio User Guide](https://github.com/cognizant-ai-lab/neuro-san-studio/blob/main/docs/user_guide.md).
 
