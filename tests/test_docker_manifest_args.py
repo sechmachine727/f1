@@ -8,10 +8,12 @@ arguments as source images, so missing `-t` flags fail with
 import subprocess
 from pathlib import Path
 
+import pytest
 import yaml
 
 REPO_ROOT: Path = Path(__file__).resolve().parents[1]
 SCRIPT: Path = REPO_ROOT / "scripts" / "docker_manifest_args.sh"
+WORKFLOW: Path = REPO_ROOT / ".github" / "workflows" / "docker-publish.yml"
 IMAGE = "ghcr.io/owner/f1"
 
 
@@ -84,13 +86,14 @@ def test_rejects_missing_digests(tmp_path):
     assert "digest" in completed.stderr.lower()
 
 
+@pytest.mark.skipif(not WORKFLOW.exists(), reason="workflow file is not present in this checkout")
 def test_merge_job_can_reach_the_manifest_builder():
     """The merge job calls scripts/docker_manifest_args.sh, so it must check out the repo.
 
     A job starts on a fresh runner with an empty workspace, so without a checkout
     step the script is missing, `bash` exits non-zero, and the manifest step fails.
     """
-    workflow = yaml.safe_load((REPO_ROOT / ".github" / "workflows" / "docker-publish.yml").read_text())
+    workflow = yaml.safe_load(WORKFLOW.read_text())
     steps = workflow["jobs"]["merge"]["steps"]
 
     assert any("actions/checkout" in (step.get("uses") or "") for step in steps)

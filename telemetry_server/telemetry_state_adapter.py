@@ -12,8 +12,6 @@ from common.f1_structs.f1_constants import DRIVER_ABBREVIATIONS
 from common.f1_structs.f1_constants import TEAM_ABBREVIATIONS
 from common.f1_structs.f1_constants import VISUAL_TYRE_COMPOUND
 
-NUM_CARS = 22
-
 # Wheel array order in all f1_structs arrays: 0=RL, 1=RR, 2=FL, 3=FR
 WHEEL_INDICES = {"rl": 0, "rr": 1, "fl": 2, "fr": 3}
 WHEEL_NAMES = ("rl", "rr", "fl", "fr")
