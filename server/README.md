@@ -11,6 +11,12 @@ Defaults are 0.0.0.0:8081 for HTTP, 0.0.0.0:20777 for UDP, and a data directory 
 
 ## Game settings
 
+To try the dashboard without the game, run the corpus generator against a local server:
+
+    go run ./server/cmd/f1demo -seconds 120 -rate 512
+
+It sends the same synthetic 2026 payloads the rated workload uses. It is a development helper, not game evidence.
+
 In F1 25, open Settings, then Telemetry Settings, and set:
 
 | Setting | Value |

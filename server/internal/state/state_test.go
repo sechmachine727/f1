@@ -174,3 +174,24 @@ func TestSameFrameDifferentPayloadNotSuppressed(t *testing.T) {
 		t.Fatalf("same-frame key changed: %v", v)
 	}
 }
+
+func TestIdentityChannels(t *testing.T) {
+	c := &fixedClock{time.UnixMilli(1_000_000)}
+	r := New("ctx", c.now)
+	parts := map[int]map[string]float64{0: {"m_teamId": 3, "m_raceNumber": 16, "m_aiControlled": 0}}
+	feed(r, 1, c, protocol.BuildPacket(2026, 4, hdr(1, 1, 1, 1), map[string]float64{"m_numActiveCars": 2}, parts, map[string]string{"m_name[0]": "Charles"}))
+	snap := r.Snapshot([]int{0}, []string{"car.team_id", "car.race_number", "car.driver_name", "car.is_ai"})
+	got := map[string]any{}
+	for _, m := range snap.Metrics {
+		got[m.Channel] = m.Measurement.Value
+	}
+	if got["car.team_id"] != float64(3) || got["car.race_number"] != float64(16) {
+		t.Fatalf("numeric identity %#v", got)
+	}
+	if got["car.driver_name"] != "Charles" {
+		t.Fatalf("driver name %#v", got["car.driver_name"])
+	}
+	if got["car.is_ai"] != false {
+		t.Fatalf("is_ai %#v", got["car.is_ai"])
+	}
+}

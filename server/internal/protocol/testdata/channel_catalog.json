@@ -80,6 +80,16 @@
   "frequency_class": "high_rate"
  },
  {
+  "name": "car.driver_name",
+  "unit": "",
+  "value_type": "string",
+  "source_fields": [
+   "packet4.m_name"
+  ],
+  "availability_rule": "available when received and fresh",
+  "frequency_class": "session"
+ },
+ {
   "name": "car.drs",
   "unit": "flag",
   "value_type": "boolean",
@@ -120,6 +130,26 @@
   "frequency_class": "high_rate"
  },
  {
+  "name": "car.is_ai",
+  "unit": "flag",
+  "value_type": "boolean",
+  "source_fields": [
+   "packet4.m_aiControlled"
+  ],
+  "availability_rule": "available when received and fresh",
+  "frequency_class": "session"
+ },
+ {
+  "name": "car.race_number",
+  "unit": "number",
+  "value_type": "integer",
+  "source_fields": [
+   "packet4.m_raceNumber"
+  ],
+  "availability_rule": "available when received and fresh",
+  "frequency_class": "session"
+ },
+ {
   "name": "car.rpm",
   "unit": "rpm",
   "value_type": "integer",
@@ -148,6 +178,16 @@
   ],
   "availability_rule": "available when received and fresh",
   "frequency_class": "high_rate"
+ },
+ {
+  "name": "car.team_id",
+  "unit": "team",
+  "value_type": "integer",
+  "source_fields": [
+   "packet4.m_teamId"
+  ],
+  "availability_rule": "available when received and fresh",
+  "frequency_class": "session"
  },
  {
   "name": "car.throttle_fraction",
@@ -2340,16 +2380,6 @@
   "frequency_class": "status"
  },
  {
-  "name": "raw.4.m_aiControlled",
-  "unit": "",
-  "value_type": "number",
-  "source_fields": [
-   "packet4.m_aiControlled"
-  ],
-  "availability_rule": "raw official field; availability follows the packet and restriction rules",
-  "frequency_class": "status"
- },
- {
   "name": "raw.4.m_driverId",
   "unit": "",
   "value_type": "number",
@@ -2375,16 +2405,6 @@
   "value_type": "number",
   "source_fields": [
    "packet4.m_myTeam"
-  ],
-  "availability_rule": "raw official field; availability follows the packet and restriction rules",
-  "frequency_class": "status"
- },
- {
-  "name": "raw.4.m_name",
-  "unit": "",
-  "value_type": "string",
-  "source_fields": [
-   "packet4.m_name"
   ],
   "availability_rule": "raw official field; availability follows the packet and restriction rules",
   "frequency_class": "status"
@@ -2440,31 +2460,11 @@
   "frequency_class": "status"
  },
  {
-  "name": "raw.4.m_raceNumber",
-  "unit": "",
-  "value_type": "number",
-  "source_fields": [
-   "packet4.m_raceNumber"
-  ],
-  "availability_rule": "raw official field; availability follows the packet and restriction rules",
-  "frequency_class": "status"
- },
- {
   "name": "raw.4.m_showOnlineNames",
   "unit": "",
   "value_type": "number",
   "source_fields": [
    "packet4.m_showOnlineNames"
-  ],
-  "availability_rule": "raw official field; availability follows the packet and restriction rules",
-  "frequency_class": "status"
- },
- {
-  "name": "raw.4.m_teamId",
-  "unit": "",
-  "value_type": "number",
-  "source_fields": [
-   "packet4.m_teamId"
   ],
   "availability_rule": "raw official field; availability follows the packet and restriction rules",
   "frequency_class": "status"
@@ -3205,6 +3205,16 @@
   "value_type": "integer",
   "source_fields": [
    "packet2.m_currentLapNum"
+  ],
+  "availability_rule": "available when received and fresh",
+  "frequency_class": "status"
+ },
+ {
+  "name": "timing.gap_ahead_s",
+  "unit": "s",
+  "value_type": "number",
+  "source_fields": [
+   "packet2.derived:m_deltaToCarInFront"
   ],
   "availability_rule": "available when received and fresh",
   "frequency_class": "status"

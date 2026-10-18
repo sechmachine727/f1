@@ -152,8 +152,13 @@ func (a *API) stream(w http.ResponseWriter, r *http.Request) {
 }
 
 func defaultSubscription(a *API) contract.StreamSubscription {
-	p := a.Reducer.PlayerCar()
-	return contract.StreamSubscription{Type: "subscribe", SchemaVer: contract.SchemaVersion, RequestID: "initial", SourceID: "live", CarIndices: []int{p}, Channels: []string{}, MaxHz: 20}
+	// The pit wall compares the whole field, so one socket carries every car.
+	// Deltas only contain changed metrics, so idle cars cost nothing per tick.
+	all := make([]int, 24)
+	for i := range all {
+		all[i] = i
+	}
+	return contract.StreamSubscription{Type: "subscribe", SchemaVer: contract.SchemaVersion, RequestID: "initial", SourceID: "live", CarIndices: all, Channels: []string{}, MaxHz: 20}
 }
 
 func (a *API) snapshotMessage(c *streamClient) contract.StreamMessage {

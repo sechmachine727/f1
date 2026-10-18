@@ -105,6 +105,7 @@ func TestLiveFixtureStream(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	ws.SetReadLimit(8 << 20)
 	defer ws.Close(websocket.StatusNormalClosure, "")
 	// The checked-in 2026 golden corpus uses car 3 as the player car.
 	sub := `{"type":"subscribe","schema_version":"1.0.0","request_id":"t","source_id":"live","car_indices":[3],"channels":["car.speed_mps"],"max_hz":60,"after_seq":null}`

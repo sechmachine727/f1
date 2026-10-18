@@ -50,7 +50,7 @@ export function connect() {
   socket = ws;
   ws.onopen = () => {
     set({ connected: true });
-    ws.send(JSON.stringify({ type: "subscribe", schema_version: "1.0.0", request_id: "ui", source_id: "live", car_indices: [], channels: [], max_hz: 20, after_seq: null }));
+    ws.send(JSON.stringify({ type: "subscribe", schema_version: "1.0.0", request_id: "ui", source_id: "live", car_indices: Array.from({ length: 24 }, (_, i) => i), channels: [], max_hz: 20, after_seq: null }));
   };
   ws.onclose = () => { socket = null; set({ connected: false }); setTimeout(connect, 1500); };
   ws.onerror = () => ws.close();
@@ -58,7 +58,7 @@ export function connect() {
     const msg = JSON.parse(ev.data) as StreamMsg;
     const { next, resync } = applyMessage(state, msg);
     if (resync) {
-      ws.send(JSON.stringify({ type: "subscribe", schema_version: "1.0.0", request_id: "resync", source_id: "live", car_indices: [], channels: [], max_hz: 20, after_seq: null }));
+      ws.send(JSON.stringify({ type: "subscribe", schema_version: "1.0.0", request_id: "resync", source_id: "live", car_indices: Array.from({ length: 24 }, (_, i) => i), channels: [], max_hz: 20, after_seq: null }));
       return;
     }
     set(next);

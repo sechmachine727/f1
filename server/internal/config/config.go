@@ -198,7 +198,9 @@ func (s *Store) Secret(id string) string {
 }
 
 func restartFields(a, b contract.Config) []string {
-	var out []string
+	// The wire contract requires an array, so an unchanged config reports [] and
+	// never null.
+	out := []string{}
 	if a.HTTP != b.HTTP {
 		out = append(out, "http")
 	}

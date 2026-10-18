@@ -312,11 +312,26 @@ func (r *Reducer) observeParticipants(p *protocol.Packet) {
 
 func (r *Reducer) observeFields(seq uint64, at time.Time, p *protocol.Packet) {
 	h := p.Header
+	if h.PacketID == 2 {
+		// The delta is split into minutes and milliseconds; publish the sum so
+		// the pit wall can compare gaps without recombining parts.
+		for car := 0; car < p.CarCount(); car++ {
+			mins, ok1 := p.CarField("m_deltaToCarInFrontMinutesPart", car)
+			ms, ok2 := p.CarField("m_deltaToCarInFrontMSPart", car)
+			if !ok1 || !ok2 {
+				continue
+			}
+			r.store(key{h.PacketID, "timing.gap_ahead_s", car}, sample{value: protocol.Value{F: mins.F*60 + ms.F/1000}, seq: seq, frame: h.OverallFrameID, observed: at, source: "packet2"})
+		}
+	}
 	if h.OverallFrameID != r.maxFrame && int32(h.OverallFrameID-r.maxFrame) > 0 {
 		r.maxFrame = h.OverallFrameID
 	}
 	r.lastOverall = h.OverallFrameID
 	for _, spec := range protocol.ByPacket(h.PacketID) {
+		if spec.Field == "" || len(spec.Field) > 8 && spec.Field[:8] == "derived:" {
+			continue
+		}
 		if spec.CarIndexed {
 			n := p.CarCount()
 			if n == 0 {
@@ -739,11 +754,18 @@ func (r *Reducer) metricLocked(ch protocol.ChannelSpec, car int, now time.Time) 
 		return m
 	}
 	value := any(s.value.F*ch.Scale + ch.Offset)
+	if ch.ValueType == "string" {
+		value = s.value.S
+	} else if ch.ValueType == "boolean" {
+		value = s.value.F != 0
+	}
 	switch ch.Name {
 	case "energy.deploy_mode":
 		value = protocol.DeployModeLabel(s.value.F)
 	case "aero.active_mode":
 		value = protocol.ActiveAeroLabel(s.value.F)
+	case "tyre.compound":
+		value = protocol.CompoundLabel(int(s.value.F))
 	}
 	m.Measurement = contract.Available(value, ch.Unit, s.source)
 	m.Measurement.AsOfMs = int64p(s.observed.UnixMilli())

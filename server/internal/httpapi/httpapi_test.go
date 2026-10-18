@@ -110,6 +110,7 @@ func TestStreamSnapshotThenDeltaContinuity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	conn.SetReadLimit(8 << 20)
 	defer conn.Close(websocket.StatusNormalClosure, "")
 	var first contract.StreamMessage
 	decode(t, ctx, conn, &first)

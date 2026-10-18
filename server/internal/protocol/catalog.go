@@ -64,6 +64,7 @@ var canonical = func() []ChannelSpec {
 	add("timing.lap_distance_m", "m", "number", 2, "m_lapDistance", true, -1, 1, false, "high_rate")
 	add("timing.car_position", "position", "integer", 2, "m_carPosition", true, -1, 1, false, "status")
 	add("timing.pit_status", "status", "integer", 2, "m_pitStatus", true, -1, 1, false, "status")
+	add("timing.gap_ahead_s", "s", "number", 2, "derived:m_deltaToCarInFront", true, -1, 1, false, "status")
 	add("timing.speed_trap_mps", "m/s", "number", 2, "m_speedTrapFastestSpeed", true, -1, 1.0/3.6, false, "status")
 	add("aero.active_mode", "mode", "string", 16, "m_activeAeroMode", true, -1, 1, false, "high_rate")
 	add("aero.available", "flag", "boolean", 16, "m_activeAeroAvailable", true, -1, 1, false, "status")
@@ -75,6 +76,10 @@ var canonical = func() []ChannelSpec {
 	add("session.air_temp_c", "degC", "number", 1, "m_airTemperature", false, -1, 1, false, "session")
 	add("session.track_length_m", "m", "number", 1, "m_trackLength", false, -1, 1, false, "session")
 	add("session.safety_car_status", "code", "integer", 1, "m_safetyCarStatus", false, -1, 1, false, "session")
+	add("car.team_id", "team", "integer", 4, "m_teamId", true, -1, 1, false, "session")
+	add("car.race_number", "number", "integer", 4, "m_raceNumber", true, -1, 1, false, "session")
+	add("car.driver_name", "", "string", 4, "m_name", true, -1, 1, false, "session")
+	add("car.is_ai", "flag", "boolean", 4, "m_aiControlled", true, -1, 1, false, "session")
 	return s
 }()
 

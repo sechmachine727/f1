@@ -35,24 +35,28 @@ func BuildPacket(format uint16, packetID uint8, h Header, scalar map[string]floa
 				if car >= seg.count {
 					continue
 				}
-				writeFields(data, base+car*seg.width, seg.fields, values, nil)
+				writeFields(data, base+car*seg.width, seg.fields, values, strings, car)
 			}
 			continue
 		}
-		writeFields(data, base, seg.fields, scalar, strings)
+		writeFields(data, base, seg.fields, scalar, strings, -1)
 	}
 	return data
 }
 
-func writeFields(data []byte, base int, fields []fieldSpec, values map[string]float64, strings map[string]string) {
+func writeFields(data []byte, base int, fields []fieldSpec, values map[string]float64, strings map[string]string, car int) {
 	off := base
 	for _, f := range fields {
 		size := kindSize(f.kind) * f.count
 		if f.kind == kStr {
 			size = f.strLen
 		}
-		if strings != nil {
-			if s, ok := strings[f.name]; ok && f.kind == kStr {
+		if strings != nil && f.kind == kStr {
+			key := f.name
+			if car >= 0 {
+				key = fmt.Sprintf("%s[%d]", f.name, car)
+			}
+			if s, ok := strings[key]; ok {
 				copy(data[off:off+f.strLen], []byte(s))
 			}
 		}
