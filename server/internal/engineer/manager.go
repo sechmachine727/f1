@@ -78,6 +78,10 @@ func (m *Manager) Request(ctx context.Context, req contract.Request) (contract.I
 }
 
 func (m *Manager) run(ctx context.Context, inv contract.Invocation, cfg contract.Config, snap state.Snapshot, text *string) {
+	m.execute(ctx, inv, cfg, snap, text, Invocation{})
+}
+
+func (m *Manager) execute(ctx context.Context, inv contract.Invocation, cfg contract.Config, snap state.Snapshot, text *string, window Invocation) {
 	endpoint, ok := endpointByID(cfg, deref(cfg.Agent.EndpointID))
 	if !ok {
 		m.finish(inv.ID, "failed", "endpoint_missing", nil, contract.Usage{UsageEstimated: true})
@@ -104,11 +108,13 @@ func (m *Manager) run(ctx context.Context, inv contract.Invocation, cfg contract
 	outText, requests, err := m.Invoker.Run(cctx, inv.Profile, input, endpoint, key, snap)
 	m.budget.Reconcile(int64(input.Limits.MaxContextTokens)+int64(input.Limits.MaxOutputTokens), contract.Usage{ProviderRequests: requests, UsageEstimated: true})
 	if err != nil {
+		m.sched.Fail(inv.ID, "provider_error")
 		m.finish(inv.ID, "failed", err.Error(), nil, contract.Usage{ProviderRequests: requests, UsageEstimated: true})
 		return
 	}
 	out, err := ParseAndValidate(outText, input)
 	if err != nil {
+		m.sched.Fail(inv.ID, "invalid")
 		// One bounded repair is allowed in the same deadline/budget.
 		repair := "Repair the previous response into one JSON object matching AgentOutput. Fix only schema and scope; do not add evidence."
 		_ = repair
@@ -118,6 +124,14 @@ func (m *Manager) run(ctx context.Context, inv contract.Invocation, cfg contract
 	disposition := "none"
 	if out.Notify {
 		disposition = "delivered"
+	}
+	// Accept only a current-branch strategy result; this advances the evidence
+	// cursor by the frozen window and nothing else.
+	if inv.Profile == "scheduled_strategy" || inv.Profile == "continuous_strategy" {
+		if err := m.sched.Accept(inv.ID, window.Window); err != nil {
+			m.finish(inv.ID, "superseded", err.Error(), nil, contract.Usage{ProviderRequests: requests, UsageEstimated: true})
+			return
+		}
 	}
 	m.finish(inv.ID, "accepted", "", &out, contract.Usage{ProviderRequests: requests, UsageEstimated: true, TotalTokens: nil})
 	m.mu.Lock()
@@ -251,12 +265,19 @@ func (m *Manager) Tick(snap state.Snapshot) {
 		return
 	}
 	m.mu.Unlock()
+	// A flashback moves the surviving branch; pending evidence before the anchor
+	// stays queued and all cursors reset.
+	if snap.Context.BranchID != m.sched.Scope().Branch {
+		m.sched.Flashback(snap.Context.BranchID, snap.ObservationSeq+1)
+	}
 	var evts []string
 	m.mu.Lock()
 	for _, e := range snap.Events {
 		if e.ID != m.lastEvt {
 			evts = append(evts, e.Type)
 			m.lastEvt = e.ID
+			seq, _ := strconv.ParseUint(e.Seq, 10, 64)
+			m.sched.Event(PendingEvent{Seq: seq, ID: e.ID, Type: e.Type, Severity: e.Severity})
 		}
 	}
 	laps := 0
@@ -275,12 +296,42 @@ func (m *Manager) Tick(snap state.Snapshot) {
 	m.mu.Lock()
 	m.running = true
 	m.mu.Unlock()
-	inv, err := m.Request(context.Background(), contract.Request{Profile: "scheduled_strategy", SessionID: snap.Context.SessionID, BranchID: snap.Context.BranchID})
 	m.mu.Lock()
 	m.running = false
 	m.mu.Unlock()
-	_ = inv
-	_ = err
+	id := fmt.Sprintf("inv-%d", time.Now().UnixNano())
+	inv, err := m.sched.Dispatch(id, snap.ObservationSeq, time.Now())
+	if err != nil {
+		return
+	}
+	_, ok, reason := m.budget.Reserve(int64(cfg.Agent.ContextTokens), cfg.Agent.MaxOutputTokens)
+	if !ok {
+		m.sched.Fail(id, "budget_blocked")
+		_ = reason
+		return
+	}
+	m.startScheduled(inv, ids, cfg, snap)
+}
+
+// startScheduled runs a software-triggered invocation: the frozen window comes
+// from the scheduler, and only an accepted result advances evidence.
+func (m *Manager) startScheduled(inv Invocation, triggerIDs []string, cfg contract.Config, snap state.Snapshot) {
+	rec := contract.Invocation{ID: inv.ID, Profile: "scheduled_strategy", SessionID: snap.Context.SessionID,
+		BranchID: inv.Branch, Status: "running", StartedAtMs: int64Ptr(time.Now().UnixMilli()), TriggerIDs: triggerIDs,
+		Usage: contract.Usage{UsageEstimated: true}, NotificationDisposition: "none", PromptVersion: PromptVersion}
+	if err := m.store(rec); err != nil {
+		m.sched.Fail(inv.ID, "store_failed")
+		return
+	}
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				m.sched.Fail(inv.ID, "panic")
+				m.finish(inv.ID, "failed", fmt.Sprint(r), nil, contract.Usage{UsageEstimated: true})
+			}
+		}()
+		m.execute(context.Background(), rec, cfg, snap, nil, inv)
+	}()
 }
 
 func endpointByID(cfg contract.Config, id string) (contract.Endpoint, bool) {
