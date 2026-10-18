@@ -20,3 +20,20 @@ Result: pass in 605 s.
 | Ingest lag | 5 ms |
 
 This is a pre-check, not Gate C. The 2-hour run with three browser-analogue clients and the documented phases is separate evidence.
+
+## Failure found and fixed during Gate C
+
+The first clean 2-hour attempt received all 14,745,600 datagrams but recorded only 1,681,897, then stopped silently around minute 14. Intake and recording are independent, so the digest comparison still matched.
+
+Cause: `Recorder.write` compared the cumulative file size against `chunk_bytes`, so after the first chunk every datagram triggered `file.Sync()`. As the file grew, fsync cost rose until the writer could not keep up and the bounded queue stopped recording.
+
+Fix: checkpoint only when new bytes since the last checkpoint reach `chunk_bytes` and at least `chunk_flush_ms` has elapsed. Regression: `TestStorageFailureIsolation/checkpoint_cadence` holds a frozen clock and asserts no second checkpoint.
+
+Verification after the fix:
+
+| Duration | Sent | Received | Recorded | Recorder state | Peak RSS | p95 |
+|---|---|---|---|---|---|---|
+| 3 min | 368,640 | 368,640 | 368,640 | recording | 64.4 MiB | 0.52 ms |
+| 20 min | 2,457,600 | 2,457,600 | 2,457,600 | recording | 75.4 MiB | 0.53 ms |
+
+The 20-minute run passes the point where the earlier attempt stopped. Raw evidence: verification-soak-20m.json.
