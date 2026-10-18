@@ -543,9 +543,9 @@ function ProjectedLifePanel({ data, wearHistory }: { data: TyreTelemetryData; we
   );
 }
 
-// ── Sub-panel 6: Tyres Agent ───────────────────────────────────────────────
+// ── Sub-panel 6: Tyre Alerts ───────────────────────────────────────────────
 
-function TyresAgentPanel({ alerts, engineerResponses }: {
+function TyreAlertsPanel({ alerts, engineerResponses }: {
   alerts: Alert[];
   engineerResponses: TyresReportEntry[];
 }) {
@@ -703,14 +703,14 @@ export function DetailedTyresView({
               )}
             </Panel>
 
-            {/* Row 3: Tyres Agent (full width) */}
+{/* Row 3: Tyre Alerts (full width) */}
             <Panel
-              title="Tyres Agent"
+          title="Tyre Alerts"
               icon={<Circle className="h-3.5 w-3.5 text-primary" />}
               className="col-span-2 max-h-[14rem]"
               raw
             >
-              <TyresAgentPanel alerts={tyreAlerts} engineerResponses={engineerResponses} />
+              <TyreAlertsPanel alerts={tyreAlerts} engineerResponses={engineerResponses} />
             </Panel>
           </div>
         </div>

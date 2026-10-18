@@ -61,11 +61,14 @@ class RaceEngineerDispatcher(BaseAgentDispatcher):
 
     def queue(self, messages: list[str]) -> None:
         """Add messages to the pending list, log them, and (re)start the batch timer."""
-        self.pending.extend(messages)
-
         ts = format_session_time(self._session_time_fn())
         for msg in messages:
             self.alerts_log.append({"level": "info", "message": msg, "time": ts})
+
+        if self.agent is None:
+            return
+
+        self.pending.extend(messages)
 
         if self.batch_handle is not None:
             self.batch_handle.cancel()

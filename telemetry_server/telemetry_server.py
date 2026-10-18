@@ -12,9 +12,6 @@ JSON frames with the latest telemetry state.
 
 import argparse
 import asyncio
-import os
-
-from dotenv import load_dotenv
 
 from common.f1_structs.f1_constants import MAX_NUM_CARS
 from telemetry_server.alerts.aero_alert_processor import AeroAlertProcessor
@@ -125,13 +122,6 @@ class TelemetryServer:
 
     async def run(self, args: argparse.Namespace) -> None:
         """Start the WebSocket server and the telemetry input source."""
-        self.agents_enabled = not args.no_agents
-        os.environ.setdefault("AGENT_MANIFEST_FILE", "registries/manifest.hocon")
-        if self.agents_enabled:
-            self.dispatch_manager.init_agents()
-        else:
-            print("Agents disabled — running in telemetry-only mode")
-
         print(f"Starting WebSocket server on ws://{WS_HOST}:{WS_PORT}")
         async with self.websocket_server.serve():
             if args.replay:
@@ -148,8 +138,6 @@ class TelemetryServer:
 
 async def main() -> None:
     """Parse CLI arguments and start the telemetry server."""
-    load_dotenv()
-
     parser = argparse.ArgumentParser(description="F1 25 telemetry WebSocket bridge")
     parser.add_argument(
         "--capture",
@@ -171,11 +159,6 @@ async def main() -> None:
         "--keep-pauses",
         action="store_true",
         help="Preserve original game pauses during replay (by default pauses are skipped)",
-    )
-    parser.add_argument(
-        "--no-agents",
-        action="store_true",
-        help="Disable AI agent initialization — stream telemetry only",
     )
     args = parser.parse_args()
 

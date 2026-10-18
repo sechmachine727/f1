@@ -112,7 +112,7 @@ export function PuAlertPanel({ alerts, activeCount, engineerResponses }: PuAlert
           onDoubleClick={() => setExpanded(true)}
         >
           <Zap className="h-4 w-4 text-primary" />
-          <span className="font-display text-sm font-bold tracking-widest uppercase text-foreground">Power Unit Agent</span>
+<span className="font-display text-sm font-bold tracking-widest uppercase text-foreground">Power Unit Alerts</span>
           <Maximize2 className="h-2.5 w-2.5 text-muted-foreground/50 ml-1" />
           {hasAnalysis && <Bot className="h-4 w-4 text-info ml-1" />}
           <span className={`ml-auto font-display text-[10px] font-bold ${counterColor}`}>{activeCount}</span>
@@ -139,7 +139,7 @@ export function PuAlertPanel({ alerts, activeCount, engineerResponses }: PuAlert
           >
             <div className="flex items-center gap-1.5 px-3 py-2 border-b border-border/50 bg-secondary/30">
               <AlertTriangle className="h-3 w-3 text-muted-foreground" />
-              <span className="font-display text-sm font-bold tracking-widest uppercase text-foreground">Power Unit Agent</span>
+<span className="font-display text-sm font-bold tracking-widest uppercase text-foreground">Power Unit Alerts</span>
               {hasAnalysis && <Bot className="h-4 w-4 text-info ml-1" />}
               <span className={`ml-auto font-display text-[10px] font-bold ${counterColor}`}>{activeCount}</span>
             </div>

@@ -45,7 +45,7 @@ export function RaceEngineerPanel({ report, driverMessages, className }: RaceEng
 
   return (
     <ExpandableReportPanel
-      title="Race Engineer Agent"
+      title="Race Engineer"
       responses={filtered}
       emptyMessage={driverOnly ? "No driver radio messages yet..." : "Awaiting engineer reports..."}
       className={className}

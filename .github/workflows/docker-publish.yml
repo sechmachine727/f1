@@ -136,7 +136,7 @@ jobs:
         run: |
           tag=$(head -n1 <<< "${{ steps.meta.outputs.tags }}")
           echo "Smoke testing $tag"
-          docker run --rm -d --name f1-smoke -p 8081:8081 "$tag" --no-agents
+          docker run --rm -d --name f1-smoke -p 8081:8081 "$tag"
           for _ in $(seq 1 30); do
             if curl -fsS http://localhost:8081/ -o /tmp/index.html; then break; fi
             sleep 2

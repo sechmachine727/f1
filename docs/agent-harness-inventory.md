@@ -4,6 +4,11 @@ Scope: everything the telemetry bridge uses to produce agent output, and everyth
 that exists only to support the upstream Neuro SAN demo. Written before replacing the
 harness, so the new implementation starts from a known surface.
 
+Status: the removal below is applied on `codex/reimplement-agent-harness`. The four
+specialist prompt HOCONs remain in `registries/` as reference text for the new harness,
+and the dashboard alert panels are now titled "Tyre Alerts", "Power Unit Alerts",
+"Damage Alerts", and "Race Engineer".
+
 ## What the bridge actually uses
 
 `telemetry_server` imports Neuro SAN in exactly four places

@@ -40,6 +40,8 @@ class BaseAgentDispatcher:
 
     def queue(self, alert_texts: list[str]) -> None:
         """Add alert texts to the pending list and (re)start the batch timer."""
+        if self.agent is None:
+            return  # no harness wired in yet; drop instead of growing the queue forever
         self.pending.extend(alert_texts)
 
         if self.batch_handle is not None:

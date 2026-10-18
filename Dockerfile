@@ -11,7 +11,7 @@ ARG VITE_WS_URL=
 ENV VITE_WS_URL=${VITE_WS_URL}
 RUN npm run build
 
-# ---- Stage 2: telemetry bridge + agents + static dashboard ----
+# ---- Stage 2: telemetry bridge + static dashboard ----
 FROM python:3.12-slim
 
 ENV PYTHONPATH=/app \
@@ -20,11 +20,8 @@ ENV PYTHONPATH=/app \
 
 WORKDIR /app
 
-# PySide6 is unused by the tracked code and its only Linux arm64 wheel needs
-# glibc 2.39 (Debian trixie); filtering it keeps the bookworm base and saves ~1GB.
 COPY requirements.txt ./
-RUN grep -v -i '^pyside6' requirements.txt > /tmp/requirements.txt \
-    && pip install --no-cache-dir -r /tmp/requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 COPY --from=ui /ui/dist ./race_engineer_hub/dist

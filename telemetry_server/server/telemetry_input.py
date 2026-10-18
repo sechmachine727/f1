@@ -75,11 +75,7 @@ class TelemetryInput:
                     server.session_histories = {}
                     server.track_location.set_track(server.adapter.get_track_id())
                     context = server.adapter.get_session_context()
-                    if server.agents_enabled:
-                        print(f"New session detected \u2014 re-initializing agents\n{context}")
-                        await asyncio.to_thread(server.dispatch_manager.reinit_agents, context)
-                    else:
-                        print(f"New session detected\n{context}")
+                    print(f"New session detected\n{context}")
 
                 # Trigger on Car Telemetry (packet 6)
                 if packet_id == 6:
@@ -132,11 +128,7 @@ class TelemetryInput:
                     server.session_histories = {}
                     server.track_location.set_track(server.adapter.get_track_id())
                     context = server.adapter.get_session_context()
-                    if server.agents_enabled:
-                        print(f"New session detected in replay \u2014 re-initializing agents\n{context}")
-                        await asyncio.to_thread(server.dispatch_manager.reinit_agents, context)
-                    else:
-                        print(f"New session detected in replay\n{context}")
+                    print(f"New session detected in replay\n{context}")
 
                 msg, new_aero, new_tyre, new_pu = server.message_builder.build()
                 await server.websocket_server.broadcast(msg)

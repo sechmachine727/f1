@@ -12,12 +12,7 @@
     * [Capturing telemetry](#capturing-telemetry)
     * [Test data](#test-data)
     * [Replaying telemetry](#replaying-telemetry)
-    * [Telemetry-only mode](#telemetry-only-mode)
   * [Reinforcement Learning](#reinforcement-learning)
-  * [Agent network](#agent-network)
-  * [LLM Configuration](#llm-configuration)
-    * [Custom OpenAI-compatible endpoints](#custom-openai-compatible-endpoints)
-  * [Observability](#observability)
 <!-- TOC -->
 
 ## Setup
@@ -56,15 +51,13 @@ Run the Python test suite from the repository root:
 python -m pytest
 ```
 
-CI runs it on every pull request and on pushes to `main`. The suite covers the LLM endpoint
-configuration and the release manifest builder.
+CI runs it on every pull request and on pushes to `main`.
 
 ## Docker
 
-Build and run everything — telemetry bridge, agents, and the dashboard — in one container:
+Build and run the telemetry bridge and dashboard in one container:
 
 ```bash
-cp .env.example .env   # add your LLM API key
 docker compose up -d --build
 ```
 
@@ -75,10 +68,8 @@ Ports: `20777/udp` telemetry in, `8765/tcp` telemetry WebSocket, `8081/tcp` dash
 
 Configuration to edit:
 
-* `.env` — LLM keys and observability settings (compose loads it when present).
-* `registries/`, `mcp/`, `toolbox/` — agent, LLM, and tool HOCON configs (bind-mounted, live).
 * `data/` — `.f1bin` captures (bind-mounted).
-* `docker-compose.yml` — uncomment a `command:` for telemetry-only (`--no-agents`) or replay mode,
+* `docker-compose.yml` — uncomment a `command:` for replay mode,
   or set `build.args.VITE_WS_URL` to pin the WebSocket endpoint the UI connects to.
 
 By default the dashboard connects to `ws://<the host serving the page>:8765`, so it works over
@@ -113,10 +104,8 @@ python -m telemetry_server --capture
 <img src="race_engineer_hub.png" alt="Race Engineer Hub dashboard" width="800">
 
 1. The top panels report telemetry straight from the game
-2. Under each telemetry panel, the 'alerts' are produced by Neuro SAN
-  agents constantly monitoring their telemetry data.
-3. The bottom Race Engineer Agent is produced by another agent that summarizes the
-  specialized agents' findings into what should be communicated to the driver.
+2. Under each telemetry panel, the 'alerts' are threshold warnings derived from that telemetry.
+3. The Race Engineer panel collects driver radio messages and alert activity.
 4. Contextual information like Lap Timing, Standings and live Track is also updated in real-time.
 
 
@@ -169,99 +158,6 @@ Add `--speed` to fast-forward the replay:
 python -m telemetry_server --replay data/f1_25_capture.f1bin --speed 10x
 ```
 
-### Telemetry-only mode
-
-Use `--no-agents` to run the telemetry server without initializing AI agents. This is useful for testing the UI and telemetry pipeline without needing LLM API keys:
-```shell
-python -m telemetry_server --no-agents
-```
-
-It can be combined with `--replay`:
-```shell
-python -m telemetry_server --no-agents --replay data/f1_25_capture.f1bin --speed 10x
-```
-
 ## Reinforcement Learning
 
 [Explainable Reinforcement Learning for Formula One Race Strategy](https://arxiv.org/abs/2501.04068)
-
-## Agent network
-
-To test each agent independently, start Neuro SAN Studio:
-```shell
-python -m run
-```
-And navigate to [http://localhost:4173](http://localhost:4173) in a browser.
-Then choose the agent you want to test and send it a message.
-
-## LLM Configuration
-
-The agent networks use [Neuro SAN Studio](https://github.com/cognizant-ai-lab/neuro-san-studio) for multi-agent orchestration. LLM provider settings live in `registries/llm_config.hocon`. To switch providers, set the `class` and `model_name` keys:
-
-```hocon
-"llm_config": {
-    "class": "anthropic",
-    "model_name": "claude-sonnet-4-20250514",
-}
-```
-
-| LLM Provider   | `class` Value  | Links for model names |
-|----------------|----------------|-----------------------|
-| Amazon Bedrock | `bedrock`      | [Bedrock model IDs](https://docs.aws.amazon.com/bedrock/latest/userguide/model-ids.html) |
-| Anthropic      | `anthropic`    | [Claude models](https://platform.claude.com/docs/en/about-claude/models/overview) |
-| Azure OpenAI   | `azure-openai` | [Azure OpenAI models](https://learn.microsoft.com/azure/ai-services/openai/concepts/models) |
-| Google Gemini  | `gemini`       | [Gemini models](https://ai.google.dev/gemini-api/docs/models) |
-| NVIDIA         | `nvidia`       | [NVIDIA models](https://build.nvidia.com/explore/discover) |
-| Ollama         | `ollama`       | [Ollama library](https://ollama.com/library) |
-| OpenAI         | `openai`       | [OpenAI models](https://platform.openai.com/docs/models) |
-
-Add your provider's API key to `.env` (loaded automatically on startup):
-```
-ANTHROPIC_API_KEY=sk-ant-...
-# or OPENAI_API_KEY=sk-...
-```
-
-### Custom OpenAI-compatible endpoints
-
-Any server that implements the OpenAI Chat Completions API works. Set these in `.env` (or the
-environment) and every agent network talks to it:
-
-| Variable | Example | Purpose |
-|----------|---------|---------|
-| `LLM_CLASS` | `openai` | Selects the OpenAI client; required for a custom endpoint |
-| `LLM_MODEL_NAME` | `llama3.1` | Model name exactly as the server expects it |
-| `OPENAI_API_BASE` | `http://127.0.0.1:11434/v1` | Server base URL, including the `/v1` path |
-| `OPENAI_API_KEY` | `ollama` | Any placeholder if the server does not check keys |
-
-```bash
-# Ollama on the same machine
-LLM_CLASS=openai
-LLM_MODEL_NAME=llama3.1
-OPENAI_API_BASE=http://127.0.0.1:11434/v1
-OPENAI_API_KEY=ollama
-```
-
-Leave these unset and the committed defaults apply: the four specialist agents use
-`claude-sonnet` (`registries/llm_config.hocon`) and the racing-team network uses `gpt-5.4-mini`
-(`registries/formula_1_racing_team.hocon`). Setting these variables overrides both. Setting
-`LLM_CLASS` bypasses Neuro SAN's model table, so the model does not have to be one Neuro SAN
-already knows. The model must support tool calling, because the agents call tools.
-
-Agents run inside the container under Docker, so a server on the host is reachable at
-`http://host.docker.internal:<port>/v1` (`--add-host=host.docker.internal:host-gateway` on Linux).
-
-For full details on LLM configuration options (temperature, max_tokens, per-agent overrides, etc.), see the [Neuro SAN Studio User Guide](https://github.com/cognizant-ai-lab/neuro-san-studio/blob/main/docs/user_guide.md).
-
-## Observability
-
-The agent network supports observability via [Neuro SAN Studio](https://github.com/cognizant-ai-lab/neuro-san-studio) plugins. Available providers:
-
-- **LangSmith** — add to `.env` (no plugin required):
-  ```
-  LANGSMITH_TRACING=true
-  LANGSMITH_API_KEY=lsv2_...
-  ```
-- **Langfuse** — trace collection, cost tracking, and performance metrics (supports cloud and self-hosted)
-- **Arize Phoenix** — AI observability and tracing
-
-For setup instructions, see the [Neuro SAN Studio Observability docs](https://github.com/cognizant-ai-lab/neuro-san-studio/blob/main/docs/plugins.md#observability).

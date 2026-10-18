@@ -1,20 +1,3 @@
-# Neuro SAN
-neuro-san==0.6.47
-nsflow==0.6.14
-
-# leaf-common 1.2.52 moved leaf_common.config.resolver_util to leaf_common.resolution,
-# which neuro-san 0.6.47 imports directly. Newer versions break agent loading.
-leaf-common==1.2.51
-
-# For Anthropic LLM
-langchain_anthropic==1.3.4
-
-# To use a .env file for environment variables
-python-dotenv==1.0.1
-
-# For the F1 telemetry tools https://github.com/Fredrik2002/f1-25-telemetry-application
-PySide6==6.9.3
-
 # WebSocket bridge for race_engineer_hub live telemetry
 websockets>=14.0
 

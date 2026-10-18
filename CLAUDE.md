@@ -19,7 +19,6 @@ cd race_engineer_hub && npm install
 
 | What | Command | Port |
 |------|---------|------|
-| Agent network + nsflow UI | `python -m run` | 8080 (server), 4173 (nsflow) |
 | Telemetry WebSocket bridge | `python -m telemetry_server` | UDP 20777 in, WS 8765 out |
 | Race Engineer Hub (React UI) | `cd race_engineer_hub && npm run dev` | 8081 |
 | Replay captured telemetry | `python -m telemetry_server --replay data/<file>.f1bin --speed 10x` | |
@@ -43,40 +42,25 @@ Python commands require the venv activated and `PYTHONPATH` set to the repo root
 
 ## Architecture
 
-Three main systems communicate at runtime:
+Two main systems communicate at runtime:
 
-1. **Neuro SAN agent network** (`registries/`, `run.py`) — HOCON-defined multi-agent orchestration. Agents are declared in `registries/*.hocon` and registered in `registries/manifest.hocon`. LLM config in `registries/llm_config.hocon` (default: OpenAI gpt-5.2, requires `OPENAI_API_KEY` in `.env`).
-
-2. **Telemetry server** (`telemetry_server/`) — Async Python WebSocket bridge organised into subpackages:
+1. **Telemetry server** (`telemetry_server/`) — Async Python WebSocket bridge organised into subpackages:
    - `telemetry_server.py` — `TelemetryServer` composition root + `main()` entry point
    - `alerts/` — `AeroAlertProcessor`, `TyreAlertProcessor`, `PuAlertProcessor` (threshold evaluation and alert log accumulation), plus shared constants (`alert_constants.py`) and helpers (`alert_utils.py`)
-   - `dispatch/` — `BaseAgentDispatcher` (debounced batch queue/flush), specialist dispatchers (`DamageDispatcher`, `TyresDispatcher`, `PuDispatcher`), `RaceEngineerDispatcher` (routes follow-ups back to specialists), and `AgentDispatchManager` (facade for all four)
    - `server/` — `MessageBuilder` (assembles JSON), `WebSocketServer` (client tracking + broadcast + driver radio), `TelemetryInput` (UDP listener + `.f1bin` replay)
-   - `agents/` — Neuro SAN agent wrappers (`DamageAgent`, `TyresAgent`, `PowerUnitAgent`, `RaceEngineerAgent`)
+   - `dispatch/` — `BaseAgentDispatcher` (debounced batch queue/flush), specialist dispatchers, `RaceEngineerDispatcher`, and `AgentDispatchManager` (facade for all four). No LLM harness is wired in yet, so the queues stay empty.
    - `telemetry_state_adapter.py` — translates decoded packet state into flat camelCase dicts for WebSocket JSON
 
-3. **Race Engineer Hub** (`race_engineer_hub/`) — Vite + React 18 + TypeScript + Tailwind + shadcn/ui dashboard. Each hook (`src/hooks/`) opens its own WebSocket connection to the telemetry server and accumulates state.
+2. **Race Engineer Hub** (`race_engineer_hub/`) — Vite + React 18 + TypeScript + Tailwind + shadcn/ui dashboard. Each hook (`src/hooks/`) opens its own WebSocket connection to the telemetry server and accumulates state.
 
 ### Data flow
 
 ```
 F1 game → UDP:20777 → TelemetryInput → parse packets → AlertProcessors → generate alerts
-                                      → AgentDispatchManager → specialist agents (async)
                                       → WebSocketServer → broadcast JSON over WS:8765
                                       ↓
                          race_engineer_hub (React) ← WS hooks
-                                      ↓
-                         Driver Radio input → WS → RaceEngineerDispatcher → race engineer agent
 ```
-
-### Agent hierarchy
-
-- **Race Engineer Agent** — coordinator that reads specialist reports, filters "Copy" acknowledgments, routes follow-ups to specialists, and communicates to the driver
-- **Damage Agent** — analyzes aero/brake alerts (wing damage, DRS faults, brake temps)
-- **Tyres Agent** — analyzes tyre alerts (surface temp, wear, damage, blistering)
-- **Power Unit Agent** — analyzes PU alerts (engine temp, fuel, ERS, gearbox)
-
-Each specialist agent (`telemetry_server/agents/*_agent.py`) uses `AgentSessionFactory` + `StreamingInputProcessor` from neuro-san. Alerts are batched via `BaseAgentDispatcher` with a debounce timer (1-2s) before dispatch. Responses are forwarded to the race engineer agent.
 
 ### Telemetry parsing
 
@@ -101,13 +85,3 @@ Each specialist agent (`telemetry_server/agents/*_agent.py`) uses `AgentSessionF
 - TypeScript strict mode. ESLint configured in `race_engineer_hub/eslint.config.js`.
 - HOCON agent configs include a `metadata` section with `description`, `tags`, and `sample_queries`.
 
-## Environment variables
-
-- `OPENAI_API_KEY` — required for LLM calls
-- `AGENT_MANIFEST_FILE` — defaults to `registries/manifest.hocon`
-
-Custom OpenAI-compatible endpoint (leave unset for the committed default):
-
- - `LLM_CLASS` — provider class, set to `openai` for a custom endpoint
- - `LLM_MODEL_NAME` — model name exactly as the server expects it
- - `OPENAI_API_BASE` — server base URL, including the `/v1` path

@@ -11,9 +11,6 @@ metadata {
     ]
 }
 
-# Load the shared LLM configuration from a single source of truth.
-include "registries/llm_config.hocon",
-
 tools = [
     {
         name = "race_engineer"
