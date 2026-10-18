@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -235,6 +236,7 @@ func TestRatedWorkload(t *testing.T) {
 	_ = srv.API().Latency.WriteCSV(filepath.Join(*evidence, "latency.csv"))
 	time.Sleep(1500 * time.Millisecond)
 
+	recState, recReason := srv.Recorder().State()
 	received, bytes, intakeHash := srv.Intake().Snapshot()
 	peak, finalRSS, growth, rssOK := probe.Report(filepath.Join(*evidence, "rss.csv"))
 	sessionID := srv.Reducer().SessionID()
@@ -272,9 +274,10 @@ func TestRatedWorkload(t *testing.T) {
 		recHash.Write(h)
 	}
 	secs := elapsed.Seconds()
-	report := fmt.Sprintf(`{"duration_s":%.1f,"slots":%d,"elapsed_slots_per_s":%.1f,"declared_slots_per_s":%d,"transmitted":%d,"transmitted_bytes":%d,"transmitted_sha256":"%s","received":%d,"received_bytes":%d,"received_sha256":"%s","recorded":%d,"recordings":%d,"session_id":"%s","branch_id":"%s","app_drops":%d}`,
+	report := fmt.Sprintf(`{"duration_s":%.1f,"slots":%d,"elapsed_slots_per_s":%.1f,"declared_slots_per_s":%d,"transmitted":%d,"transmitted_bytes":%d,"transmitted_sha256":"%s","received":%d,"received_bytes":%d,"received_sha256":"%s","recorded":%d,"recordings":%d,"session_id":"%s","branch_id":"%s","app_drops":%d,"recorder_state":"%s","recorder_reason":"%s"}`,
 		secs, sender.Count, float64(sender.Count)/secs, *rate, sender.Count, sender.Bytes, hex.EncodeToString(sender.Sum()),
-		received, bytes, hex.EncodeToString(intakeHash), recorded, len(paths), sessionID, branchID, int64(sender.Count-received))
+		received, bytes, hex.EncodeToString(intakeHash), recorded, len(paths), sessionID, branchID, int64(sender.Count-received),
+		recState, strings.ReplaceAll(recReason, "\"", "'"))
 	report = report[:len(report)-1] + fmt.Sprintf(",\"rss_peak_bytes\":%s,\"rss_final_bytes\":%s,\"rss_growth_last_90m_bytes\":%s,\"rss_available\":%t,\"obs_to_stream_p50_ms\":%.3f,\"obs_to_stream_p95_ms\":%.3f,\"obs_to_stream_max_ms\":%.3f,\"latency_samples\":%d,\"ingest_lag_max_ms\":%d}", fmtBytes(peak), fmtBytes(finalRSS), fmtBytes(growth), rssOK, float64(p50.Microseconds())/1000, float64(p95.Microseconds())/1000, float64(latencyMax.Microseconds())/1000, latencyN, maxLag/1e6)
 	writeEvidence(t, *evidence, "rated-workload.json", report)
 	t.Logf("%s", report)

@@ -56,20 +56,22 @@ type Recorder struct {
 	warn      atomic.Int64
 	rotateReq atomic.Bool
 
-	sessionID   string
-	fragmentID  string
-	sourceCtx   string
-	recordingID string
-	file        *os.File
-	writer      *mcap.Writer
-	countWriter *countingWriter
-	fileBytes   int64
-	channels    map[uint8]uint16
-	hasher      hash.Hash
-	lastSeq     uint64
-	firstSeq    uint64
-	startedAt   int64
-	rotation    int
+	sessionID        string
+	fragmentID       string
+	sourceCtx        string
+	recordingID      string
+	file             *os.File
+	writer           *mcap.Writer
+	countWriter      *countingWriter
+	fileBytes        int64
+	channels         map[uint8]uint16
+	hasher           hash.Hash
+	lastSeq          uint64
+	firstSeq         uint64
+	startedAt        int64
+	rotation         int
+	lastCheckpoint   int64
+	lastCheckpointAt time.Time
 }
 
 type countingWriter struct {
@@ -216,7 +218,10 @@ func (r *Recorder) write(item recorderItem) {
 	if r.countWriter.n >= r.cfg.RotateBytes {
 		r.rotate()
 	}
-	if r.countWriter.n >= r.cfg.ChunkBytes {
+	// Checkpoint on new bytes only. Comparing cumulative size made every write
+	// fsync once the file passed one chunk, which starved the writer at 2 kHz.
+	if r.countWriter.n-r.lastCheckpoint >= r.cfg.ChunkBytes &&
+		r.now().Sub(r.lastCheckpointAt) >= time.Duration(max(1, r.cfg.ChunkFlushMs))*time.Millisecond {
 		r.checkpoint()
 	}
 }
@@ -269,6 +274,8 @@ func (r *Recorder) ensureOpen(item recorderItem, identity [3]string) error {
 	w.WriteHeader(&mcap.Header{Profile: "f1tele", Library: "f1tele/1.0.0"})
 	w.AddSchema(&mcap.Schema{ID: 1, Name: "f1udp", Encoding: "none", Data: []byte("unchanged received datagrams")})
 	r.firstSeq, r.lastSeq = 0, 0
+	r.lastCheckpoint = 0
+	r.lastCheckpointAt = time.Time{}
 	r.hasher = sha256.New()
 	rec := contract.Recording{ID: r.recordingID, FragmentID: identity[1], State: "active", Range: contract.Range{FromSeq: "0", ToSeq: "0"}, Gaps: []string{}}
 	if err := r.catalog.CreateRecording(context.Background(), rec, path, r.startedAt); err != nil {
@@ -287,10 +294,15 @@ func (r *Recorder) checkpoint() {
 	if r.file == nil || r.writer == nil {
 		return
 	}
+	if r.countWriter.n == r.lastCheckpoint && !r.lastCheckpointAt.IsZero() {
+		return
+	}
 	if err := r.file.Sync(); err != nil {
 		r.fail(err)
 		return
 	}
+	r.lastCheckpoint = r.countWriter.n
+	r.lastCheckpointAt = r.now()
 	_ = r.catalog.Checkpoint(context.Background(), r.recordingID, r.countWriter.n, r.lastSeq)
 }
 
