@@ -51,9 +51,21 @@ Rated 2-hour soak running in PTY session 9870 (started 13:52, expected end about
 - Pit plans must match a legal deterministic candidate; retire requires direct failure evidence.
 - Label contrast raised from 3.89:1 to 7.31:1; zoom/reflow captured.
 
+## Gate C history
+
+Three attempts, each fixing a real defect:
+
+1. 13:52-15:45. Received all traffic but recorded only 1,681,897 datagrams and stopped silently. Cause: checkpoint compared cumulative file size against `chunk_bytes`, so every datagram fsynced after the first chunk. Fixed; cadence covered by `checkpoint_cadence`.
+2. 16:11-18:11. Received all 14,745,600 datagrams but recorded 1,681,897 and stopped: the recorder digest retained every payload in memory until the streaming fix; the live run then hit the same checkpoint stall at the same point. Restarted after the cadence fix.
+3. 18:40. Crashed at the first 256 MiB rotation: `rotate()` closed the writer and the next line dereferenced `countWriter`. Fixed with an early return; `TestStorageFailureIsolation/rotation` writes 400 records across rotated files.
+
+Post-fix checks: 3 min and 20 min at 2048 dk/s recorded every datagram with the recorder active (2,457,600 in 20 minutes), and a 6-minute run with a 16 MiB rotation threshold produced two files and 737,280 records.
+
+Fourth attempt started 19:56 and ends 21:56.
+
 ## Next step
 
-Collect soak results and update final-report.md. Then stop: provider, Windows host, microphone and real 2026 capture remain external.
+Collect the fourth soak, update final-report.md, then stop: provider, Windows host, microphone and real 2026 capture remain external.
 
 ## Blocker audit
 
