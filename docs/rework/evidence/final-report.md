@@ -43,6 +43,7 @@ Packaging: multi-stage Dockerfile (distroless, nonroot, writable /data), compose
 | docker build | pass, 48.3 MB |
 | container health, UDP, restart persistence | pass |
 | 30 s rated smoke (2048 dk/s, 3 clients) | exact count and digest match, 0 drops, p95 1.1 ms |
+| 10-minute rated pre-check | 1,228,800/1,228,800/1,228,800 sent/received/recorded, identical digests, 0 drops, peak RSS 67.6 MiB, p95 0.53 ms |
 | rendered Drive at 1920x1080 and 2560x1440 | no page scroll; screenshots in evidence/ui |
 
 ## Requirement mapping
@@ -73,7 +74,7 @@ The Windows binary is a compile check produced on macOS, not Windows native qual
 
 ## Pending and externally blocked
 
-- Gate C: the two-hour soak is running; numbers are not in this report yet.
+- Gate C: the clean two-hour soak started at 16:11 and ends at 18:11. Numbers land in docs/rework/evidence/release-qualification/rated-workload.json.
 - Gate D: no configured model provider or key, no Windows 11 host with microphone, no real 2026 capture. The Responses adapter is not wired; it fails explicitly rather than falling back.
 - Gate B: keyboard traversal, focus return, contrast measurement, reduced motion, 200% browser zoom, and the remaining workspace states have no captured evidence. Pit wall, History, Analysis, Setups and Settings were not screenshotted.
 - Windows: WinUI build, portable ZIP, clean-machine launch, tray, voice and push-to-talk under game focus are not verified.
