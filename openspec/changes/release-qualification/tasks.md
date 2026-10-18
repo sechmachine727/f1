@@ -4,12 +4,12 @@ Dependencies: go-telemetry-core, durable-race-history, telemetry-analysis-export
 
 ## 1. Packaging and operator behavior
 
-- [ ] 1.1 Update Dockerfile, docker/entrypoint.sh, docker-compose.yml and frontend embedding build for the native server/v1 routes, preserving /data and configurable endpoints. Verify local container health, UDP receipt, browser connection and recording persistence after restart; document exact commands in README.md.
+- [x] 1.1 Update Dockerfile, docker/entrypoint.sh, docker-compose.yml and frontend embedding build for the native server/v1 routes, preserving /data and configurable endpoints. Verify local container health, UDP receipt, browser connection and recording persistence after restart; document exact commands in README.md.
 - [ ] 1.2 Update .github/workflows/ci.yml and docker-publish.yml to test Go/frontend, build nativeamd64/arm64 images and build the Windows ZIP without publishing during local qualification. Verify workflow syntax and artifact version/prompt/schema consistency; retain baseline rollback identifiers in operator docs.
 
 ## 2. Finite system qualification
 
-- [ ] 2.1 Implement server/qualification tests/generator and the digest/count oracle specified in docs/rework/qualification.md, including24car data and failure phases. Verify a short30second smoke before the full soak; no recorder sampling or fake pass counters.
+- [x] 2.1 Implement server/qualification tests/generator and the digest/count oracle specified in docs/rework/qualification.md, including24car data and failure phases. Verify a short30second smoke before the full soak; no recorder sampling or fake pass counters.
 - [ ] 2.2 Run the exact2hour/3client rated soak and latency/memory gates once after component tests pass. Save redacted logs, counts/digests, raw latency samples and resource series in docs/rework/evidence/release-qualification/. A failed gate gets a focused fix/retest, not a blanket relaxation.
 - [ ] 2.3 Collect real2026 capture parity, real Chat/Responses tool round trips/semantic evals, and Windows clean-launch/tray/flush/PTT evidence. Record an unavailable input as an external blocker, not a pass or an unchecked silent omission.
 
