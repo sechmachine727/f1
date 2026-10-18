@@ -620,20 +620,26 @@ func (r *Reducer) contextLocked() contract.Context {
 }
 
 func modeFamily(gameMode, sessionType int) string {
-	// Appendix game-mode ids: 1-9 career variants; 10-19 solo; TT is 17/18.
-	switch {
-	case gameMode == 0:
-		return "unknown"
-	case gameMode >= 10 && gameMode <= 14:
-		return "career"
-	case sessionType == 18 || sessionType == 19:
+	// Published game-mode IDs from the supplied UDP appendix. Session type 18 is
+	// Time Trial; it is the only place that identifier appears.
+	switch gameMode {
+	case 5:
 		return "time_trial"
-	case gameMode >= 30:
+	case 7, 15, 29:
 		return "multiplayer"
-	case gameMode >= 15 && gameMode <= 29:
+	case 27, 28, 30:
+		return "career"
+	case 4, 6, 17, 75:
 		return "solo"
+	case 127:
+		return "other"
+	case 0:
+		if sessionType == 18 {
+			return "time_trial"
+		}
+		return "unknown"
 	}
-	return "other"
+	return "unknown"
 }
 
 // Snapshot copies state for downstream consumers.

@@ -185,3 +185,43 @@ func ActiveAeroLabel(v float64) string {
 	}
 	return "Unknown"
 }
+
+// CompoundLabel maps the actual-compound IDs to the published names. Visual
+// compounds use a separate numbering and are not accepted here.
+func CompoundLabel(v int) string {
+	switch v {
+	case 7:
+		return "Inter"
+	case 8:
+		return "Wet"
+	case 9:
+		return "Dry (classic)"
+	case 10:
+		return "Wet (classic)"
+	case 11:
+		return "Super soft"
+	case 12:
+		return "Soft"
+	case 13:
+		return "Medium"
+	case 14:
+		return "Hard"
+	case 15:
+		return "Wet (F2)"
+	case 16:
+		return "C5"
+	case 17:
+		return "C4"
+	case 18:
+		return "C3"
+	case 19:
+		return "C2"
+	case 20:
+		return "C1"
+	case 21:
+		return "C0"
+	case 22:
+		return "C6"
+	}
+	return fmt.Sprintf("Compound %d", v)
+}

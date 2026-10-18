@@ -335,21 +335,7 @@ func conditions(cx contract.Context) string {
 	return ""
 }
 
-func compoundName(v int) string {
-	switch v {
-	case 7:
-		return "Inter"
-	case 8:
-		return "Wet"
-	case 16, 19:
-		return "Soft"
-	case 17, 20:
-		return "Medium"
-	case 18, 21:
-		return "Hard"
-	}
-	return fmt.Sprintf("C%d", v)
-}
+func compoundName(v int) string { return protocol.CompoundLabel(v) }
 
 func (s *Server) persistEvents() {
 	cx := s.reducer.Context()

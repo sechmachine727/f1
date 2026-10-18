@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"f1tele/server/internal/contract"
+	"f1tele/server/internal/protocol"
 	"f1tele/server/internal/state"
 )
 
@@ -225,7 +226,11 @@ func (a *Arbiter) profileFor(channel string, snap state.Snapshot) *contract.Refe
 	compound := ""
 	for _, m := range snap.Metrics {
 		if m.Channel == "tyre.compound" && m.CarIndex != nil && snap.Context.PlayerCarIndex != nil && *m.CarIndex == *snap.Context.PlayerCarIndex {
-			compound = fmt.Sprint(m.Measurement.Value)
+			if f, ok := m.Measurement.Value.(float64); ok {
+				compound = protocol.CompoundLabel(int(f))
+			} else {
+				compound = fmt.Sprint(m.Measurement.Value)
+			}
 		}
 	}
 	for i := range a.profiles {
