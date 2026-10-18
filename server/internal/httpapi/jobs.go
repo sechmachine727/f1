@@ -61,12 +61,15 @@ func (a *API) importFile(w http.ResponseWriter, r *http.Request) {
 	out.Close()
 	id := fmt.Sprintf("job-%d", time.Now().UnixNano())
 	ctx, cancel := context.WithCancel(context.Background())
-	j := &job{Job: contract.Job{ID: id, Kind: "import", State: "running", DownloadIDs: []string{}, CreatedAtMs: time.Now().UnixMilli()}, Cancel: cancel}
+	j := &job{Job: contract.Job{ID: id, Kind: "import", State: "pending", DownloadIDs: []string{}, CreatedAtMs: time.Now().UnixMilli()}, Cancel: cancel}
 	a.mu.Lock()
 	a.jobs[id] = j
 	a.mu.Unlock()
 	go func() {
 		defer cancel()
+		a.importSlots <- struct{}{}
+		defer func() { <-a.importSlots }()
+		a.setJobState(id, "running", nil)
 		res, err := history.ImportF1Bin(ctx, a.Catalog, src, a.dataDir(), a.Reducer.SourceContext(), "import")
 		a.mu.Lock()
 		defer a.mu.Unlock()
@@ -103,12 +106,15 @@ func (a *API) exportFile(w http.ResponseWriter, r *http.Request) {
 	}
 	id := fmt.Sprintf("job-%d", time.Now().UnixNano())
 	ctx, cancel := context.WithCancel(context.Background())
-	j := &job{Job: contract.Job{ID: id, Kind: "export", State: "running", DownloadIDs: []string{}, CreatedAtMs: time.Now().UnixMilli()}, Cancel: cancel}
+	j := &job{Job: contract.Job{ID: id, Kind: "export", State: "pending", DownloadIDs: []string{}, CreatedAtMs: time.Now().UnixMilli()}, Cancel: cancel}
 	a.mu.Lock()
 	a.jobs[id] = j
 	a.mu.Unlock()
 	go func() {
 		defer cancel()
+		a.analysisSlots <- struct{}{}
+		defer func() { <-a.analysisSlots }()
+		a.setJobState(id, "running", nil)
 		path, man, err := a.Engine.Export(ctx, req)
 		a.mu.Lock()
 		defer a.mu.Unlock()
@@ -246,3 +252,17 @@ func (a *API) deleteReplay(w http.ResponseWriter, r *http.Request) {
 func floatPtr(v float64) *float64 { return &v }
 
 var _ = errors.New
+
+// setJobState moves a queued job to running without racing cancellation.
+func (a *API) setJobState(id, state string, progress *float64) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	j, ok := a.jobs[id]
+	if !ok || j.Job.State == "cancelled" {
+		return
+	}
+	j.Job.State = state
+	if progress != nil {
+		j.Job.ProgressFraction = progress
+	}
+}

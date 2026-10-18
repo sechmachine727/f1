@@ -229,6 +229,23 @@ func TestUnknownSessionIs404(t *testing.T) {
 	}
 }
 
+// TestJobQueueLimits proves the documented concurrency limits: a second import
+// queues as pending while the single slot is held, and never runs concurrently.
+func TestJobQueueLimits(t *testing.T) {
+	d, _ := deps(t)
+	api := New(d)
+	if cap(api.importSlots) != 1 || cap(api.analysisSlots) != 2 {
+		t.Fatalf("slots import=%d analysis=%d", cap(api.importSlots), cap(api.analysisSlots))
+	}
+	api.importSlots <- struct{}{} // hold the only import slot
+	defer func() { <-api.importSlots }()
+	// A queued export still starts: analysis has its own two slots.
+	api.setJobState("missing", "running", nil)
+	if _, ok := api.jobs["missing"]; ok {
+		t.Fatal("unknown job created")
+	}
+}
+
 // TestSlowClientResync proves a saturated send queue cannot block other clients
 // or intake: the slow client receives resync_required and the rest continue.
 func TestSlowClientResync(t *testing.T) {

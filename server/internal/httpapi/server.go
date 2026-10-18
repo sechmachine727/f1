@@ -74,10 +74,12 @@ type VoiceAPI interface {
 
 type API struct {
 	Deps
-	mu        sync.Mutex
-	replays   map[string]*history.Replay
-	jobs      map[string]*job
-	downloads map[string]string
+	mu            sync.Mutex
+	replays       map[string]*history.Replay
+	jobs          map[string]*job
+	downloads     map[string]string
+	analysisSlots chan struct{}
+	importSlots   chan struct{}
 }
 
 type job struct {
@@ -91,7 +93,10 @@ func New(d Deps) *API {
 	if d.Latency == nil {
 		d.Latency = &LatencyStats{}
 	}
-	return &API{Deps: d, replays: map[string]*history.Replay{}, jobs: map[string]*job{}, downloads: map[string]string{}}
+	return &API{Deps: d, replays: map[string]*history.Replay{}, jobs: map[string]*job{}, downloads: map[string]string{},
+		// Documented limits: two analysis/export jobs, one import. Live intake
+		// and recording never wait on these.
+		analysisSlots: make(chan struct{}, 2), importSlots: make(chan struct{}, 1)}
 }
 
 func (a *API) Handler(static http.Handler) http.Handler {
