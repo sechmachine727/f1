@@ -217,6 +217,9 @@ func (r *Recorder) write(item recorderItem) {
 	}
 	if r.countWriter.n >= r.cfg.RotateBytes {
 		r.rotate()
+		// rotate closes the file and clears the writer; the current datagram is
+		// already in the closed file, and the next write opens the new one.
+		return
 	}
 	// Checkpoint on new bytes only. Comparing cumulative size made every write
 	// fsync once the file passed one chunk, which starved the writer at 2 kHz.

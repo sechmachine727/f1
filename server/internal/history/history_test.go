@@ -117,6 +117,49 @@ func TestRecordingRoundTrip(t *testing.T) {
 }
 
 func TestStorageFailureIsolation(t *testing.T) {
+	// Rotation must keep recording: the previous code dereferenced the closed
+	// writer and crashed the recorder goroutine at the first 256 MiB boundary.
+	t.Run("rotation", func(t *testing.T) {
+		cat, dir := newTestCatalog(t)
+		cfg, _ := defaultRecCfg()
+		cfg.RotateBytes = 8 << 10
+		cfg.ChunkBytes = 1 << 10
+		rec := NewRecorder(cfg, cat, dir, nil)
+		rec.Start()
+		rec.SetIdentity("s", "f", "c")
+		ctx := context.Background()
+		if err := cat.EnsureSourceContext(ctx, "c", "ip"); err != nil {
+			t.Fatal(err)
+		}
+		_ = cat.CreateSession(ctx, "s", contract.Context{SourceContextID: "c", ModeFamily: "solo", SeasonEvidence: []string{}})
+		_ = cat.CreateFragment(ctx, contract.Fragment{ID: "f", SessionID: "s", SourceContextID: "c", StartedAtMs: 1})
+		pkt := protocol.BuildPacket(2026, 6, protocol.Header{Format: 2026, PacketVersion: 1, SessionUID: 5}, nil, map[int]map[string]float64{0: {"m_speed": 200}}, nil)
+		for i := 0; i < 400; i++ {
+			rec.Record(uint64(i+1), time.Now(), pkt)
+		}
+		rec.Stop()
+		if state, reason := rec.State(); state != RecRecording && state != RecIdle {
+			t.Fatalf("recorder stopped after rotation: %s (%s)", state, reason)
+		}
+		paths, err := cat.RecordingsForSession(ctx, "s")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(paths) < 2 {
+			t.Fatalf("rotated files = %d, want at least 2", len(paths))
+		}
+		total := 0
+		for _, p := range paths {
+			n, _, _, err := VerifyRecording(p)
+			if err != nil {
+				t.Fatalf("verify %s: %v", p, err)
+			}
+			total += n
+		}
+		if total != 400 {
+			t.Fatalf("records across rotated files = %d, want 400", total)
+		}
+	})
 	// Checkpoints are rate-limited: a stalled clock must not make every write
 	// durable. Without this, a 2 kHz stream fsyncs thousands of times a second.
 	t.Run("checkpoint cadence", func(t *testing.T) {
