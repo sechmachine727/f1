@@ -6,7 +6,16 @@ State: INCOMPLETE. Independent implementation and local checks are largely done;
 
 ## Current step
 
-Rated 2-hour soak running (started 13:52, expected end about 15:52). Evidence will land in docs/rework/evidence/release-qualification/rated-workload.json plus rss.csv and latency.csv.
+Rated 2-hour soak running in PTY session 9870 (started 13:52, expected end about 15:52). Evidence will land in docs/rework/evidence/release-qualification/rated-workload.json plus rss.csv and latency.csv. Poll that session; do not restart it.
+
+## Added since the previous checkpoint
+
+- Voice transcription and speech proxies with write-only keys, plus tests.
+- Published game-mode and compound mappings taken from the supplied PDF appendix.
+- Export rows carry their recording fragment; cancelled export test.
+- Setup experiment append test; fixed a nested-query deadlock in setup records.
+- Session views report real completed laps and recording state.
+- Fresh-clone build fixed with a committed embed placeholder and scripts/build_web.sh.
 
 ## Passing evidence
 
