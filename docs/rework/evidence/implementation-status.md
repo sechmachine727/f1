@@ -39,6 +39,18 @@ Rated 2-hour soak running in PTY session 9870 (started 13:52, expected end about
 - Degradation slope crossed compound changes.
 - Docker image could not write /data as nonroot.
 
+## Since that checkpoint
+
+- Full Pit wall: Drivers and Teams, selected driver, stint strip, pace chart, pit alternatives from the strategy API, and an engineer card with question input, invocation status and alert acknowledgment.
+- History: season tabs, recorded sessions with laps and recording state, session selection that opens Pit wall with a persistent Recorded banner, and manual per-session cleanup reporting per-file refusals.
+- Analysis: lap selection, distance-aligned compare, export with job polling and download link, plus a replay panel with play/pause, seek and 0.25-8x speeds.
+- Server fix: `Snapshot` never exposed session time, so replay playheads were always zero. Added a playback clock and a regression test.
+- Server fix: cleanup targeting only an active recording returned 200 with a failure entry; it now returns 409.
+- Agent input is bounded to 512 metrics and 64 recent plus 64 critical events, with coverage counts and player-car ranking.
+- Scheduled invocations now go through the scheduler's dispatch cursor; acceptance advances evidence only for the current branch. A budget block leaves the Safety Car event pending.
+- Pit plans must match a legal deterministic candidate; retire requires direct failure evidence.
+- Label contrast raised from 3.89:1 to 7.31:1; zoom/reflow captured.
+
 ## Next step
 
 Collect soak results and update final-report.md. Then stop: provider, Windows host, microphone and real 2026 capture remain external.
