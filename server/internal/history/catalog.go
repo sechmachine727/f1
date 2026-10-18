@@ -222,6 +222,12 @@ func (c *Catalog) Session(ctx context.Context, id string) (contract.SessionDetai
 		ModeFamily: mode, DisplayName: display, TrackID: cx.TrackID, StartedAtMs: started,
 		RecordingState: "idle", Completeness: "partial", CareerID: nil,
 	}
+	_ = c.db.QueryRowContext(ctx, "SELECT COUNT(DISTINCT lap) FROM laps WHERE session_id=?", id).Scan(&d.Summary.CompletedLaps)
+	var recState sql.NullString
+	_ = c.db.QueryRowContext(ctx, "SELECT r.state FROM recordings r JOIN fragments f ON f.id=r.fragment_id WHERE f.session_id=? ORDER BY r.created_at_ms DESC LIMIT 1", id).Scan(&recState)
+	if recState.Valid {
+		d.Summary.RecordingState = recState.String
+	}
 	if ended.Valid {
 		d.Summary.EndedAtMs = &ended.Int64
 	}
@@ -321,29 +327,32 @@ func (c *Catalog) ListSessions(ctx context.Context, f SessionFilter) ([]contract
 	if f.Limit <= 0 || f.Limit > 100 {
 		f.Limit = 25
 	}
-	q := `SELECT id, source_context_id, regulation_season, mode_family, career_id, display_name, track_id, started_at_ms, ended_at_ms FROM sessions WHERE 1=1`
+	q := "SELECT s.id, s.source_context_id, s.regulation_season, s.mode_family, s.career_id, s.display_name, s.track_id, s.started_at_ms, s.ended_at_ms, " +
+		"(SELECT COUNT(DISTINCT lap) FROM laps l WHERE l.session_id=s.id), " +
+		"COALESCE((SELECT r.state FROM recordings r JOIN fragments f ON f.id=r.fragment_id WHERE f.session_id=s.id ORDER BY r.created_at_ms DESC LIMIT 1), 'idle') " +
+		"FROM sessions s WHERE 1=1"
 	args := []any{}
 	if f.Season != nil {
-		q += ` AND regulation_season=?`
+		q += " AND s.regulation_season=?"
 		args = append(args, *f.Season)
 	}
 	if f.ModeFamily != "" {
-		q += ` AND mode_family=?`
+		q += " AND s.mode_family=?"
 		args = append(args, f.ModeFamily)
 	}
 	if f.TrackID != nil {
-		q += ` AND track_id=?`
+		q += " AND s.track_id=?"
 		args = append(args, *f.TrackID)
 	}
 	if f.CareerID != "" {
-		q += ` AND career_id=?`
+		q += " AND s.career_id=?"
 		args = append(args, f.CareerID)
 	}
 	if f.Cursor != "" {
-		q += ` AND started_at_ms < ?`
+		q += " AND s.started_at_ms < ?"
 		args = append(args, atoi(f.Cursor))
 	}
-	q += ` ORDER BY started_at_ms DESC, id DESC LIMIT ?`
+	q += " ORDER BY s.started_at_ms DESC, s.id DESC LIMIT ?"
 	args = append(args, f.Limit+1)
 	rows, err := c.db.QueryContext(ctx, q, args...)
 	if err != nil {
@@ -356,7 +365,8 @@ func (c *Catalog) ListSessions(ctx context.Context, f SessionFilter) ([]contract
 		var season, track, career sql.NullInt64
 		var careerID sql.NullString
 		var ended sql.NullInt64
-		if err := rows.Scan(&s.ID, &s.SourceContextID, &season, &s.ModeFamily, &careerID, &s.DisplayName, &track, &s.StartedAtMs, &ended); err != nil {
+		var recState string
+		if err := rows.Scan(&s.ID, &s.SourceContextID, &season, &s.ModeFamily, &careerID, &s.DisplayName, &track, &s.StartedAtMs, &ended, &s.CompletedLaps, &recState); err != nil {
 			return nil, "", err
 		}
 		if season.Valid {
@@ -376,7 +386,7 @@ func (c *Catalog) ListSessions(ctx context.Context, f SessionFilter) ([]contract
 		if ended.Valid {
 			s.EndedAtMs = &ended.Int64
 		}
-		s.RecordingState = "idle"
+		s.RecordingState = recState
 		s.Completeness = "partial"
 		out = append(out, s)
 	}

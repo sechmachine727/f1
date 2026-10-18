@@ -10,7 +10,7 @@ Dependencies: scheduled-race-engineer. Read docs/rework/{master-design,contracts
 ## 2. Recommendations and experiments
 
 - [x] 2.1 Register the exact tools.json search/fetch tools only for setup_research; add semantic fixtures for2025-vs2026, race-vsTT, unknown menu bounds and locked adjustments. Verify no live strategy request can call search or mutate game/config state.
-- [ ] 2.2 Create history migration002 and setup records/experiment APIs; wire Setups/Analysis to real saved records and outcome comparisons. Verify failed experiments append outcomes without rewriting the source hypothesis, and source numeric settings cite inspected content. Document configuration and player-applied workflow.
+- [x] 2.2 Create history migration002 and setup records/experiment APIs; wire Setups/Analysis to real saved records and outcome comparisons. Verify failed experiments append outcomes without rewriting the source hypothesis, and source numeric settings cite inspected content. Document configuration and player-applied workflow.
 
 ## 3. Change gate
 

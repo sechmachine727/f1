@@ -5,7 +5,7 @@ Dependencies: go-telemetry-core, durable-race-history, telemetry-analysis-export
 ## 1. Runtime and providers
 
 - [ ] 1.1 Embed docs/rework/prompts/v1 exact files with a build manifest; create server/internal/engineer/runtime.go and both protocol adapters from installed pinned Eino APIs. Test fake tool loops, fragmented streamed arguments, multiple tool IDs and terminal JSON in providers_test.go. Verify: rtk go test ./server/internal/engineer -run TestProviderContracts.
-- [ ] 1.2 Implement context.go/validation.go against shared schemas, bounded input, reasoning-summary absence, evidence IDs, message length and stale scope. Turn prompt eval-cases.jsonl into deterministic validation fixtures plus semantic model evaluations; verify TestOutputAcceptance and no prompt edits.
+- [x] 1.2 Implement context.go/validation.go against shared schemas, bounded input, reasoning-summary absence, evidence IDs, message length and stale scope. Turn prompt eval-cases.jsonl into deterministic validation fixtures plus semantic model evaluations; verify TestOutputAcceptance and no prompt edits.
 
 ## 2. Scheduler and continuity
 

@@ -1,57 +1,84 @@
 # F1 telemetry redesign final report
 
-Status: implementation incomplete; qualification gates A and E are partial, B is partial, C and D are not passed. This report is evidence, not a completion claim.
+Status: implementation substantially complete; qualification incomplete. Gates A and E are partly met, B is partial, C is running, D is externally blocked.
+
+Read this with docs/rework/evidence/implementation-status.md, which carries the current step.
 
 ## What was built
 
-- Go root module `f1tele` with `server/cmd/f1tele` and packages: protocol, config, state, history, analysis, strategy, engineer, setup, httpapi, web.
-- Protocol: generated layouts for all 33 supplied 2025/2026 packet layouts; exact documented sizes; 2025 real-capture parity and 2026 golden corpus; malformed/unknown rejection; event union decoding; channel catalog with wheel order and restrictions.
-- State: single serialized reducer, per packet/car ordering, uint32 wrap, same-frame distinct events, flashbacks and branches, restriction as null, freshness, season conflict retention.
-- History: SQLite catalog with WAL/foreign keys, durable sequence blocks, MCAP Zstandard chunks with CRC/indexes, rotation, checkpoints, legacy .f1bin import, recovery from damaged files without modifying originals, replay isolation.
-- Analysis: bounded range queries with 30s deadline and decimation, distance-aligned comparisons with gaps, CSV/JSONL/Parquet exports plus manifest, formula-injection escaping.
-- Strategy: deterministic pace/degradation/pit candidates with explicit missing inputs, provisional thermal/wear profiles, notification arbiter with persistence, acknowledgment and 30s routine gap.
-- Engineer: exact prompts/v1 embedded byte-for-byte and hash-verified; tools.json schemas; Eino ADK chat-completions invoker; scheduler/evidence cursor state machine; all 16 supplied scheduler vectors pass.
-- Setup: Tavily/SearXNG search, bounded HTTP(S) inspection, provenance and experiment records.
-- Frontend: six workspaces, one WebSocket store, Drive layout using circular wear rings, 56px surface/core values, fixed call band, neutral unknown/restricted states.
-- Packaging: multi-stage Dockerfile, compose with 8081/tcp and 20777/udp, persistent /data.
+Go module f1tele:
 
-## Executed validation
+- server/internal/protocol: generated layouts for all 33 supplied 2025/2026 packet layouts, exact declared sizes, 2025 real-capture parity, 2026 golden corpus, event union decoding, channel catalog with wheel order and restriction rules.
+- server/internal/config: documented precedence, validation, redacted reads, atomic failed PATCH, secrets file at 0600.
+- server/internal/state: one serialized reducer, per-key ordering, uint32 wrap, duplicate suppression with same-frame distinct events, flashback branches, null restrictions, freshness, season conflict retention, published game-mode mapping.
+- server/internal/history: SQLite catalog (WAL, foreign keys), durable sequence blocks, MCAP Zstandard/CRC chunks with rotation and checkpoints, legacy .f1bin import, damaged-file recovery, replay isolation, storage limits.
+- server/internal/analysis: bounded range queries with a 30-second deadline, min/max decimation, distance-aligned comparison with gaps, CSV/JSONL/Parquet export plus manifest.
+- server/internal/strategy: pace, per-stint degradation, fuel margin, ten-second energy draw, stay-out/one-stop/two-stop candidates with pit-loss provenance, provisional reference profiles, notification arbiter with persistence, clearing, grouping, acknowledgment and the 30-second gap.
+- server/internal/engineer: exact prompts/v1 bundle with hash verification, tools.json schemas, Eino ADK chat-completions invoker, scheduler vectors, output acceptance, rolling budget.
+- server/internal/setup: Tavily and SearXNG search, bounded source inspection, provenance, setup records and experiments.
+- server/internal/httpapi: the v1 routes, one-socket streaming with snapshot/delta/resync, job and download handling, cleanup protection.
+- server/internal/web: embedded dashboard with a compilable placeholder for fresh checkouts.
+- server/qualification: rated 2048 dk/s generator with independent sender, receiver-intake and MCAP oracles, RSS and latency sampling.
+
+Frontend (race_engineer_hub): six workspaces, one stream store with a tested reducer, Drive composition with circular wear rings, 56px-equivalent temperatures, independent semantic states, MJ fallback and a fixed call band.
+
+Windows (windows/): control-center core with supervisor identity/adoption, flush-then-stop, force-stop confirmation, voice turn cap and WAV validation; WinUI app, tray controller, native capture and packaging script.
+
+Packaging: multi-stage Dockerfile (distroless, nonroot, writable /data), compose on 8081/tcp and 20777/udp, CI workflow for Go, frontend, artifacts and Windows.
+
+## Validation executed
 
 | Command | Result |
 |---|---|
-| `rtk go test -race ./server/...` | pass |
-| `rtk go vet ./server/...` | pass |
-| `rtk go build ./server/cmd/f1tele` | pass |
-| CGO=0 linux/amd64, linux/arm64, windows/amd64 builds | pass |
-| `rtk openspec validate --all --strict --no-interactive` | 9/9 pass |
-| `python3 docs/rework/validate_artifacts.py` | PASS |
-| `npx tsc --noEmit`; `npm run lint`; `npm run test -- --run`; `npm run build` | pass (lint 0 errors, 9 warnings) |
-| Local UDP->MCAP->SQLite->HTTP smoke | pass (200 datagrams) |
+| go test -race ./server/... | pass |
+| go vet ./server/... | pass |
+| go build ./server/cmd/f1tele | pass |
+| CGO=0 linux/amd64, linux/arm64, windows/amd64 | pass |
+| fresh clone go build ./server/... | pass |
+| rtk openspec validate --all --strict --no-interactive | 9/9 pass |
+| python3 docs/rework/validate_artifacts.py | PASS |
+| npm run test -- --run | 8/8 pass |
+| npx tsc --noEmit, npm run lint, npm run build | pass, 0 errors |
+| dotnet test windows/F1Telemetry.ControlCenter.Tests | 9/9 pass |
+| docker build | pass, 48.3 MB |
+| container health, UDP, restart persistence | pass |
+| 30 s rated smoke (2048 dk/s, 3 clients) | exact count and digest match, 0 drops, p95 1.1 ms |
+| rendered Drive at 1920x1080 and 2560x1440 | no page scroll; screenshots in evidence/ui |
+
+## Requirement mapping
+
+- Decode both formats: protocol golden and parity tests.
+- Availability and restrictions: state tests; stale renders as a state word, never a number.
+- Context dimensions: state mode/season tests, published game-mode table.
+- Flashback continuity: state rewind test, history branch segments, scheduler branch-reset vector.
+- Raw recording and recovery: history round-trip, import, recovery tests.
+- Bounded analysis and exports: analysis tests including Parquet reopen and cancellation isolation.
+- Deterministic estimates: strategy estimate and candidate tests.
+- Notifications: notification policy test.
+- Scheduling: all 16 supplied vectors.
+- Prompts: byte-identical bundle with manifest verification.
+- UI: store tests and rendered screenshots.
+- Windows core: nine unit tests.
 
 ## Artifacts
 
-- linux/amd64: 27e5004be2a6b70fbc70879f1357aa54d69645ceb8327660678d756f6056e486
-- linux/arm64: 5ce6b453ebf7240b46ba8073149f2858ce2a385bfac6b3e21365479a43c83b5c
-- windows/amd64: ea5b8be3de3d448f97d5749bcbe06264e3ea58e2cab27a138f8849027e76c84b
+| Target | SHA-256 |
+|---|---|
+| linux/amd64 | 27e5004be2a6b70fbc70879f1357aa54d69645ceb8327660678d756f6056e486 |
+| linux/arm64 | 5ce6b453ebf7240b46ba8073149f2858ce2a385bfac6b3e21365479a43c83b5c |
+| windows/amd64 (cross-compiled) | ea5b8be3de3d448f97d5749bcbe06264e3ea58e2cab27a138f8849027e76c84b |
+| Docker image f1tele:local | 991158b3ada7 |
 
-## Requirement-to-evidence mapping (selected)
+The Windows binary is a compile check produced on macOS, not Windows native qualification.
 
-- Decode both formats: protocol golden/parity tests.
-- Availability/null restrictions: state TestRestrictedRivalIsNullNotZero.
-- Flashback continuity: state TestSameUIDRewindCreatesBranchKeepsSession; history branch segments test.
-- Raw recording: history TestRecordingRoundTrip; recovery test.
-- Bounded analysis/exports: analysis validation and export code; not end-to-end exercised in this report.
-- Scheduling cursors: engineer scheduler vector suite.
-- Prompts: manifest hash verification in engineer.VerifyBundle.
-- UI hierarchy: Drive component; rendered screenshots not captured.
+## Pending and externally blocked
 
-## Pending / failed gates
-
-- Gate C: 2-hour soak and latency/memory/drop oracle not implemented or run.
-- Gate D: real provider, Windows host, microphone and real 2026 capture unavailable; Responses adapter not wired.
-- Gate B: no rendered 1080p/1440p/zoom/keyboard validation; scheduler and import wiring lack full integration tests.
-- Windows control center (change 8) absent.
+- Gate C: the two-hour soak is running; numbers are not in this report yet.
+- Gate D: no configured model provider or key, no Windows 11 host with microphone, no real 2026 capture. The Responses adapter is not wired; it fails explicitly rather than falling back.
+- Gate B: keyboard traversal, focus return, contrast measurement, reduced motion, 200% browser zoom, and the remaining workspace states have no captured evidence. Pit wall, History, Analysis, Setups and Settings were not screenshotted.
+- Windows: WinUI build, portable ZIP, clean-machine launch, tray, voice and push-to-talk under game focus are not verified.
+- Docker arm64 and amd64 image builds on native runners are not verified locally.
 
 ## Rollback
 
-Revert to branch `codex/f1-telemetry-redesign-specs` / commit c95b78c. Existing recordings were not modified or deleted. New runtime uses data/catalog.db and data/recordings under the selected data dir; no downgrade migration was applied.
+The previous runtime remains at branch codex/f1-telemetry-redesign-specs (commit c95b78c). No recording was rewritten or deleted. New data lives in catalog.db and recordings/ under the chosen data directory; a downgrade does not migrate them.

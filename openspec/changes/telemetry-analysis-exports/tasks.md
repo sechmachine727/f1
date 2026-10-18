@@ -11,7 +11,7 @@ Dependencies: durable-race-history. Read docs/rework/{master-design,contracts,qu
 ## 2. Portable exports
 
 - [x] 2.1 Create export.go and export_test.go to emit ZIP data+manifest for CSV/JSONL/Parquet. Reopen all formats and compare numeric/null/bool/text/branch/source fields; test formula-leading labels and negative numbers. Verify: rtk go test ./server/internal/analysis -run TestExportRoundTrip.
-- [ ] 2.2 Wire analysis/export/jobs/download handlers and document copyable export/review examples in server/README.md. Inject cancellation, timeout, full disk and two-job contention; verify TestAnalysisJobIsolation leaves recorder and originals intact.
+- [x] 2.2 Wire analysis/export/jobs/download handlers and document copyable export/review examples in server/README.md. Inject cancellation, timeout, full disk and two-job contention; verify TestAnalysisJobIsolation leaves recorder and originals intact.
 
 ## 3. Change gate
 
