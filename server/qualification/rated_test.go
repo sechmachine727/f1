@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"f1tele/server/internal/config"
+	"f1tele/server/internal/contract"
 	"f1tele/server/internal/history"
 	"f1tele/server/internal/server"
 
@@ -33,6 +34,7 @@ var (
 	seed     = flag.Int64("seed", 20261018, "workload seed")
 	clients  = flag.Int("clients", 3, "browser-analogue stream clients")
 	evidence = flag.String("evidence-dir", "docs/rework/evidence/release-qualification", "evidence output directory")
+	rotateMB = flag.Int("rotate-mb", 0, "override rotation size for a short rotation check (0 uses defaults)")
 )
 
 func freePort(t testing.TB) int {
@@ -147,6 +149,14 @@ func TestRatedWorkload(t *testing.T) {
 	store, err := config.Load(config.Overrides{DataDir: dir, HTTPAddress: "127.0.0.1:" + strconv.Itoa(httpPort), UDPAddress: "127.0.0.1:" + strconv.Itoa(udpPort)})
 	if err != nil {
 		t.Fatal(err)
+	}
+	if *rotateMB > 0 {
+		cfg := store.Config()
+		cfg.Recording.RotateBytes = int64(*rotateMB) << 20
+		rev := store.Revision()
+		if _, err := store.ApplyPatch(contract.ConfigPatch{Config: cfg}, &rev); err != nil {
+			t.Fatal(err)
+		}
 	}
 	srv, err := server.New(store, slog.New(slog.NewTextHandler(os.Stderr, nil)))
 	if err != nil {
