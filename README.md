@@ -15,6 +15,36 @@
   * [Reinforcement Learning](#reinforcement-learning)
 <!-- TOC -->
 
+## Current runtime (Go)
+
+One Go executable serves the dashboard, records every received datagram, catalogs sessions and runs analysis, strategy and the race engineer. Details and troubleshooting: [server/README.md](server/README.md).
+
+```bash
+./scripts/build_web.sh          # build the dashboard into the embedded copy
+go build -o f1tele ./server/cmd/f1tele
+./f1tele serve --data-dir ./data
+```
+
+Open [http://localhost:8081](http://localhost:8081). In F1 25, set **Settings → Telemetry Settings** to send UDP to this machine on port **20777**, format 2026, send rate 60 Hz, broadcast off.
+
+Ports: `20777/udp` telemetry in, `8081/tcp` dashboard and API. There is no second WebSocket port.
+
+Docker:
+
+```bash
+docker compose up -d --build
+```
+
+The image runs as a nonroot user with a writable `/data` volume. Windows users get a portable ZIP from `windows/package.ps1` instead of Docker.
+
+Data lives in `catalog.db` plus `recordings/<session>/<fragment>/*.mcap` under the data directory. Recordings are never rewritten on upgrade. Legacy `.f1bin` files import through `POST /api/v1/imports` with the original preserved.
+
+Rollback: the previous Python runtime remains at commit `c95b78c` on branch `codex/f1-telemetry-redesign-specs`. Restore that commit and its published image to downgrade; recordings written by the Go runtime stay on disk and are not migrated back.
+
+## Legacy Python setup (pre-Go runtime)
+
+The following describes the baseline that the Go runtime replaces. It stays here for rollback and for the checked-in compatibility tests.
+
 ## Setup
 
 Create a dedicated Python virtual environment:
@@ -53,9 +83,9 @@ python -m pytest
 
 CI runs it on every pull request and on pushes to `main`.
 
-## Docker
+## Docker (legacy Python image)
 
-Build and run the telemetry bridge and dashboard in one container:
+The Go image is documented above. The legacy compose file built the Python bridge:
 
 ```bash
 docker compose up -d --build
@@ -64,7 +94,7 @@ docker compose up -d --build
 Open [http://localhost:8081](http://localhost:8081) for the Race Engineer Hub. In F1 25, set
 **Settings → Telemetry Settings** to send UDP to the host machine's IP on port **20777**.
 
-Ports: `20777/udp` telemetry in, `8765/tcp` telemetry WebSocket, `8081/tcp` dashboard.
+Ports in the legacy image: `20777/udp` telemetry in, `8765/tcp` telemetry WebSocket, `8081/tcp` dashboard. The Go image exposes only `20777/udp` and `8081/tcp`.
 
 Configuration to edit:
 
