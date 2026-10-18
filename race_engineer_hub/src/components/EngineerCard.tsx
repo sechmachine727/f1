@@ -60,8 +60,8 @@ export function EngineerCard() {
   return (
     <section className="border border-[#232830] bg-[#11141a] p-4 space-y-3">
       <div className="flex items-baseline justify-between">
-        <div className="text-[11px] uppercase tracking-wider text-neutral-500">Race engineer</div>
-        <span className="text-[11px] text-neutral-500">
+        <div className="text-[11px] uppercase tracking-wider text-neutral-400">Race engineer</div>
+        <span className="text-[11px] text-neutral-400">
           {text(metric(s, "car.speed_mps")) === "—" ? "Waiting for telemetry" : "Live"}
         </span>
       </div>
@@ -88,7 +88,7 @@ export function EngineerCard() {
         </button>
       </form>
       {error ? <p role="alert" className="text-[12px] text-[#f25a5c]">{error}</p> : null}
-      {!s.context ? <p className="text-[12px] text-neutral-500">No active session yet.</p> : null}
+      {!s.context ? <p className="text-[12px] text-neutral-400">No active session yet.</p> : null}
 
       {active.length ? (
         <ul className="space-y-1">
@@ -110,7 +110,7 @@ export function EngineerCard() {
         <ul className="divide-y divide-[#232830] text-[12px]">
           {items.map((i) => (
             <li key={i.id} className="py-1.5">
-              <span className="text-neutral-500">{i.profile.replace("_", " ")} · {i.status}</span>
+              <span className="text-neutral-400">{i.profile.replace("_", " ")} · {i.status}</span>
               {i.output?.driver_message ? <div className="text-neutral-200">{i.output.driver_message}</div> : null}
               {i.error ? <div className="text-[#f25a5c]">{i.error.code}: {i.error.message}</div> : null}
             </li>

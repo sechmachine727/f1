@@ -8,7 +8,7 @@ import { EngineerCard } from "@/components/EngineerCard";
 export const nav =
   "px-3 py-1.5 text-sm rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#4fd48a]";
 const panel = "border border-[#232830] bg-[#11141a]";
-const label = "text-[11px] uppercase tracking-wider text-neutral-500";
+const label = "text-[11px] uppercase tracking-wider text-neutral-400";
 const wheel = ["fl", "fr", "rl", "rr"] as const;
 const wheelLabel: Record<string, string> = { fl: "FL", fr: "FR", rl: "RL", rr: "RR" };
 
@@ -35,7 +35,7 @@ function Banner({ label: text, detail }: { label: string; detail?: string }) {
     <div className="flex items-center gap-3 border border-[#3b4a2f] bg-[#16201a] px-4 py-2 text-sm">
       <span className="rounded-sm bg-[#2a4a33] px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wider text-[#8ef0b4]">Recorded</span>
       <span className="text-neutral-200">{text}</span>
-      {detail ? <span className="text-neutral-500">{detail}</span> : null}
+      {detail ? <span className="text-neutral-400">{detail}</span> : null}
       <button className={"ml-auto " + nav + " text-neutral-300 hover:bg-[#1a2027]"} onClick={clearSelection}>
         Back to live
       </button>
@@ -203,7 +203,7 @@ export function PitWall() {
           <div>
             <div className={label}>Stint</div>
             {stint.length === 0 ? (
-              <p className="text-[12px] text-neutral-500">No catalogued laps for this car in the selected session.</p>
+              <p className="text-[12px] text-neutral-400">No catalogued laps for this car in the selected session.</p>
             ) : (
               <div className="flex gap-1" role="list" aria-label="Last laps">
                 {stint.map((l) => (
@@ -220,7 +220,7 @@ export function PitWall() {
             <div className={label}>Wear by corner</div>
             <div className="grid grid-cols-4 gap-2 mt-1">
               {wheel.map((w) => (
-                <div key={w} className="tabular-nums"><div className="text-[10px] text-neutral-500">{wheelLabel[w]}</div>{text(metric(s, `tyre.${w}.wear_pct`, selectedCar))}</div>
+                <div key={w} className="tabular-nums"><div className="text-[10px] text-neutral-400">{wheelLabel[w]}</div>{text(metric(s, `tyre.${w}.wear_pct`, selectedCar))}</div>
               ))}
             </div>
           </div>
@@ -229,7 +229,7 @@ export function PitWall() {
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
         <section className={panel + " p-4 self-start"}>
-          <div className="flex items-baseline justify-between"><div className={label}>Pace by lap</div><span className="text-[11px] text-neutral-500">{pace.length} eligible laps</span></div>
+          <div className="flex items-baseline justify-between"><div className={label}>Pace by lap</div><span className="text-[11px] text-neutral-400">{pace.length} eligible laps</span></div>
           <div className="h-[120px] mt-2">
             {pace.length < 2 ? <Empty>Needs two catalogued laps.</Empty> : (
               <ResponsiveContainer width="100%" height="100%">
@@ -250,11 +250,11 @@ export function PitWall() {
                 <li key={c.id} className="py-2 text-sm">
                   <div className="flex justify-between"><span>{!c.stops?.length ? "Stay out" : c.stops.map((st) => `L${st.lap} ${st.compound}`).join(" · ")}</span>
                     <span className={c.legality === "legal" ? "text-[#5fd68f]" : c.legality === "conditional" ? "text-[#f0a03c]" : "text-[#f25a5c]"}>{c.legality}</span></div>
-                  <div className="text-[12px] text-neutral-500">
+                  <div className="text-[12px] text-neutral-400">
                     {c.total_time_ms.availability === "available" ? `${Math.round(c.total_time_ms.value as number)} ms projected` : "Projection unavailable"}
                     {" · pit loss "}{c.pit_loss_ms.availability === "available" ? `${Math.round(c.pit_loss_ms.value as number)} ms` : "unavailable"}
                   </div>
-                  {c.reasons?.length ? <div className="text-[12px] text-neutral-500">{c.reasons.join("; ")}</div> : null}
+                  {c.reasons?.length ? <div className="text-[12px] text-neutral-400">{c.reasons.join("; ")}</div> : null}
                 </li>
               ))}
             </ul>
@@ -348,7 +348,7 @@ export function History({ onOpen }: { onOpen: () => void }) {
             >
               <span>
                 <span className="block">{s.display_name || "Session " + s.id.slice(0, 8)}</span>
-                <span className="text-[12px] text-neutral-500">
+                <span className="text-[12px] text-neutral-400">
                   track {s.track_id ?? "unknown"} · {s.completed_laps} laps · {s.mode_family}
                 </span>
               </span>
@@ -513,7 +513,7 @@ export function Analysis() {
           </ul>
         </section>
         <section className={panel + " p-3"}>
-          <div className="flex items-baseline justify-between"><div className={label}>Distance-aligned speed</div><span className="text-[11px] text-neutral-500">{picked.length}/4 selected</span></div>
+          <div className="flex items-baseline justify-between"><div className={label}>Distance-aligned speed</div><span className="text-[11px] text-neutral-400">{picked.length}/4 selected</span></div>
           <div className="h-[340px] mt-2">
             {keys.length === 0 ? <Empty>Pick two to four laps, then compare. Invalid laps and gaps stay visible.</Empty> : (
               <ResponsiveContainer width="100%" height="100%">
@@ -620,7 +620,7 @@ function ReplayPanel({ sessionId, branchId }: { sessionId: string; branchId: str
             onKeyUp={(e) => patch({ position_ms: Number((e.target as HTMLInputElement).value) * 1000 })}
             className="w-full accent-[#5fd68f]"
           />
-          <p className="text-[11px] text-neutral-500">Replay runs in its own reducer. The live source, recording and live engineer calls are untouched.</p>
+          <p className="text-[11px] text-neutral-400">Replay runs in its own reducer. The live source, recording and live engineer calls are untouched.</p>
         </div>
       )}
     </section>
@@ -645,7 +645,7 @@ export function Setups() {
               {r.output.setup_changes.map((c: any) => <li key={c.parameter}>{c.parameter}: {c.from_value ?? "—"} → {c.to_value} {c.unit} · {c.handling_effect} ({c.tradeoff})</li>)}
             </ul>
           ) : null}
-          <p className="mt-2 text-[12px] text-neutral-500">{r.sources?.length ?? 0} sources · {r.experiments?.length ?? 0} experiments</p>
+          <p className="mt-2 text-[12px] text-neutral-400">{r.sources?.length ?? 0} sources · {r.experiments?.length ?? 0} experiments</p>
           {r.experiments?.length ? (
             <ul className="mt-1 text-[12px] text-neutral-400">{r.experiments.map((e: any) => <li key={e.id}>{e.conditions}: {e.outcome}</li>)}</ul>
           ) : null}
