@@ -11,7 +11,7 @@ Dependencies: go-telemetry-core, durable-race-history, telemetry-analysis-export
 
 - [x] 2.1 Implement scheduler.go using fake monotonic time and persist dispatch/evidence cursors separately. Execute every prompts/v1/scheduler-cases.json vector, including failed/cancelled SC, new event during run, ALL latch, provider change and question non-consumption. Verify: rtk go test -race ./server/internal/engineer -run TestSchedulerVectors.
 - [x] 2.2 Implement budget accounting, coalescing, preemption,15s/90s deadlines and bounded continuous mode with visible controls. Verify no timer/model call when both interval and continuous are disabled, no hidden retry and no automatic restart after15minutes with TestInvocationLimits.
-- [ ] 2.3 Wire read-only tools, invocation audit/cancel/request APIs and engineer UI status/answer handling. Test cancellation preserves evidence, tool reads cannot exceed frozen scope and notification suppression does not discard accepted advice; document endpoint protocol/config/usage settings.
+- [x] 2.3 Wire read-only tools, invocation audit/cancel/request APIs and engineer UI status/answer handling. Test cancellation preserves evidence, tool reads cannot exceed frozen scope and notification suppression does not discard accepted advice; document endpoint protocol/config/usage settings.
 
 ## 3. Change gate
 

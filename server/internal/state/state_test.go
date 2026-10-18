@@ -78,6 +78,48 @@ func TestFrameWrapAndStaleness(t *testing.T) {
 	if snap.Metrics[0].Measurement.Availability != "stale" {
 		t.Fatalf("stale = %s", snap.Metrics[0].Measurement.Availability)
 	}
+	// Past the live window the channel must stay stale instead of reverting to
+	// available because the whole feed went quiet.
+	c.t = c.t.Add(2 * time.Second)
+	snap = r.Snapshot([]int{0}, []string{"car.speed_mps"})
+	if snap.Metrics[0].Measurement.Availability != "stale" {
+		t.Fatalf("stale after feed stop = %s", snap.Metrics[0].Measurement.Availability)
+	}
+}
+
+func TestGapLeaderAndDamageChannels(t *testing.T) {
+	c := &fixedClock{time.UnixMilli(1_000_000)}
+	r := New("ctx", c.now)
+	lap := protocol.BuildPacket(2026, 2, hdr(11, 1, 10, 30), nil, map[int]map[string]float64{
+		0: {"m_deltaToCarInFrontMinutesPart": 1, "m_deltaToCarInFrontMSPart": 500,
+			"m_deltaToRaceLeaderMinutesPart": 2, "m_deltaToRaceLeaderMSPart": 250,
+			"m_numPitStops": 2, "m_penalties": 3, "m_totalWarnings": 1},
+	}, nil)
+	feed(r, 1, c, lap)
+	if v, ok := r.Value("timing.gap_leader_s", 0); !ok || !close(v, 120.25) {
+		t.Fatalf("gap leader = %v %v", v, ok)
+	}
+	if v, _ := r.Value("timing.pit_stops", 0); v != 2 {
+		t.Fatalf("pit stops = %v", v)
+	}
+	if v, _ := r.Value("timing.penalties_s", 0); v != 3 {
+		t.Fatalf("penalties = %v", v)
+	}
+	damage := protocol.BuildPacket(2026, 10, hdr(11, 2, 11, 31), nil, map[int]map[string]float64{
+		0: {"m_frontLeftWingDamage": 34, "m_floorDamage": 8, "m_drsFault": 5, "m_brakesDamage": 12},
+	}, nil)
+	feed(r, 2, c, damage)
+	if v, ok := r.Value("car.wing_front_left_damage_pct", 0); !ok || v != 34 {
+		t.Fatalf("wing damage = %v %v", v, ok)
+	}
+	if v, ok := r.Value("brake.rl.damage_pct", 0); !ok || v != 12 {
+		t.Fatalf("brake damage wheel order = %v %v", v, ok)
+	}
+	// Damage belongs to the player; another car is restricted, not zero.
+	feed(r, 3, c, protocol.BuildPacket(2026, 4, hdr(11, 3, 11, 31), map[string]float64{"m_numActiveCars": 2}, map[int]map[string]float64{0: {"m_yourTelemetry": 1}, 1: {"m_yourTelemetry": 0}}, nil))
+	if m := r.Snapshot([]int{1}, []string{"car.floor_damage_pct"}); len(m.Metrics) != 1 || m.Metrics[0].Measurement.Availability != "restricted" {
+		t.Fatalf("opponent damage = %#v", m.Metrics)
+	}
 }
 
 func TestSameUIDRewindCreatesBranchKeepsSession(t *testing.T) {

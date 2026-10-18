@@ -16,7 +16,7 @@ Dependencies: none. Read docs/rework/{master-design,contracts,qualification}.md 
 
 ## 3. Change gate
 
-- [ ] 3.1 Run rtk go test -race ./server/... and protocol golden parity against tests/fixtures/real_2025_packets.f1bin; save commands/results in docs/rework/evidence/go-telemetry-core.md. Verify no Python/application deployment cutover appears in this change's diff.
+- [x] 3.1 Run rtk go test -race ./server/... and protocol golden parity against tests/fixtures/real_2025_packets.f1bin; save commands/results in docs/rework/evidence/go-telemetry-core.md. Verify no Python/application deployment cutover appears in this change's diff.
 
 ## Workflow follow-up
 

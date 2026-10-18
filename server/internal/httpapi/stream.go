@@ -177,11 +177,16 @@ func (a *API) snapshotMessage(c *streamClient) contract.StreamMessage {
 		c.last[m.ID] = printOf(m.Measurement)
 	}
 	evts := a.eventsFor(c, snap.Events)
-	return contract.StreamMessage{
+	msg := contract.StreamMessage{
 		SchemaVersion: contract.SchemaVersion, Type: "snapshot", SourceID: "live", Seq: seq, BaseSeq: nil,
 		Context: &ctx, Metrics: snap.Metrics, RemovedMetricIDs: []string{}, Events: evts,
 		Status: &snap.RecordingState, EngineerOutputs: []contract.AgentOutput{}, Alerts: a.Arbiter.Alerts(), Jobs: []contract.Job{},
 	}
+	if !snap.LastAcceptedAt.IsZero() {
+		msg.ObservedAtMs = snap.LastAcceptedAt.UnixMilli()
+	}
+	msg.SentAtMs = time.Now().UnixMilli()
+	return msg
 }
 
 func (a *API) deltaMessage(c *streamClient) *contract.StreamMessage {
@@ -226,11 +231,16 @@ func (a *API) deltaMessage(c *streamClient) *contract.StreamMessage {
 	var status *string
 	st := snap.RecordingState
 	status = &st
-	return &contract.StreamMessage{
+	msg := &contract.StreamMessage{
 		SchemaVersion: contract.SchemaVersion, Type: "delta", SourceID: "live", Seq: seq, BaseSeq: &prev,
 		Context: &ctx, Metrics: changed, RemovedMetricIDs: removed, Events: evts, Status: status,
 		EngineerOutputs: []contract.AgentOutput{}, Alerts: []contract.Alert{}, Jobs: []contract.Job{},
 	}
+	if !snap.LastAcceptedAt.IsZero() {
+		msg.ObservedAtMs = snap.LastAcceptedAt.UnixMilli()
+	}
+	msg.SentAtMs = time.Now().UnixMilli()
+	return msg
 }
 
 func (a *API) eventsFor(c *streamClient, all []contract.Event) []contract.Event {

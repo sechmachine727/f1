@@ -63,7 +63,7 @@ func (e *Engine) Compare(ctx context.Context, q contract.CompareQuery) (contract
 		var lapSeries []contract.Series
 		maxDist := 0.0
 		for _, l := range laps {
-			pts, err := e.lapPoints(ctx, l, ch, q.MaxPoints)
+			pts, err := e.lapPoints(ctx, l, ch)
 			if err != nil {
 				return res, err
 			}
@@ -80,7 +80,7 @@ func (e *Engine) Compare(ctx context.Context, q contract.CompareQuery) (contract
 		}
 		step := maxDist / float64(grid)
 		for i, s := range lapSeries {
-			aligned := contract.Series{ID: s.ID + ":aligned", Channel: ch, CarIndex: intPtr(laps[i].CarIndex), Points: make([]contract.SeriesPoint, 0, grid+1)}
+			aligned := contract.Series{ID: s.ID + ":aligned", LapID: s.LapID, Channel: ch, CarIndex: intPtr(laps[i].CarIndex), Points: make([]contract.SeriesPoint, 0, grid+1)}
 			for j := 0; j <= grid; j++ {
 				dist := float64(j) * step
 				sp := contract.SeriesPoint{Seq: strconv.Itoa(j), DistanceM: float64Ptr(dist)}
@@ -100,7 +100,7 @@ func (e *Engine) Compare(ctx context.Context, q contract.CompareQuery) (contract
 	return res, nil
 }
 
-func (e *Engine) lapPoints(ctx context.Context, l contract.LapSummary, ch string, max int) (contract.Series, error) {
+func (e *Engine) lapPoints(ctx context.Context, l contract.LapSummary, ch string) (contract.Series, error) {
 	spec, ok := protocol.Lookup(ch)
 	if !ok {
 		return contract.Series{}, fmt.Errorf("unknown channel %s", ch)
@@ -154,7 +154,14 @@ func (e *Engine) lapPoints(ctx context.Context, l contract.LapSummary, ch string
 			pts[i].distance = &d
 		}
 	}
-	pts = decimate(pts, max)
+	// A lap distance resets at the line. Stop at the wrap instead of
+	// interpolating the next lap's low distances into this one.
+	for i := 1; i < len(pts); i++ {
+		if pts[i].distance != nil && pts[i-1].distance != nil && *pts[i].distance < *pts[i-1].distance-500 {
+			pts = pts[:i]
+			break
+		}
+	}
 	series := contract.Series{ID: l.ID, Channel: ch, CarIndex: intPtr(l.CarIndex), LapID: &l.ID}
 	for _, pt := range pts {
 		series.Points = append(series.Points, contract.SeriesPoint{Seq: strconv.FormatUint(pt.seq, 10), SessionTimeMs: int64Ptr(pt.sessionMs), DistanceM: pt.distance, Measurement: contract.Available(pt.value, unitOf(ch), "analysis.compare")})

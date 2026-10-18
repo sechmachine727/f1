@@ -322,6 +322,11 @@ func (r *Reducer) observeFields(seq uint64, at time.Time, p *protocol.Packet) {
 				continue
 			}
 			r.store(key{h.PacketID, "timing.gap_ahead_s", car}, sample{value: protocol.Value{F: mins.F*60 + ms.F/1000}, seq: seq, frame: h.OverallFrameID, observed: at, source: "packet2"})
+			leadMins, ok3 := p.CarField("m_deltaToRaceLeaderMinutesPart", car)
+			leadMs, ok4 := p.CarField("m_deltaToRaceLeaderMSPart", car)
+			if ok3 && ok4 {
+				r.store(key{h.PacketID, "timing.gap_leader_s", car}, sample{value: protocol.Value{F: leadMins.F*60 + leadMs.F/1000}, seq: seq, frame: h.OverallFrameID, observed: at, source: "packet2"})
+			}
 		}
 	}
 	if h.OverallFrameID != r.maxFrame && int32(h.OverallFrameID-r.maxFrame) > 0 {
@@ -751,7 +756,7 @@ func (r *Reducer) metricLocked(ch protocol.ChannelSpec, car int, now time.Time) 
 		}
 	}
 	ttl := freshness(ch.FrequencyClass)
-	if ttl > 0 && now.Sub(s.observed) > ttl && r.isLive(now) {
+	if ttl > 0 && now.Sub(s.observed) > ttl {
 		m.Measurement = contract.Unavailable("stale", ch.Unit, s.source, "no update within freshness window")
 		m.Measurement.AsOfMs = int64p(s.observed.UnixMilli())
 		return m
@@ -783,10 +788,6 @@ func freshness(class string) time.Duration {
 		return statusTTL
 	}
 	return 0
-}
-
-func (r *Reducer) isLive(now time.Time) bool {
-	return !r.lastPacket.IsZero() && now.Sub(r.lastPacket) <= staleAfter
 }
 
 func (r *Reducer) HealthState() string {

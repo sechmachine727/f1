@@ -10,6 +10,7 @@ import (
 	"os"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"f1tele/server/internal/contract"
@@ -177,11 +178,25 @@ func scanFile(ctx context.Context, path string, fn func(*mcap.Message) error) er
 	defer f.Close()
 	r, err := mcap.NewReader(f)
 	if err != nil {
+		if unfinalized(err) {
+			// Active recordings have no footer yet. Scan the data section until the
+			// writer catches up instead of treating the session as unreadable.
+			if _, seekErr := f.Seek(0, io.SeekStart); seekErr != nil {
+				return seekErr
+			}
+			return scanUnfinalized(ctx, f, fn)
+		}
 		return fmt.Errorf("read %s: %w", path, err)
 	}
 	defer r.Close()
 	it, err := r.Messages()
 	if err != nil {
+		if unfinalized(err) {
+			if _, seekErr := f.Seek(0, io.SeekStart); seekErr != nil {
+				return seekErr
+			}
+			return scanUnfinalized(ctx, f, fn)
+		}
 		return err
 	}
 	for {
@@ -202,6 +217,42 @@ func scanFile(ctx context.Context, path string, fn func(*mcap.Message) error) er
 		}
 		if err := fn(m); err != nil {
 			return err
+		}
+	}
+}
+
+func unfinalized(err error) bool {
+	msg := err.Error()
+	return strings.Contains(msg, "at end of file") || strings.Contains(msg, "Invalid magic")
+}
+
+func scanUnfinalized(ctx context.Context, r io.Reader, fn func(*mcap.Message) error) error {
+	lx, err := mcap.NewLexer(r, &mcap.LexerOptions{MaxDecompressedChunkSize: 256 << 20})
+	if err != nil {
+		return err
+	}
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+		tok, rec, err := lx.Next(nil)
+		if err != nil {
+			if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
+				return nil
+			}
+			return err
+		}
+		switch tok {
+		case mcap.TokenMessage:
+			var m mcap.Message
+			if err := m.PopulateFrom(rec, true); err != nil {
+				return err
+			}
+			if err := fn(&m); err != nil {
+				return err
+			}
 		}
 	}
 }

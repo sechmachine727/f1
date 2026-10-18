@@ -133,6 +133,8 @@ type StreamMessage struct {
 	EngineerOutputs  []AgentOutput `json:"engineer_outputs"`
 	Alerts           []Alert       `json:"alerts"`
 	Jobs             []Job         `json:"jobs"`
+	ObservedAtMs     int64         `json:"observed_at_ms,omitempty"`
+	SentAtMs         int64         `json:"sent_at_ms,omitempty"`
 }
 
 type AgentOutput struct {

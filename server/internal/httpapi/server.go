@@ -138,6 +138,9 @@ func (a *API) Handler(static http.Handler) http.Handler {
 	mux.HandleFunc("POST /api/v1/history/cleanup", a.cleanup)
 	mux.HandleFunc("POST /api/v1/control/stop", a.controlStop)
 	mux.HandleFunc("GET /api/v1/stream", a.stream)
+	mux.HandleFunc("GET /api/v1/time", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, 200, map[string]any{"now_ms": time.Now().UnixMilli()})
+	})
 	if static != nil {
 		mux.Handle("/", static)
 	}

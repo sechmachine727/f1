@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { LineChart, Line, ResponsiveContainer, XAxis, YAxis, Tooltip, ReferenceLine } from "recharts";
 import { api, availabilityLabel, metric, text, useLive, value, type Snapshot } from "@/lib/live";
 import { clearSelection, select, useSelection } from "@/lib/selection";
@@ -126,7 +126,7 @@ export function PitWall() {
   const pace = stint.filter((l) => l.lap_time_ms?.availability === "available").map((l) => ({ lap: l.lap, ms: l.lap_time_ms.value as number }));
 
   return (
-    <div className="min-h-screen bg-[#0b0d11] text-neutral-100 p-4 space-y-3">
+    <div className="min-h-[calc(100vh-49px)] bg-[#0b0d11] text-neutral-100 p-4 space-y-3">
       {sel.sessionId ? <Banner label={sel.label || sel.sessionId} detail={sel.season ? String(sel.season) : undefined} /> : null}
       <div className={panel + " flex items-center justify-between px-4 py-2"}>
         <div className="flex items-center gap-3">
@@ -286,6 +286,8 @@ export function History({ onOpen }: { onOpen: () => void }) {
   const sel = useSelection();
   const [notice, setNotice] = useState("");
   const [confirming, setConfirming] = useState<string | null>(null);
+  const cleanupRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const noticeRef = useRef<HTMLParagraphElement>(null);
 
   // Cleanup is manual and per-session: it lists the catalogued recording files,
   // asks for confirmation, and reports per-file refusals from the server.
@@ -312,11 +314,12 @@ export function History({ onOpen }: { onOpen: () => void }) {
       setNotice(String(e));
     } finally {
       setConfirming(null);
+      requestAnimationFrame(() => noticeRef.current?.focus());
     }
   }
 
   return (
-    <div className="min-h-screen bg-[#0b0d11] text-neutral-100 p-4 space-y-3">
+    <div className="min-h-[calc(100vh-49px)] bg-[#0b0d11] text-neutral-100 p-4 space-y-3">
       <div className="flex items-center gap-2" role="tablist" aria-label="Season">
         {["2025", "2026", "unassigned"].map((t) => (
           <button key={t} role="tab" aria-selected={season === t} onClick={() => setSeason(t)}
@@ -326,7 +329,7 @@ export function History({ onOpen }: { onOpen: () => void }) {
         ))}
       </div>
       {error ? <p role="alert" className="text-[#f2483c]">{error}</p> : null}
-      {notice ? <p role="status" className="text-[13px] text-neutral-300">{notice}</p> : null}
+      {notice ? <p ref={noticeRef} role="status" tabIndex={-1} className="text-[13px] text-neutral-300">{notice}</p> : null}
       <ul className={panel + " divide-y divide-[#232830]" }>
         {items.length === 0 ? <li><Empty>No recorded sessions in this view.</Empty></li> : null}
         {items.map((s) => (
@@ -358,10 +361,11 @@ export function History({ onOpen }: { onOpen: () => void }) {
               <span className="flex items-center gap-2 px-3 text-[12px]">
                 <span className="text-neutral-300">Delete recording files?</span>
                 <button className={nav + " bg-[#4a1d22] text-[#ffb4b4]"} onClick={() => removeRecording(s.id)}>Delete</button>
-                <button className={nav + " text-neutral-300"} onClick={() => setConfirming(null)}>Cancel</button>
+                <button autoFocus className={nav + " text-neutral-300"} onClick={() => { setConfirming(null); requestAnimationFrame(() => cleanupRefs.current[s.id]?.focus()); }}>Cancel</button>
               </span>
             ) : (
               <button
+                ref={(el) => { cleanupRefs.current[s.id] = el; }}
                 className={nav + " px-3 text-[12px] text-neutral-400 hover:bg-[#151920]"}
                 aria-label={"Delete recordings for " + (s.display_name || s.id)}
                 onClick={() => setConfirming(s.id)}
@@ -459,7 +463,7 @@ export function Analysis() {
   const keys = series.map((s) => s.lap_id ?? s.channel);
 
   return (
-    <div className="min-h-screen bg-[#0b0d11] text-neutral-100 p-4 space-y-3">
+    <div className="min-h-[calc(100vh-49px)] bg-[#0b0d11] text-neutral-100 p-4 space-y-3">
       {sel.sessionId ? <Banner label={sel.label} /> : null}
       <div className={panel + " flex flex-wrap items-center gap-3 px-4 py-2"}>
         <label className="text-sm text-neutral-400" htmlFor="an-session">Session</label>
@@ -529,12 +533,12 @@ export function Analysis() {
           </div>
         </section>
       </div>
-      {sessionId ? <ReplayPanel sessionId={sessionId} branchId={branchId} /> : null}
+      {sessionId ? <ReplayPanel sessionId={sessionId} branchId={branchId} active={items.find((s) => s.id === sessionId)?.recording_state === "active"} /> : null}
     </div>
   );
 }
 
-function ReplayPanel({ sessionId, branchId }: { sessionId: string; branchId: string }) {
+function ReplayPanel({ sessionId, branchId, active }: { sessionId: string; branchId: string; active: boolean }) {
   const [replay, setReplay] = useState<any>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -591,7 +595,9 @@ function ReplayPanel({ sessionId, branchId }: { sessionId: string; branchId: str
         ) : null}
       </div>
       {error ? <p role="alert" className="mt-2 text-[12px] text-[#f2483c]">{error}</p> : null}
-      {!replay ? (
+      {active ? (
+        <p className="mt-2 text-[12px] text-neutral-400">Replay is available after the recording finishes.</p>
+      ) : !replay ? (
         <button onClick={start} disabled={busy || !sessionId} className={"mt-2 " + nav + " bg-[#1d3b2c] text-[#4fd48a] disabled:opacity-40"}>
           {busy ? "Opening…" : "Open replay"}
         </button>
@@ -634,7 +640,7 @@ export function Setups() {
     api<any>("/setups").then((d) => setItems(d.items ?? [])).catch((e) => setError(String(e)));
   }, []);
   return (
-    <div className="min-h-screen bg-[#0b0d11] text-neutral-100 p-4 space-y-3">
+    <div className="min-h-[calc(100vh-49px)] bg-[#0b0d11] text-neutral-100 p-4 space-y-3">
       <h2 className="text-lg">Setups</h2>
       {error ? <p role="alert" className="text-[#f2483c]">{error}</p> : null}
       {items.length === 0 ? <p className="text-neutral-400">No setups saved.</p> : items.map((r) => (
@@ -662,7 +668,7 @@ export function Settings() {
     api<any>("/config").then(setCfg).catch((e) => setError(String(e)));
   }, []);
   return (
-    <div className="min-h-screen bg-[#0b0d11] text-neutral-100 p-4 space-y-3">
+    <div className="min-h-[calc(100vh-49px)] bg-[#0b0d11] text-neutral-100 p-4 space-y-3">
       <h2 className="text-lg">Settings</h2>
       {error ? <p role="alert" className="text-[#f2483c]">{error}</p> : null}
       {cfg ? (

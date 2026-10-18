@@ -302,7 +302,7 @@ func (s *Server) persistIdentityAndLaps(ctx context.Context, p *protocol.Packet,
 			timeMs, _ := p.CarField("m_lastLapTimeInMS", car)
 			l := contract.LapSummary{
 				ID: fmt.Sprintf("lap-%s-%d-%d", cx.BranchID, car, st.lap), SessionID: cx.SessionID, BranchID: cx.BranchID,
-				CarIndex: car, Lap: st.lap, StartSeq: strconv.FormatUint(st.startSeq, 10), EndSeq: strconv.FormatUint(seq, 10),
+				CarIndex: car, Lap: st.lap, StartSeq: strconv.FormatUint(st.startSeq, 10), EndSeq: strconv.FormatUint(seq-1, 10),
 				LapTimeMs: contract.Available(int64(timeMs.F), "ms", "udp.packet2"), DistanceM: contract.Unavailable("not_received", "m", "catalog.laps", "distance is not catalogued"),
 				Compound: contract.Available(compoundName(st.compound), "compound", "udp.packet7"),
 				Valid:    !st.invalid, PitLap: st.pit != 0, Neutralized: neutralized, Complete: true, Gaps: []string{}, Conditions: conditions(cx),

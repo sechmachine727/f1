@@ -171,6 +171,7 @@ func TestRatedWorkload(t *testing.T) {
 	case <-time.After(200 * time.Millisecond):
 	}
 	waitHTTP(t, fmt.Sprintf("127.0.0.1:%d", httpPort))
+	fmt.Fprintf(os.Stderr, "rated server: http://127.0.0.1:%d\n", httpPort)
 
 	clientErrs := make(chan error, *clients)
 	var cwg sync.WaitGroup

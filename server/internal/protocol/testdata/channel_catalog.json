@@ -30,6 +30,16 @@
   "frequency_class": "high_rate"
  },
  {
+  "name": "brake.fl.damage_pct",
+  "unit": "%",
+  "value_type": "number",
+  "source_fields": [
+   "packet10.m_brakesDamage"
+  ],
+  "availability_rule": "available for the player and unrestricted senders; restricted for participants with m_yourTelemetry=0",
+  "frequency_class": "status"
+ },
+ {
   "name": "brake.fl.temp_c",
   "unit": "degC",
   "value_type": "number",
@@ -38,6 +48,16 @@
   ],
   "availability_rule": "available for the player and unrestricted senders; restricted for participants with m_yourTelemetry=0",
   "frequency_class": "high_rate"
+ },
+ {
+  "name": "brake.fr.damage_pct",
+  "unit": "%",
+  "value_type": "number",
+  "source_fields": [
+   "packet10.m_brakesDamage"
+  ],
+  "availability_rule": "available for the player and unrestricted senders; restricted for participants with m_yourTelemetry=0",
+  "frequency_class": "status"
  },
  {
   "name": "brake.fr.temp_c",
@@ -50,6 +70,16 @@
   "frequency_class": "high_rate"
  },
  {
+  "name": "brake.rl.damage_pct",
+  "unit": "%",
+  "value_type": "number",
+  "source_fields": [
+   "packet10.m_brakesDamage"
+  ],
+  "availability_rule": "available for the player and unrestricted senders; restricted for participants with m_yourTelemetry=0",
+  "frequency_class": "status"
+ },
+ {
   "name": "brake.rl.temp_c",
   "unit": "degC",
   "value_type": "number",
@@ -58,6 +88,16 @@
   ],
   "availability_rule": "available for the player and unrestricted senders; restricted for participants with m_yourTelemetry=0",
   "frequency_class": "high_rate"
+ },
+ {
+  "name": "brake.rr.damage_pct",
+  "unit": "%",
+  "value_type": "number",
+  "source_fields": [
+   "packet10.m_brakesDamage"
+  ],
+  "availability_rule": "available for the player and unrestricted senders; restricted for participants with m_yourTelemetry=0",
+  "frequency_class": "status"
  },
  {
   "name": "brake.rr.temp_c",
@@ -80,6 +120,16 @@
   "frequency_class": "high_rate"
  },
  {
+  "name": "car.diffuser_damage_pct",
+  "unit": "%",
+  "value_type": "number",
+  "source_fields": [
+   "packet10.m_diffuserDamage"
+  ],
+  "availability_rule": "available for the player and unrestricted senders; restricted for participants with m_yourTelemetry=0",
+  "frequency_class": "status"
+ },
+ {
   "name": "car.driver_name",
   "unit": "",
   "value_type": "string",
@@ -100,6 +150,26 @@
   "frequency_class": "high_rate"
  },
  {
+  "name": "car.drs_fault_pct",
+  "unit": "%",
+  "value_type": "number",
+  "source_fields": [
+   "packet10.m_drsFault"
+  ],
+  "availability_rule": "available for the player and unrestricted senders; restricted for participants with m_yourTelemetry=0",
+  "frequency_class": "status"
+ },
+ {
+  "name": "car.engine_damage_pct",
+  "unit": "%",
+  "value_type": "number",
+  "source_fields": [
+   "packet10.m_engineDamage"
+  ],
+  "availability_rule": "available for the player and unrestricted senders; restricted for participants with m_yourTelemetry=0",
+  "frequency_class": "status"
+ },
+ {
   "name": "car.engine_temp_c",
   "unit": "degC",
   "value_type": "number",
@@ -107,6 +177,16 @@
    "packet6.m_engineTemperature"
   ],
   "availability_rule": "available when received and fresh",
+  "frequency_class": "status"
+ },
+ {
+  "name": "car.ers_fault_pct",
+  "unit": "%",
+  "value_type": "number",
+  "source_fields": [
+   "packet10.m_ersFault"
+  ],
+  "availability_rule": "available for the player and unrestricted senders; restricted for participants with m_yourTelemetry=0",
   "frequency_class": "status"
  },
  {
@@ -120,6 +200,16 @@
   "frequency_class": "status"
  },
  {
+  "name": "car.floor_damage_pct",
+  "unit": "%",
+  "value_type": "number",
+  "source_fields": [
+   "packet10.m_floorDamage"
+  ],
+  "availability_rule": "available for the player and unrestricted senders; restricted for participants with m_yourTelemetry=0",
+  "frequency_class": "status"
+ },
+ {
   "name": "car.gear",
   "unit": "gear",
   "value_type": "integer",
@@ -128,6 +218,16 @@
   ],
   "availability_rule": "available when received and fresh",
   "frequency_class": "high_rate"
+ },
+ {
+  "name": "car.gearbox_damage_pct",
+  "unit": "%",
+  "value_type": "number",
+  "source_fields": [
+   "packet10.m_gearBoxDamage"
+  ],
+  "availability_rule": "available for the player and unrestricted senders; restricted for participants with m_yourTelemetry=0",
+  "frequency_class": "status"
  },
  {
   "name": "car.is_ai",
@@ -158,6 +258,16 @@
   ],
   "availability_rule": "available when received and fresh",
   "frequency_class": "high_rate"
+ },
+ {
+  "name": "car.sidepod_damage_pct",
+  "unit": "%",
+  "value_type": "number",
+  "source_fields": [
+   "packet10.m_sidepodDamage"
+  ],
+  "availability_rule": "available for the player and unrestricted senders; restricted for participants with m_yourTelemetry=0",
+  "frequency_class": "status"
  },
  {
   "name": "car.speed_mps",
@@ -198,6 +308,36 @@
   ],
   "availability_rule": "available when received and fresh",
   "frequency_class": "high_rate"
+ },
+ {
+  "name": "car.wing_front_left_damage_pct",
+  "unit": "%",
+  "value_type": "number",
+  "source_fields": [
+   "packet10.m_frontLeftWingDamage"
+  ],
+  "availability_rule": "available for the player and unrestricted senders; restricted for participants with m_yourTelemetry=0",
+  "frequency_class": "status"
+ },
+ {
+  "name": "car.wing_front_right_damage_pct",
+  "unit": "%",
+  "value_type": "number",
+  "source_fields": [
+   "packet10.m_frontRightWingDamage"
+  ],
+  "availability_rule": "available for the player and unrestricted senders; restricted for participants with m_yourTelemetry=0",
+  "frequency_class": "status"
+ },
+ {
+  "name": "car.wing_rear_damage_pct",
+  "unit": "%",
+  "value_type": "number",
+  "source_fields": [
+   "packet10.m_rearWingDamage"
+  ],
+  "availability_rule": "available for the player and unrestricted senders; restricted for participants with m_yourTelemetry=0",
+  "frequency_class": "status"
  },
  {
   "name": "energy.deploy_mode",
@@ -1220,16 +1360,6 @@
   "frequency_class": "status"
  },
  {
-  "name": "raw.1.m_totalLaps",
-  "unit": "",
-  "value_type": "number",
-  "source_fields": [
-   "packet1.m_totalLaps"
-  ],
-  "availability_rule": "raw official field; availability follows the packet and restriction rules",
-  "frequency_class": "status"
- },
- {
   "name": "raw.1.m_trackId",
   "unit": "",
   "value_type": "number",
@@ -1320,36 +1450,6 @@
   "frequency_class": "status"
  },
  {
-  "name": "raw.10.m_brakesDamage",
-  "unit": "",
-  "value_type": "number",
-  "source_fields": [
-   "packet10.m_brakesDamage"
-  ],
-  "availability_rule": "raw official field; availability follows the packet and restriction rules",
-  "frequency_class": "status"
- },
- {
-  "name": "raw.10.m_diffuserDamage",
-  "unit": "",
-  "value_type": "number",
-  "source_fields": [
-   "packet10.m_diffuserDamage"
-  ],
-  "availability_rule": "raw official field; availability follows the packet and restriction rules",
-  "frequency_class": "status"
- },
- {
-  "name": "raw.10.m_drsFault",
-  "unit": "",
-  "value_type": "number",
-  "source_fields": [
-   "packet10.m_drsFault"
-  ],
-  "availability_rule": "raw official field; availability follows the packet and restriction rules",
-  "frequency_class": "status"
- },
- {
   "name": "raw.10.m_engineBlown",
   "unit": "",
   "value_type": "number",
@@ -1365,16 +1465,6 @@
   "value_type": "number",
   "source_fields": [
    "packet10.m_engineCEWear"
-  ],
-  "availability_rule": "raw official field; availability follows the packet and restriction rules",
-  "frequency_class": "status"
- },
- {
-  "name": "raw.10.m_engineDamage",
-  "unit": "",
-  "value_type": "number",
-  "source_fields": [
-   "packet10.m_engineDamage"
   ],
   "availability_rule": "raw official field; availability follows the packet and restriction rules",
   "frequency_class": "status"
@@ -1435,76 +1525,6 @@
   "value_type": "number",
   "source_fields": [
    "packet10.m_engineTCWear"
-  ],
-  "availability_rule": "raw official field; availability follows the packet and restriction rules",
-  "frequency_class": "status"
- },
- {
-  "name": "raw.10.m_ersFault",
-  "unit": "",
-  "value_type": "number",
-  "source_fields": [
-   "packet10.m_ersFault"
-  ],
-  "availability_rule": "raw official field; availability follows the packet and restriction rules",
-  "frequency_class": "status"
- },
- {
-  "name": "raw.10.m_floorDamage",
-  "unit": "",
-  "value_type": "number",
-  "source_fields": [
-   "packet10.m_floorDamage"
-  ],
-  "availability_rule": "raw official field; availability follows the packet and restriction rules",
-  "frequency_class": "status"
- },
- {
-  "name": "raw.10.m_frontLeftWingDamage",
-  "unit": "",
-  "value_type": "number",
-  "source_fields": [
-   "packet10.m_frontLeftWingDamage"
-  ],
-  "availability_rule": "raw official field; availability follows the packet and restriction rules",
-  "frequency_class": "status"
- },
- {
-  "name": "raw.10.m_frontRightWingDamage",
-  "unit": "",
-  "value_type": "number",
-  "source_fields": [
-   "packet10.m_frontRightWingDamage"
-  ],
-  "availability_rule": "raw official field; availability follows the packet and restriction rules",
-  "frequency_class": "status"
- },
- {
-  "name": "raw.10.m_gearBoxDamage",
-  "unit": "",
-  "value_type": "number",
-  "source_fields": [
-   "packet10.m_gearBoxDamage"
-  ],
-  "availability_rule": "raw official field; availability follows the packet and restriction rules",
-  "frequency_class": "status"
- },
- {
-  "name": "raw.10.m_rearWingDamage",
-  "unit": "",
-  "value_type": "number",
-  "source_fields": [
-   "packet10.m_rearWingDamage"
-  ],
-  "availability_rule": "raw official field; availability follows the packet and restriction rules",
-  "frequency_class": "status"
- },
- {
-  "name": "raw.10.m_sidepodDamage",
-  "unit": "",
-  "value_type": "number",
-  "source_fields": [
-   "packet10.m_sidepodDamage"
   ],
   "availability_rule": "raw official field; availability follows the packet and restriction rules",
   "frequency_class": "status"
@@ -2170,16 +2190,6 @@
   "frequency_class": "status"
  },
  {
-  "name": "raw.2.m_numPitStops",
-  "unit": "",
-  "value_type": "number",
-  "source_fields": [
-   "packet2.m_numPitStops"
-  ],
-  "availability_rule": "raw official field; availability follows the packet and restriction rules",
-  "frequency_class": "status"
- },
- {
   "name": "raw.2.m_numUnservedDriveThroughPens",
   "unit": "",
   "value_type": "number",
@@ -2195,16 +2205,6 @@
   "value_type": "number",
   "source_fields": [
    "packet2.m_numUnservedStopGoPens"
-  ],
-  "availability_rule": "raw official field; availability follows the packet and restriction rules",
-  "frequency_class": "status"
- },
- {
-  "name": "raw.2.m_penalties",
-  "unit": "",
-  "value_type": "number",
-  "source_fields": [
-   "packet2.m_penalties"
   ],
   "availability_rule": "raw official field; availability follows the packet and restriction rules",
   "frequency_class": "status"
@@ -2355,16 +2355,6 @@
   "value_type": "number",
   "source_fields": [
    "packet2.m_totalDistance"
-  ],
-  "availability_rule": "raw official field; availability follows the packet and restriction rules",
-  "frequency_class": "status"
- },
- {
-  "name": "raw.2.m_totalWarnings",
-  "unit": "",
-  "value_type": "number",
-  "source_fields": [
-   "packet2.m_totalWarnings"
   ],
   "availability_rule": "raw official field; availability follows the packet and restriction rules",
   "frequency_class": "status"
@@ -3150,6 +3140,16 @@
   "frequency_class": "session"
  },
  {
+  "name": "session.total_laps",
+  "unit": "laps",
+  "value_type": "integer",
+  "source_fields": [
+   "packet1.m_totalLaps"
+  ],
+  "availability_rule": "available when received and fresh",
+  "frequency_class": "session"
+ },
+ {
   "name": "session.track_length_m",
   "unit": "m",
   "value_type": "number",
@@ -3220,6 +3220,16 @@
   "frequency_class": "status"
  },
  {
+  "name": "timing.gap_leader_s",
+  "unit": "s",
+  "value_type": "number",
+  "source_fields": [
+   "packet2.derived:m_deltaToRaceLeader"
+  ],
+  "availability_rule": "available when received and fresh",
+  "frequency_class": "status"
+ },
+ {
   "name": "timing.lap_distance_m",
   "unit": "m",
   "value_type": "number",
@@ -3240,6 +3250,16 @@
   "frequency_class": "status"
  },
  {
+  "name": "timing.penalties_s",
+  "unit": "s",
+  "value_type": "integer",
+  "source_fields": [
+   "packet2.m_penalties"
+  ],
+  "availability_rule": "available when received and fresh",
+  "frequency_class": "status"
+ },
+ {
   "name": "timing.pit_status",
   "unit": "status",
   "value_type": "integer",
@@ -3250,11 +3270,31 @@
   "frequency_class": "status"
  },
  {
+  "name": "timing.pit_stops",
+  "unit": "stops",
+  "value_type": "integer",
+  "source_fields": [
+   "packet2.m_numPitStops"
+  ],
+  "availability_rule": "available when received and fresh",
+  "frequency_class": "status"
+ },
+ {
   "name": "timing.speed_trap_mps",
   "unit": "m/s",
   "value_type": "number",
   "source_fields": [
    "packet2.m_speedTrapFastestSpeed"
+  ],
+  "availability_rule": "available when received and fresh",
+  "frequency_class": "status"
+ },
+ {
+  "name": "timing.warnings",
+  "unit": "count",
+  "value_type": "integer",
+  "source_fields": [
+   "packet2.m_totalWarnings"
   ],
   "availability_rule": "available when received and fresh",
   "frequency_class": "status"

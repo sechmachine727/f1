@@ -11,10 +11,15 @@ type Invocation = {
 /** Live engineer requests, recent invocations and alert acknowledgment. */
 export function EngineerCard() {
   const s = useLive();
+  const [enabled, setEnabled] = useState<boolean | null>(null);
   const [draft, setDraft] = useState("");
   const [items, setItems] = useState<Invocation[]>([]);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    api<any>("/health").then((h) => setEnabled(h.features?.engineer !== false)).catch(() => setEnabled(false));
+  }, []);
 
   useEffect(() => {
     if (!s.context) return;
@@ -62,10 +67,12 @@ export function EngineerCard() {
       <div className="flex items-baseline justify-between">
         <div className="text-[11px] uppercase tracking-wider text-neutral-400">Race engineer</div>
         <span className="text-[11px] text-neutral-400">
-          {text(metric(s, "car.speed_mps")) === "—" ? "Waiting for telemetry" : "Live"}
+          {enabled === false ? "Not configured" : text(metric(s, "car.speed_mps")) === "—" ? "Waiting for telemetry" : "Live"}
         </span>
       </div>
 
+      {enabled === false ? <p className="text-[12px] text-neutral-400">No model endpoint is configured. Live questions are unavailable.</p> : null}
+      {enabled === false ? null :
       <form
         className="flex gap-2"
         onSubmit={(e) => {
@@ -87,6 +94,7 @@ export function EngineerCard() {
           {busy ? "Sending…" : "Ask"}
         </button>
       </form>
+      }
       {error ? <p role="alert" className="text-[12px] text-[#f25a5c]">{error}</p> : null}
       {!s.context ? <p className="text-[12px] text-neutral-400">No active session yet.</p> : null}
 

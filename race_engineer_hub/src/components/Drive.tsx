@@ -1,18 +1,35 @@
-import { availabilityLabel, metric, text, useLive, value, type Snapshot } from "@/lib/live";
+import { useEffect, useRef, useState } from "react";
+import { api, availabilityLabel, metric, text, useLive, value, type Snapshot } from "@/lib/live";
+
 const wheel = ["fl", "fr", "rl", "rr"] as const;
 const corners: Record<string, string> = { fl: "Front left", fr: "Front right", rl: "Rear left", rr: "Rear right" };
+const recordingLabel: Record<string, string> = { recording: "Recording", stopped_user: "Stopped", stopped_limit: "Rating cap reached", stopped_error: "Recording error", idle: "Not recording" };
+
+function stateLabel(availability?: string) {
+  switch (availability) {
+    case "stale": return "No update";
+    case "restricted": return "Restricted";
+    case "not_received": return "No data";
+    case "unsupported": return "Unsupported";
+    default: return "Unavailable";
+  }
+}
+
+const withUnit = (v: string, unit: string) => v === "—" ? "—" : v + " " + unit;
+
 function WearRing({ pct }: { pct: number | null }) {
   const v = pct ?? 0, r = 30, c = 2 * Math.PI * r;
   return (
-    <svg width="4.5em" height="4.5em" viewBox="0 0 72 72" role="img" aria-label={pct == null ? "wear unknown" : Math.round(v) + " percent wear"}>
+    <svg width="4.2em" height="4.2em" viewBox="0 0 72 72" role="img" aria-label={pct == null ? "wear unknown" : Math.round(v) + " percent wear"} className="shrink-0">
       <circle cx="36" cy="36" r={r} fill="none" stroke="#2a303a" strokeWidth="7" />
       <circle cx="36" cy="36" r={r} fill="none" stroke={v >= 90 ? "#f2484b" : v >= 75 ? "#f0a03c" : "#4fd48a"} strokeWidth="7" strokeDasharray={String((Math.min(v, 100) / 100) * c) + " " + String(c)} transform="rotate(-90 36 36)" strokeLinecap="round" />
       <text x="36" y="41" textAnchor="middle" className="fill-white text-[1em] font-semibold tabular-nums">{pct == null ? "—" : Math.round(v) + "%"}</text>
     </svg>
   );
 }
-function tempState(v: number | null, season: number | null) {
-  if (v == null) return { cls: "text-neutral-400", label: "Unavailable" };
+
+function tempState(v: number | null, season: number | null, availability?: string) {
+  if (v == null) return { cls: "text-neutral-400", label: stateLabel(availability) };
   if (season === 2025) {
     if (v >= 109) return { cls: "text-[#f25a5c]", label: "Critical ↑" };
     if (v >= 104) return { cls: "text-[#f0a03c]", label: "Caution ↑" };
@@ -21,67 +38,385 @@ function tempState(v: number | null, season: number | null) {
   }
   return { cls: "text-neutral-100", label: "Unclassified" };
 }
-function Tyre({ pos, s }: { pos: string; s: Snapshot }) {
-  const wear = value(metric(s, "tyre." + pos + ".wear_pct")), surf = value(metric(s, "tyre." + pos + ".surface_c")), core = value(metric(s, "tyre." + pos + ".core_c"));
-  const season = s.context?.regulation_season ?? null;
-  const surfState = tempState(surf, season), coreState = tempState(core, season);
+
+function pressureBar(m: ReturnType<typeof metric>): string {
+  const v = value(m);
+  return v == null ? "—" : (v / 100000).toFixed(2);
+}
+
+function Meter({ fraction, tone = "#5fd68f", label, detail }: { fraction: number | null; tone?: string; label: string; detail: string }) {
+  const pct = fraction == null ? null : Math.max(0, Math.min(100, fraction * 100));
   return (
-    <div className="py-1 flex flex-col justify-center">
-      <div className="text-[0.75em] font-semibold tracking-[0.14em] text-neutral-400 uppercase">{corners[pos]}</div>
-      <div className="flex items-center gap-4 mt-1">
-        <WearRing pct={wear} />
-        <div className="grid grid-cols-2 gap-4">
-          <div><div className="text-[0.69em] uppercase tracking-wider text-neutral-400">Surface</div><div className={"text-[3.5em] leading-none font-semibold tabular-nums " + surfState.cls}>{surf == null ? "—" : Math.round(surf)}<span className="text-2xl align-top">°</span></div><div className="text-[0.75em] text-neutral-400">{surfState.label}</div></div>
-          <div><div className="text-[0.69em] uppercase tracking-wider text-neutral-400">Core</div><div className={"text-[3.5em] leading-none font-semibold tabular-nums " + coreState.cls}>{core == null ? "—" : Math.round(core)}<span className="text-2xl align-top">°</span></div><div className="text-[0.75em] text-neutral-400">{core == null ? "Unknown" : "Provisional"}</div></div>
-        </div>
+    <div>
+      <div className="flex items-baseline justify-between text-[0.72em] text-neutral-400"><span>{label}</span><span className="tabular-nums text-neutral-300">{detail}</span></div>
+      <div className="mt-1 h-[0.45em] w-full overflow-hidden rounded-sm bg-[#232830]" role="img" aria-label={label + ": " + detail}>
+        {pct != null ? <div className="h-full rounded-sm" style={{ width: pct + "%", background: tone }} /> : null}
       </div>
     </div>
   );
 }
-function pressureBar(m: ReturnType<typeof metric>): string {
-  const v = value(m);
+
+function Tyre({ pos, s }: { pos: string; s: Snapshot }) {
+  const wear = value(metric(s, "tyre." + pos + ".wear_pct"));
+  const surfM = metric(s, "tyre." + pos + ".surface_c"), coreM = metric(s, "tyre." + pos + ".core_c");
+  const surf = value(surfM), core = value(coreM);
+  const season = s.context?.regulation_season ?? null;
+  const surfState = tempState(surf, season, surfM?.availability), coreState = tempState(core, season, coreM?.availability);
+  return (
+    <section className="flex min-h-0 items-center gap-[0.9em] border-[#232830] px-1 py-[0.35em]">
+      <WearRing pct={wear} />
+      <div className="min-w-0 flex-1">
+        <div className="text-[0.72em] font-semibold uppercase tracking-[0.14em] text-neutral-400">{corners[pos]}</div>
+        <div className="grid grid-cols-2 gap-[0.9em]">
+          <div>
+            <div className="text-[0.66em] uppercase tracking-wider text-neutral-400">Surface</div>
+            <div className={"text-[2.9em] font-semibold leading-none tabular-nums " + surfState.cls}>{surf == null ? "—" : Math.round(surf)}<span className="align-top text-[0.5em]">°</span></div>
+            <div className="text-[0.68em] text-neutral-400">{surfState.label}</div>
+          </div>
+          <div>
+            <div className="text-[0.66em] uppercase tracking-wider text-neutral-400">Core</div>
+            <div className={"text-[2.9em] font-semibold leading-none tabular-nums " + coreState.cls}>{core == null ? "—" : Math.round(core)}<span className="align-top text-[0.5em]">°</span></div>
+            <div className="text-[0.68em] text-neutral-400">{core == null ? stateLabel(coreM?.availability) : "Provisional"}</div>
+          </div>
+        </div>
+        <div className="mt-[0.25em] flex gap-3 text-[0.7em] text-neutral-400">
+          <span>{withUnit(pressureBar(metric(s, "tyre." + pos + ".pressure_pa")), "bar")}</span>
+          <span>Brake {withUnit(text(metric(s, "brake." + pos + ".temp_c")), "°")}</span>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function delta(v: number | null): string {
   if (v == null) return "—";
-  return (v / 100000).toFixed(2);
+  if (v <= 0.05) return "+0.0";
+  return "+" + v.toFixed(1);
+}
+
+function driverName(s: Snapshot, car: number): string {
+  const name = text(metric(s, "car.driver_name", car));
+  return name && name !== "—" ? name : "Car " + (car + 1);
+}
+
+function driverCode(s: Snapshot, car: number): string {
+  const last = driverName(s, car).trim().split(/\s+/).pop() ?? "";
+  const code = last.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+  return code ? code.slice(0, 3) : "C" + (car + 1);
+}
+
+// Team IDs follow the game's participant field; colours are the published
+// liveries. Unknown or custom teams fall back to a neutral slot.
+const teamColour: Record<number, string> = { 0: "#27F4D2", 1: "#E8002D", 2: "#3671C6", 3: "#64C4FF", 4: "#229971", 5: "#FF87BC", 6: "#6692FF", 7: "#B6BABD", 8: "#FF8000", 9: "#52E252" };
+const teamCode: Record<number, string> = { 0: "MER", 1: "FER", 2: "RBR", 3: "WIL", 4: "AST", 5: "ALP", 6: "RB", 7: "HAA", 8: "MCL", 9: "SAU" };
+
+function teamOf(s: Snapshot, car: number): { colour: string; code: string } {
+  const id = value(metric(s, "car.team_id", car));
+  const key = id == null ? -1 : Math.round(id);
+  return { colour: teamColour[key] ?? "#76818f", code: teamCode[key] ?? (key >= 0 ? "T" + key : "") };
+}
+
+// Position-ordered lookup: the gap behind us is the car behind's own gap
+// to the car in front.
+function rivals(s: Snapshot) {
+  const me = value(metric(s, "timing.car_position"));
+  if (me == null) return { me: null, ahead: null, behind: null };
+  let ahead: number | null = null, behind: number | null = null;
+  for (let i = 0; i < 24; i++) {
+    const pos = value(metric(s, "timing.car_position", i));
+    if (pos === me - 1) ahead = i;
+    if (pos === me + 1) behind = i;
+  }
+  return { me, ahead, behind };
+}
+
+type Series = { label: string; unit: string; color: string; values: number[]; digits: number; caption?: string };
+
+function Spark({ series }: { series: Series }) {
+  const n = series.values.length;
+  const min = Math.min(...series.values), max = Math.max(...series.values);
+  const span = max - min || 1;
+  const pt = (v: number, i: number) => `${(i / Math.max(1, n - 1)) * 100},${38 - ((v - min) / span) * 34}`;
+  const pts = series.values.map(pt).join(" ");
+  const latest = n ? series.values[n - 1].toFixed(series.digits) : null;
+  return (
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col border-t border-[#232830] pt-1 first:border-t-0 first:pt-0">
+      <div className="flex items-baseline justify-between">
+        <span className="text-[0.72em] uppercase tracking-wider text-neutral-400">{series.label}</span>
+        <span className="text-[1.05em] font-semibold tabular-nums text-neutral-100">{latest ?? "—"}<span className="ml-1 text-[0.6em] font-normal text-neutral-400">{series.unit}</span></span>
+      </div>
+      {series.caption ? <div className="text-[0.62em] text-neutral-500">{series.caption}</div> : null}
+      <svg viewBox="0 0 100 40" preserveAspectRatio="none" className="mt-[0.2em] min-h-[2em] w-full flex-1" role="img" aria-label={series.label + (latest ? ", latest " + latest + " " + series.unit : ", collecting")}>
+        <line x1="0" y1="38" x2="100" y2="38" stroke="#2a303a" strokeWidth="1" vectorEffect="non-scaling-stroke" />
+        {n > 1 ? <polyline points={pts} fill="none" stroke={series.color} strokeWidth="1.6" vectorEffect="non-scaling-stroke" strokeLinejoin="round" /> : null}
+      </svg>
+    </div>
+  );
+}
+
+function FieldMap({ s }: { s: Snapshot }) {
+  const length = value(metric(s, "session.track_length_m")) ?? 5000;
+  const cars: { i: number; d: number; pos: number }[] = [];
+  for (let i = 0; i < 24; i++) {
+    const d = value(metric(s, "timing.lap_distance_m", i));
+    const pos = value(metric(s, "timing.car_position", i));
+    if (d != null && pos != null) cars.push({ i, d, pos });
+  }
+  const player = s.context?.player_car_index ?? 0;
+  // Keep near cars apart: three lanes, greedy so no two dots within 5% of the
+  // lap share a lane.
+  const lanes: number[][] = [[], [], []];
+  const laneOf: Record<number, number> = {};
+  for (const c of [...cars].sort((a, b) => a.d - b.d)) {
+    let lane = lanes.findIndex((used) => used.every((d) => Math.abs(d - c.d) / length > 0.05));
+    if (lane < 0) lane = c.pos % 3;
+    lanes[lane].push(c.d);
+    laneOf[c.i] = lane;
+  }
+  return (
+    <section className="flex min-h-0 shrink-0 flex-col border border-[#262b33] bg-[#11141a] px-3 py-2" style={{ height: "13em" }}>
+      <div className="flex items-baseline justify-between">
+        <span className="text-[0.69em] uppercase tracking-wider text-neutral-400">Field map</span>
+        <span className="text-[0.69em] tabular-nums text-neutral-400">{(length / 1000).toFixed(2)} km · {cars.length} positions</span>
+      </div>
+      <div className="relative mt-[0.7em] min-h-0 flex-1 rounded-sm border border-[#2a303a] bg-[#0d1015]">
+        {[0.25, 0.5, 0.75].map((f) => <span key={f} className="absolute top-0 h-full w-px bg-[#1b2028]" style={{ left: f * 100 + "%" }} />)}
+        {cars.map((c) => {
+          const me = c.i === player;
+          const team = teamOf(s, c.i);
+          return (
+            <span key={c.i} className="absolute -translate-x-1/2 -translate-y-1/2" title={driverName(s, c.i) + " · " + team.code + " · P" + c.pos} style={{ left: Math.max(2, Math.min(98, (c.d / length) * 100)) + "%", top: [24, 50, 76][laneOf[c.i] ?? 1] + "%", zIndex: me ? 4 : 3 }}>
+              <span className="block rounded-full" style={{ width: me ? "0.9em" : "0.5em", height: me ? "0.9em" : "0.5em", background: team.colour, border: me ? "2px solid #f2f6fa" : "1px solid rgba(0,0,0,0.55)" }} />
+              <span className="absolute bottom-full left-1/2 -translate-x-1/2 whitespace-nowrap text-[0.55em] font-semibold leading-tight tracking-wide text-neutral-200">{driverCode(s, c.i)}</span>
+            </span>
+          );
+        })}
+        {cars.length === 0 ? <span className="absolute inset-0 flex items-center justify-center text-[0.75em] text-neutral-400">Waiting for car positions</span> : null}
+      </div>
+      <div className="mt-1 flex justify-between text-[0.62em] text-neutral-500"><span>Start</span><span>Half distance</span><span>Line</span></div>
+      <div className="mt-[0.3em] flex flex-wrap gap-x-2 gap-y-[0.2em] text-[0.58em] text-neutral-400">
+        {[...new Set(cars.map((c) => teamOf(s, c.i).code).filter(Boolean))].map((code) => {
+          const sample = cars.find((c) => teamOf(s, c.i).code === code) as { i: number };
+          return <span key={code} className="flex items-center gap-1"><span className="inline-block h-[0.55em] w-[0.55em] rounded-full" style={{ background: teamOf(s, sample.i).colour }} />{code}</span>;
+        })}
+      </div>
+    </section>
+  );
+}
+
+const damageItems: { channel: string; label: string }[] = [
+  { channel: "car.wing_front_left_damage_pct", label: "Front wing L" },
+  { channel: "car.wing_front_right_damage_pct", label: "Front wing R" },
+  { channel: "car.wing_rear_damage_pct", label: "Rear wing" },
+  { channel: "car.floor_damage_pct", label: "Floor" },
+  { channel: "car.diffuser_damage_pct", label: "Diffuser" },
+  { channel: "car.sidepod_damage_pct", label: "Sidepod" },
+  { channel: "car.gearbox_damage_pct", label: "Gearbox" },
+  { channel: "car.engine_damage_pct", label: "Engine" },
+  { channel: "car.drs_fault_pct", label: "DRS fault" },
+  { channel: "car.ers_fault_pct", label: "ERS fault" },
+];
+
+function tone(v: number): string {
+  return v >= 30 ? "#f25a5c" : v >= 10 ? "#f0a03c" : "#5fd68f";
+}
+
+function Issues({ s }: { s: Snapshot }) {
+  const known = damageItems.some((d) => metric(s, d.channel)?.availability === "available");
+  return (
+    <section className="flex min-h-0 flex-1 flex-col border border-[#262b33] bg-[#11141a] px-3 py-2">
+      <div className="flex items-baseline justify-between">
+        <span className="text-[0.69em] uppercase tracking-wider text-neutral-400">Car issues</span>
+        <span className="text-[0.69em] text-neutral-400">Pit stops <span className="tabular-nums text-neutral-200">{text(metric(s, "timing.pit_stops"))}</span> · Penalties <span className="tabular-nums text-neutral-200">{text(metric(s, "timing.penalties_s"))} s</span> · Warnings <span className="tabular-nums text-neutral-200">{text(metric(s, "timing.warnings"))}</span></span>
+      </div>
+      <div className="mt-[0.5em] grid min-h-0 flex-1 grid-cols-2 content-around gap-x-5 gap-y-[0.45em]">
+        {damageItems.map((d) => {
+          const m = metric(s, d.channel);
+          const v = value(m);
+          return (
+            <div key={d.channel}>
+              <div className="flex items-baseline justify-between text-[0.74em]">
+                <span className="truncate text-neutral-300">{d.label}</span>
+                <span className="tabular-nums" style={{ color: v == null ? "#a3a3a3" : tone(v) }}>{v == null ? stateLabel(m?.availability) : Math.round(v) + "%"}</span>
+              </div>
+              <div className="mt-[0.2em] h-[0.4em] w-full overflow-hidden rounded-sm bg-[#232830]">
+                {v != null ? <div className="h-full rounded-sm" style={{ width: Math.min(100, v) + "%", background: tone(v) }} /> : null}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <div className="mt-[0.4em] grid shrink-0 grid-cols-4 gap-x-3 border-t border-[#232830] pt-[0.4em]">
+        {wheel.map((w) => (
+          <div key={w} className="text-[0.7em]">
+            <div className="uppercase tracking-wider text-neutral-500">{w}</div>
+            <div className="flex justify-between gap-1 text-neutral-400"><span>Tyre</span><span className="tabular-nums">{withUnit(text(metric(s, "tyre." + w + ".damage_pct")), "%")}</span></div>
+            <div className="flex justify-between gap-1 text-neutral-400"><span>Brake</span><span className="tabular-nums">{withUnit(text(metric(s, "brake." + w + ".damage_pct")), "%")}</span></div>
+          </div>
+        ))}
+      </div>
+      {!known ? <p className="mt-1 text-[0.72em] text-neutral-400">Damage data unavailable.</p> : null}
+    </section>
+  );
 }
 
 export function Drive() {
   const s = useLive();
   const p = s.context?.player_car_index ?? 0;
-  const lap = value(metric(s, "timing.current_lap_ms", p)), gear = value(metric(s, "car.gear", p)), speed = value(metric(s, "car.speed_mps", p));
-  const energy = value(metric(s, "energy.store_j", p)), mode = text(metric(s, "energy.deploy_mode", p));
+  const speed = value(metric(s, "car.speed_mps", p));
+  const gear = value(metric(s, "car.gear", p));
+  const lapMs = value(metric(s, "timing.current_lap_ms", p));
+  const lastLap = value(metric(s, "timing.lap_ms", p));
+  const energy = value(metric(s, "energy.store_j", p));
+  const mode = text(metric(s, "energy.deploy_mode", p));
+  const fuelLaps = value(metric(s, "fuel.finish_margin_laps", p));
+  const fuelKg = value(metric(s, "fuel.mass_kg", p));
+  const fuelCapacity = value(metric(s, "fuel.capacity_kg", p));
+  const totalLaps = value(metric(s, "session.total_laps"));
+  const currentLap = value(metric(s, "timing.current_lap_num", p));
   const pos = text(metric(s, "timing.car_position", p)), lapNo = text(metric(s, "timing.current_lap_num", p));
-  const safety = text(metric(s, "session.safety_car_status", p));
-  const weather = text(metric(s, "session.weather", p));
+  const age = text(metric(s, "tyre.age_laps", p));
+  const gap = metric(s, "timing.gap_ahead_s", p);
+  const leaderGap = value(metric(s, "timing.gap_leader_s", p));
+  const safety = text(metric(s, "session.safety_car_status"));
+  const weather = text(metric(s, "session.weather"));
   const call = s.events.filter((e) => e.severity !== "routine").slice(-1)[0]?.summary ?? s.alerts.find((a) => a.state === "active")?.summary ?? (s.context ? "No current call" : "Waiting for telemetry");
+  const rival = rivals(s);
+  const gapBehind = rival.behind != null ? value(metric(s, "timing.gap_ahead_s", rival.behind)) : null;
+  const stale = [...s.metrics.values()].some((m) => m.measurement.availability === "stale");
+  const remainingLaps = totalLaps != null && currentLap != null ? Math.max(0, totalLaps - currentLap + 1) : null;
+
+  // Completed laps come from the catalog so the pace graph shows real lap
+  // times rather than a running clock that resets every lap.
+  const [lapTimes, setLapTimes] = useState<number[]>([]);
+  useEffect(() => {
+    const id = s.context?.session_id;
+    if (!id) return;
+    let alive = true;
+    type Lap = { car_index: number; valid: boolean; complete: boolean; lap_time_ms?: { availability: string; value: number | null } };
+    const load = () => api<{ items?: Lap[] }>(`/sessions/${id}/laps?branch=${encodeURIComponent(s.context?.branch_id ?? "")}`)
+      .then((d) => {
+        if (!alive) return;
+        const times = (d.items ?? [])
+          .filter((l) => l.car_index === p && l.valid && l.complete && l.lap_time_ms?.availability === "available" && typeof l.lap_time_ms.value === "number")
+          .map((l) => (l.lap_time_ms?.value as number) / 1000)
+          .slice(-12);
+        setLapTimes(times);
+      })
+      .catch(() => null);
+    load();
+    const timer = setInterval(load, 15000);
+    return () => { alive = false; clearInterval(timer); };
+  }, [s.context?.session_id, s.context?.branch_id, p]);
+
+  // Local trend ring. Samples are observed values only, one every 500 ms.
+  const hist = useRef<{ at: number; gap: number[]; wear: number[]; peak: number }>({ at: 0, gap: [], wear: [], peak: 0 });
+  const now = Date.now();
+  if (now - hist.current.at >= 500) {
+    hist.current.at = now;
+    const push = (arr: number[], v: number | null) => { if (v != null) { arr.push(v); if (arr.length > 240) arr.shift(); } };
+    push(hist.current.gap, value(gap));
+    const wears = wheel.map((w) => value(metric(s, "tyre." + w + ".wear_pct", p))).filter((v): v is number => v != null);
+    push(hist.current.wear, wears.length ? Math.max(...wears) : null);
+    if (energy != null && energy > hist.current.peak) hist.current.peak = energy;
+  }
+  const series: Series[] = [
+    { label: "Lap time", unit: "s", color: "#7fb0ff", values: lapTimes, digits: 3, caption: lapTimes.length ? "Last " + lapTimes.length + " valid laps · best " + Math.min(...lapTimes).toFixed(3) + " s" : "Waiting for a completed valid lap" },
+    { label: "Tyre wear", unit: "% max", color: "#f0a03c", values: hist.current.wear, digits: 1, caption: "Worst corner this stint · rising means degrading" },
+    { label: "Gap ahead", unit: "s", color: "#5fd68f", values: hist.current.gap, digits: 1, caption: "Live gap to the car in front" },
+  ];
+  const ersPeak = hist.current.peak > 0 ? hist.current.peak : energy;
+
   return (
-    <div style={{ fontSize: "clamp(16px, 1.48vh, 22px)" }} className="min-h-[calc(100vh-49px)] bg-[#0b0d11] text-neutral-100 px-4 pt-2 pb-2 flex flex-col gap-2 [@media(min-width:1024px)]:h-[calc(100vh-49px)] [@media(min-width:1024px)]:overflow-hidden">
-      <header className="flex items-center justify-between border border-[#262b33] bg-[#11141a] px-4 py-2 shrink-0">
-        <div className="flex items-baseline gap-4"><span className="text-[1.19em] font-bold tracking-wide">{s.context?.track_id != null ? "Track " + s.context.track_id : "Track unknown"}</span><span className="text-[0.88em] text-neutral-400">{String(s.context?.regulation_season ?? "season unknown")} · {s.context?.mode_family ?? "unknown"}</span></div>
-        <div className="flex gap-6 text-[0.88em]"><span className="text-neutral-200">{pos === "—" ? "Pos —" : "P" + pos}</span><span className="text-neutral-400">{lapNo === "—" ? "Lap —" : "Lap " + lapNo}</span><span className={s.connected ? "text-[#5fd68f]" : "text-neutral-400"}>{s.connected ? "Live" : "Disconnected"}</span><span className="text-neutral-400">{s.recording === "recording" ? "Recording" : s.recording.replace("_", " ")}</span></div>
+    <div style={{ fontSize: "clamp(16px, 1.48vh, 22px)" }} className="flex min-h-[calc(100vh-49px)] flex-col gap-2 bg-[#0b0d11] px-4 pb-2 pt-2 text-neutral-100 [@media(min-width:1024px)]:h-[calc(100vh-49px)] [@media(min-width:1024px)]:overflow-hidden">
+      <header className="flex shrink-0 items-center justify-between border border-[#262b33] bg-[#11141a] px-4 py-1.5">
+        <div className="flex items-baseline gap-4"><span className="text-[1.15em] font-bold tracking-wide">{s.context?.track_id != null ? "Track " + s.context.track_id : "Track unknown"}</span><span className="text-[0.85em] text-neutral-400">{String(s.context?.regulation_season ?? "season unknown")} · {s.context?.mode_family ?? "unknown"}</span></div>
+        <div className="flex gap-6 text-[0.85em]"><span className="text-neutral-200">{pos === "—" ? "Pos —" : "P" + pos}</span><span className="text-neutral-400">{lapNo === "—" ? "Lap —" : "Lap " + lapNo + (totalLaps != null ? "/" + Math.round(totalLaps) : "")}</span><span className={s.connected && !stale ? "text-[#5fd68f]" : "text-neutral-400"}>{s.connected ? (stale ? "Stale" : "Live") : "Disconnected"}</span><span className="text-neutral-400">{recordingLabel[s.recording] ?? "Recording state unknown"}</span></div>
       </header>
-      <section className="border border-[#262b33] bg-[#10201a] px-5 py-3 h-[88px] shrink-0 flex items-center">
-        <div className="min-w-0"><div className="text-[0.69em] uppercase tracking-[0.18em] text-[#5fd68f]">Race engineer · current call</div><div className="text-[1.69em] leading-tight font-semibold truncate">{call}</div></div>
+
+      <section className="flex h-[4.6em] shrink-0 items-center border border-[#262b33] bg-[#10201a] px-5">
+        <div className="min-w-0"><div className="text-[0.69em] uppercase tracking-[0.18em] text-[#5fd68f]">Race engineer · current call</div><div className="truncate text-[1.6em] font-semibold leading-tight">{call}</div></div>
+        <div className="ml-auto shrink-0 text-right text-[0.76em] text-neutral-400">
+          <div>{weather === "—" ? "Weather —" : weather === "0" ? "Clear" : "Weather code " + weather} · {safety === "—" ? "SC —" : safety === "0" ? "SC clear" : "SC deployed"}</div>
+          <div>Air {text(metric(s, "session.air_temp_c"))}° · Track {text(metric(s, "session.track_temp_c"))}°</div>
+        </div>
       </section>
-      <div className="grid grid-cols-1 [@media(min-width:1024px)]:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] gap-2 min-h-0 flex-1">
-        <section className="border border-[#262b33] bg-[#11141a] px-5 flex flex-col min-h-0">
-          <div className="flex justify-between items-center pt-2 text-[0.81em] text-neutral-400"><span>{availabilityLabel(metric(s, "tyre.compound", p)) === "Live" ? "Tyre " + text(metric(s, "tyre.compound", p)) + " · " + text(metric(s, "tyre.age_laps", p)) + " laps" : "Tyres"}</span><span>°C · wear %</span></div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 py-2 flex-1 content-center">{wheel.map((w) => <Tyre key={w} pos={w} s={s} />)}</div>
-        </section>
-        <section className="flex flex-col gap-2 min-h-0 min-w-0">
-          <div className="border border-[#262b33] bg-[#11141a] px-4 py-3"><div className="flex justify-between text-[0.81em] text-neutral-400"><span>ERS mode</span><span>Energy</span></div><div className="flex justify-between items-baseline gap-3 min-w-0"><span className="text-[1.625em] font-semibold truncate">{mode}</span><span className="text-[2.125em] font-semibold tabular-nums text-[#f0a03c] whitespace-nowrap">{energy == null ? "—" : (energy / 1e6).toFixed(1)}<span className="text-[0.6em] font-normal"> MJ</span></span></div></div>
-          <div className="border border-[#262b33] bg-[#11141a] px-4 py-3 flex-1 flex flex-col min-w-0">
-            <div className="grid grid-cols-2 gap-4"><div><div className="text-[0.69em] uppercase tracking-wider text-neutral-400">Speed</div><div className="text-[2.125em] font-semibold tabular-nums">{speed == null ? "—" : Math.round(speed * 3.6)}<span className="text-[0.4em] font-normal"> km/h</span></div><div className="text-[0.75em] text-neutral-400">Gear {gear == null ? "—" : Math.round(gear)}</div></div><div><div className="text-[0.69em] uppercase tracking-wider text-neutral-400">Lap time</div><div className="text-[1.625em] font-semibold tabular-nums">{lap == null ? "—" : (lap / 1000).toFixed(2)}<span className="text-[0.4em] font-normal"> s</span></div></div></div>
-            <div className="mt-auto pt-3 border-t border-[#262b33]"><div className="text-[0.69em] uppercase tracking-wider text-neutral-400">Brake temp °C</div><div className="grid grid-cols-4 gap-2 mt-1">{wheel.map((w) => <div key={w} className="tabular-nums"><span className="text-[0.69em] uppercase text-neutral-400 mr-1">{w}</span><span className="text-[1.05em] font-semibold">{text(metric(s, "brake." + w + ".temp_c", p))}</span></div>)}</div></div>
-            <div className="pt-2"><div className="text-[0.69em] uppercase tracking-wider text-neutral-400">Pressure bar</div><div className="grid grid-cols-4 gap-2 mt-1">{wheel.map((w) => <div key={w} className="tabular-nums"><span className="text-[0.69em] uppercase text-neutral-400 mr-1">{w}</span><span className="text-[1.05em] font-semibold">{pressureBar(metric(s, "tyre." + w + ".pressure_pa", p))}</span></div>)}</div></div>
+
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-2 [@media(min-width:1024px)]:grid-cols-[minmax(0,1fr)_minmax(0,1.12fr)]">
+        <div className="flex min-h-0 flex-col gap-2">
+          <section className="flex shrink-0 flex-col border border-[#262b33] bg-[#11141a] px-3 py-1.5">
+            <div className="flex items-center justify-between text-[0.78em] text-neutral-400">
+              <span>{availabilityLabel(metric(s, "tyre.compound", p)) === "Live" ? "Tyre " + text(metric(s, "tyre.compound", p)) + (age === "—" ? "" : " · " + age + (age === "1" ? " lap" : " laps")) : "Tyres"}</span>
+              <span>°C · wear % · pressure bar</span>
+            </div>
+            <div className="grid grid-cols-2">
+              {wheel.map((w) => <Tyre key={w} pos={w} s={s} />)}
+            </div>
+          </section>
+          <Issues s={s} />
+          <FieldMap s={s} />
+        </div>
+
+        <div className="flex min-h-0 flex-col gap-2">
+          <div className="grid shrink-0 grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)] items-center gap-4 border border-[#262b33] bg-[#11141a] px-4 py-2">
+            <div><div className="text-[0.69em] uppercase tracking-wider text-neutral-400">Position</div><div className="text-[2.3em] font-semibold leading-none tabular-nums">{pos === "—" ? "—" : "P" + pos}</div></div>
+            <div className="min-w-0 border-l border-[#232830] pl-4">
+              <div className="truncate text-[0.69em] uppercase tracking-wider text-neutral-400">Ahead {rival.ahead != null ? "· " + driverName(s, rival.ahead) : ""}</div>
+              <div className="text-[2.5em] font-semibold leading-none tabular-nums text-[#f0a03c]">{delta(value(gap))}<span className="ml-1 text-[0.4em] font-normal text-neutral-400">s</span></div>
+              <div className="text-[0.65em] text-neutral-500">Leader {leaderGap == null ? "—" : "+" + leaderGap.toFixed(1) + " s"}</div>
+            </div>
+            <div className="min-w-0 border-l border-[#232830] pl-4">
+              <div className="truncate text-[0.69em] uppercase tracking-wider text-neutral-400">Behind {rival.behind != null ? "· " + driverName(s, rival.behind) : ""}</div>
+              <div className="text-[2.5em] font-semibold leading-none tabular-nums text-[#7fb0ff]">{delta(gapBehind)}<span className="ml-1 text-[0.4em] font-normal text-neutral-400">s</span></div>
+              <div className="text-[0.65em] text-neutral-500">{gapBehind == null ? stateLabel(metric(s, "timing.gap_ahead_s", rival.behind ?? p)?.availability) : "to the car behind"}</div>
+            </div>
           </div>
-        </section>
+
+          <div className="grid shrink-0 grid-cols-2 gap-2">
+            <div className="border border-[#262b33] bg-[#11141a] px-4 py-2">
+              <div className="flex items-baseline justify-between"><span className="text-[0.69em] uppercase tracking-wider text-neutral-400">Fuel margin</span><span className="text-[0.7em] text-neutral-400">{fuelKg == null ? "" : fuelKg.toFixed(1) + " kg"}</span></div>
+              <div className="text-[2.4em] font-semibold leading-none tabular-nums">{fuelLaps == null ? "—" : fuelLaps.toFixed(1)}<span className="ml-1 text-[0.4em] font-normal text-neutral-400">laps</span></div>
+              <div className="mt-[0.45em] space-y-[0.35em]">
+                <Meter fraction={fuelKg != null && fuelCapacity != null && fuelCapacity > 0 ? fuelKg / fuelCapacity : null} tone="#5fd68f" label="Tank" detail={fuelKg != null && fuelCapacity != null && fuelCapacity > 0 ? fuelKg.toFixed(1) + " / " + fuelCapacity.toFixed(1) + " kg" : "Capacity unavailable"} />
+                <Meter fraction={fuelLaps != null && remainingLaps != null && remainingLaps > 0 ? fuelLaps / remainingLaps : null} tone={fuelLaps != null && remainingLaps != null && fuelLaps < remainingLaps ? "#f0a03c" : "#5fd68f"} label="Margin vs remaining" detail={remainingLaps != null ? fuelLaps == null ? remainingLaps + " laps left" : fuelLaps.toFixed(1) + " / " + remainingLaps + " laps" : "Lap count unavailable"} />
+              </div>
+            </div>
+            <div className="border border-[#262b33] bg-[#11141a] px-4 py-2">
+              <div className="flex items-baseline justify-between"><span className="text-[0.69em] uppercase tracking-wider text-neutral-400">ERS</span><span className="text-[0.7em] text-neutral-400">{mode === "—" ? stateLabel(metric(s, "energy.deploy_mode", p)?.availability) : mode}</span></div>
+              <div className="text-[2.4em] font-semibold leading-none tabular-nums text-[#f0a03c]">{energy == null ? "—" : (energy / 1e6).toFixed(2)}<span className="ml-1 text-[0.4em] font-normal text-neutral-400">MJ</span></div>
+              <div className="mt-[0.45em] space-y-[0.35em]">
+                <Meter fraction={energy != null && ersPeak ? energy / ersPeak : null} tone="#f0a03c" label="Store vs session peak" detail={energy == null ? "Store unavailable" : (energy / 1e6).toFixed(2) + " / " + (ersPeak! / 1e6).toFixed(2) + " MJ"} />
+                <div className="flex items-baseline justify-between text-[0.72em] text-neutral-400">
+                  <span>Harvest limit</span>
+                  <span className="tabular-nums text-neutral-300">{withUnit(value(metric(s, "energy.harvest_limit_j_per_lap", p)) == null ? "—" : ((value(metric(s, "energy.harvest_limit_j_per_lap", p)) as number) / 1e6).toFixed(2), "MJ/lap")}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid shrink-0 grid-cols-3 gap-2 border border-[#262b33] bg-[#11141a] px-4 py-2">
+            <div>
+              <div className="text-[0.69em] uppercase tracking-wider text-neutral-400">Speed</div>
+              <div className="text-[2.1em] font-semibold leading-none tabular-nums">{speed == null ? "—" : Math.round(speed * 3.6)}<span className="text-[0.4em] font-normal"> km/h</span></div>
+              <div className="text-[0.78em] text-neutral-400">Gear {gear == null ? "—" : Math.round(gear)} · {text(metric(s, "car.drs", p)) === "true" ? "DRS open" : "DRS closed"}</div>
+            </div>
+            <div className="border-l border-[#232830] pl-3">
+              <div className="text-[0.69em] uppercase tracking-wider text-neutral-400">Lap time</div>
+              <div className="text-[1.9em] font-semibold leading-none tabular-nums">{lapMs == null ? "—" : (lapMs / 1000).toFixed(2)}<span className="text-[0.4em] font-normal"> s</span></div>
+              <div className="text-[0.78em] text-neutral-400">Last {lastLap == null ? "—" : (lastLap / 1000).toFixed(2)} s</div>
+            </div>
+            <div className="border-l border-[#232830] pl-3">
+              <div className="text-[0.69em] uppercase tracking-wider text-neutral-400">Engine</div>
+              <div className="text-[1.9em] font-semibold leading-none tabular-nums">{text(metric(s, "car.engine_temp_c", p))}<span className="text-[0.4em] font-normal"> °C</span></div>
+              <div className="text-[0.78em] text-neutral-400">RPM {text(metric(s, "car.rpm", p))}</div>
+            </div>
+          </div>
+
+          <section className="flex min-h-0 flex-1 flex-col gap-1 border border-[#262b33] bg-[#11141a] px-3 py-2">
+            {series.map((x) => <Spark key={x.label} series={x} />)}
+          </section>
+        </div>
       </div>
-      <section className="grid grid-cols-3 gap-2 shrink-0 border-t border-[#262b33] pt-2">
-        <div className="px-1"><div className="text-[0.69em] uppercase tracking-wider text-neutral-400">Ahead / behind</div><div className="text-[1.5em] font-semibold tabular-nums text-neutral-100">— <span className="text-[0.5em] font-normal text-neutral-400">restricted</span></div></div>
-        <div className="px-1"><div className="text-[0.69em] uppercase tracking-wider text-neutral-400">Fuel margin</div><div className="text-[1.5em] font-semibold tabular-nums text-neutral-100">{text(metric(s, "fuel.finish_margin_laps", p))} <span className="text-[0.5em] font-normal">laps</span></div></div>
-        <div className="px-1"><div className="text-[0.69em] uppercase tracking-wider text-neutral-400">Conditions</div><div className="text-[0.95em] text-neutral-200">{weather === "—" ? "Weather —" : weather === "0" ? "Clear" : "Weather code " + weather} · {safety === "—" ? "SC —" : safety === "0" ? "SC clear" : "SC deployed"} · Air {text(metric(s, "session.air_temp_c", p))}° / track {text(metric(s, "session.track_temp_c", p))}°</div></div>
-      </section>
-      <footer className="flex justify-end text-[0.69em] text-neutral-400 shrink-0"><span>{s.context?.session_id ?? "Session not started"}</span></footer>
     </div>
   );
 }

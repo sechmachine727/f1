@@ -18,6 +18,42 @@ var baseRates = map[uint8]int{
 	10: 20, 11: 960, 12: 480, 13: 60, 15: 20, 16: 60,
 }
 
+var packetOrder = []uint8{0, 1, 2, 3, 4, 5, 6, 7, 10, 11, 12, 13, 15, 16}
+
+type mixSlot struct {
+	pid uint8
+	ord int
+}
+
+// mix spreads each packet rate across the second. Real telemetry interleaves
+// packet types; packing them into one burst leaves 60Hz channels a second apart.
+var mix [2048]mixSlot
+
+func init() {
+	used := make([]bool, len(mix))
+	base := make([]mixSlot, 0, 1920)
+	for _, pid := range packetOrder {
+		n := baseRates[pid]
+		for k := 0; k < n; k++ {
+			base = append(base, mixSlot{pid: pid, ord: k})
+			pos := k * len(mix) / n
+			for used[pos] {
+				pos = (pos + 1) % len(mix)
+			}
+			used[pos] = true
+			mix[pos] = mixSlot{pid: pid, ord: k}
+		}
+	}
+	// The remaining slots duplicate the first base packets byte-for-byte.
+	idx := 0
+	for i := range mix {
+		if !used[i] {
+			mix[i] = base[idx%128]
+			idx++
+		}
+	}
+}
+
 // Corpus builds the fixed 2026 stress mix. It is deterministic for a seed and
 // second, and never falls back to short zero-filled datagrams.
 type Corpus struct {
@@ -30,53 +66,14 @@ type Corpus struct {
 
 // BuildSlot returns the datagram transmitted at a global slot inside one second.
 func (c *Corpus) BuildSlot(second, slot int) []byte {
-	base := 0
-	for _, pid := range []uint8{0, 1, 2, 3, 4, 5, 6, 7, 10, 11, 12, 13, 15, 16} {
-		n := baseRates[pid]
-		if slot < base+n {
-			return c.build(second, slot, pid, slot-base)
-		}
-		base += n
-	}
-	// Duplicates copy base indices 0..127 byte-for-byte.
-	idx := slot - base
-	if idx < 0 {
-		idx = 0
-	}
-	if idx > 127 {
-		idx = 127
-	}
-	return c.build(second, idx, c.idAt(idx), c.ordAt(idx))
-}
-
-func (c *Corpus) idAt(baseIdx int) uint8 {
-	pos := 0
-	for _, pid := range []uint8{0, 1, 2, 3, 4, 5, 6, 7, 10, 11, 12, 13, 15, 16} {
-		n := baseRates[pid]
-		if baseIdx < pos+n {
-			return pid
-		}
-		pos += n
-	}
-	return 0
-}
-
-func (c *Corpus) ordAt(baseIdx int) int {
-	pos := 0
-	for _, pid := range []uint8{0, 1, 2, 3, 4, 5, 6, 7, 10, 11, 12, 13, 15, 16} {
-		n := baseRates[pid]
-		if baseIdx < pos+n {
-			return baseIdx - pos
-		}
-		pos += n
-	}
-	return 0
+	s := mix[slot%len(mix)]
+	return c.build(second, slot, s.pid, s.ord)
 }
 
 func (c *Corpus) build(second, slot int, pid uint8, ord int) []byte {
 	global := second*2048 + slot
 	overall := uint32(global * 60 / 2048)
-	sessionTime := float64(overall)/60.0 - c.rewind(second)
+	sessionTime := float64(global)/2048.0 - c.rewind(second)
 	h := protocol.Header{
 		Format: 2026, GameYear: 26, MajorVersion: 1, MinorVersion: 23, PacketVersion: 1,
 		PacketID: pid, SessionUID: c.SessionUID, SessionTime: sessionTime,
@@ -116,11 +113,16 @@ func (c *Corpus) build(second, slot int, pid uint8, ord int) []byte {
 		}
 	case 2:
 		for car := 0; car < 24; car++ {
+			ahead := 0.7 + 0.4*float64(car) + 0.3*math.Sin(float64(second)/10)
+			leader := ahead * float64(car)
 			cars[car] = map[string]float64{
 				"m_currentLapNum": float64(lap), "m_carPosition": float64(car + 1),
-				"m_currentLapTimeInMS": float64((global % 90000)), "m_lastLapTimeInMS": 90000 + float64(car*10),
-				"m_lapDistance":           math.Mod(float64(second*5000)/90, 5000),
+				"m_currentLapTimeInMS": float64((global % 90000)), "m_lastLapTimeInMS": 90000 + float64(car*10) + float64((lap%6)*140),
+				"m_lapDistance":           math.Mod(float64(second*5000)/90+float64(car)*190, 5000),
 				"m_speedTrapFastestSpeed": 330, "m_currentLapInvalid": 0, "m_pitStatus": 0,
+				"m_deltaToCarInFrontMinutesPart": math.Floor(ahead / 60), "m_deltaToCarInFrontMSPart": math.Mod(ahead, 60) * 1000,
+				"m_deltaToRaceLeaderMinutesPart": math.Floor(leader / 60), "m_deltaToRaceLeaderMSPart": math.Mod(leader, 60) * 1000,
+				"m_numPitStops": float64((car + 1) % 3), "m_penalties": 0, "m_totalWarnings": 0,
 			}
 		}
 	case 3:
@@ -168,7 +170,22 @@ func (c *Corpus) build(second, slot int, pid uint8, ord int) []byte {
 		for car := range cars {
 			for w := 0; w < 4; w++ {
 				cars[car][fmtIdx("m_tyresWear", w)] = math.Min(95, 2.5*float64((lap-1)%12)+float64(w)/2)
+				cars[car][fmtIdx("m_brakesDamage", w)] = 8
 			}
+			wing := 12.0
+			if second >= 120 && second < 240 {
+				wing += float64(second-120) / 4
+			}
+			cars[car]["m_frontLeftWingDamage"] = wing
+			cars[car]["m_frontRightWingDamage"] = 0
+			cars[car]["m_rearWingDamage"] = 0
+			cars[car]["m_floorDamage"] = 4
+			cars[car]["m_diffuserDamage"] = 2
+			cars[car]["m_sidepodDamage"] = 0
+			cars[car]["m_gearBoxDamage"] = 0
+			cars[car]["m_engineDamage"] = 0
+			cars[car]["m_drsFault"] = 0
+			cars[car]["m_ersFault"] = 0
 		}
 	case 11:
 		idx := ord % 24

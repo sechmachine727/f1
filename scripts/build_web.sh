@@ -8,4 +8,6 @@ npm run build
 rm -rf "$root/server/internal/web/dist"
 mkdir -p "$root/server/internal/web/dist"
 cp -R dist/. "$root/server/internal/web/dist/"
+# Keep the placeholder so a checkout with an empty dist still compiles.
+touch "$root/server/internal/web/dist/.gitkeep"
 echo "embedded dashboard from race_engineer_hub/dist"

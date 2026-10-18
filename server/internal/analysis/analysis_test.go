@@ -90,6 +90,11 @@ func TestCompareKeepsInvalidMarkers(t *testing.T) {
 	if len(res.Series) != 2 || len(res.Series[0].Points) != 201 {
 		t.Fatalf("aligned series %d/%d", len(res.Series), len(res.Series[0].Points))
 	}
+	for i, s := range res.Series {
+		if s.LapID == nil || *s.LapID != res.Laps[i].ID {
+			t.Fatalf("series %d lost its lap identity: %#v", i, s.LapID)
+		}
+	}
 	// A lap without distance cannot be aligned and must leave gaps, not a trace.
 	gapped := 0
 	for _, p := range res.Series[0].Points {

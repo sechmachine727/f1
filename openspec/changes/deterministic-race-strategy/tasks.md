@@ -15,7 +15,7 @@ Dependencies: durable-race-history, telemetry-analysis-exports. Read docs/rework
 
 ## 3. Change gate
 
-- [ ] 3.1 Run rtk go test -race ./server/...; save hand-calculated candidate comparisons, alert timelines and profile provenance in docs/rework/evidence/deterministic-race-strategy.md. Confirm no model latency is on the critical deterministic alert path.
+- [x] 3.1 Run rtk go test -race ./server/...; save hand-calculated candidate comparisons, alert timelines and profile provenance in docs/rework/evidence/deterministic-race-strategy.md. Confirm no model latency is on the critical deterministic alert path.
 
 ## Workflow follow-up
 

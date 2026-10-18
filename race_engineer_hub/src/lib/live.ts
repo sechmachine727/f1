@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { recordRender, syncClock } from "@/lib/latency";
 export type Measurement = { value: number | string | boolean | null; availability: string; unit: string; as_of_ms: number | null; basis: string; source_id: string; confidence: string; reason: string | null };
 export type Metric = { id: string; car_index: number | null; channel: string; measurement: Measurement };
 export type Context = { session_id: string; branch_id: string; track_id: number | null; regulation_season: number | null; mode_family: string; player_car_index: number | null };
@@ -13,7 +14,7 @@ function emit() { listeners.forEach((l) => l()); }
 
 export type StreamMsg = {
   type: string; seq: string; base_seq: string | null; context: Context | null;
-  metrics: Metric[]; removed_metric_ids: string[]; events: Event[]; alerts: Alert[] | null; status: string | null;
+  metrics: Metric[]; removed_metric_ids: string[]; events: Event[]; alerts: Alert[] | null; status: string | null; observed_at_ms?: number;
 };
 
 // applyMessage is the whole stream contract: snapshot replaces, delta merges by
@@ -45,12 +46,13 @@ export function applyMessage(prev: Snapshot, msg: StreamMsg): { next: Snapshot; 
 function set(patch: Partial<Snapshot>) { state = { ...state, ...patch }; emit(); }
 export function connect() {
   if (socket) return;
+  void syncClock();
   const proto = location.protocol === "https:" ? "wss" : "ws";
   const ws = new WebSocket(proto + "://" + location.host + "/api/v1/stream");
   socket = ws;
   ws.onopen = () => {
     set({ connected: true });
-    ws.send(JSON.stringify({ type: "subscribe", schema_version: "1.0.0", request_id: "ui", source_id: "live", car_indices: Array.from({ length: 24 }, (_, i) => i), channels: [], max_hz: 20, after_seq: null }));
+    ws.send(JSON.stringify({ type: "subscribe", schema_version: "1.0.0", request_id: "ui", source_id: "live", car_indices: Array.from({ length: 24 }, (_, i) => i), channels: [], max_hz: 60, after_seq: null }));
   };
   ws.onclose = () => { socket = null; set({ connected: false }); setTimeout(connect, 1500); };
   ws.onerror = () => ws.close();
@@ -58,10 +60,11 @@ export function connect() {
     const msg = JSON.parse(ev.data) as StreamMsg;
     const { next, resync } = applyMessage(state, msg);
     if (resync) {
-      ws.send(JSON.stringify({ type: "subscribe", schema_version: "1.0.0", request_id: "resync", source_id: "live", car_indices: Array.from({ length: 24 }, (_, i) => i), channels: [], max_hz: 20, after_seq: null }));
+      ws.send(JSON.stringify({ type: "subscribe", schema_version: "1.0.0", request_id: "resync", source_id: "live", car_indices: Array.from({ length: 24 }, (_, i) => i), channels: [], max_hz: 60, after_seq: null }));
       return;
     }
     set(next);
+    recordRender(msg.observed_at_ms);
   };
 }
 export function useLive(): Snapshot {
@@ -90,7 +93,12 @@ export function availabilityLabel(m: Measurement | null): string {
   }
 }
 export async function api<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch("/api/v1" + path, { ...init, headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) } });
+  let res: Response;
+  try {
+    res = await fetch("/api/v1" + path, { ...init, headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) } });
+  } catch {
+    throw new Error("Cannot reach the server.");
+  }
   if (!res.ok) throw new Error((await res.json().catch(() => ({ message: res.statusText }))).message);
   return res.json();
 }

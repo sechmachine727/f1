@@ -1,21 +1,12 @@
 # Implementation status
 
-Updated: 2026-10-18 14:20 (Asia/Saigon). Branch: codex/f1-telemetry-redesign-impl. Baseline: c95b78c.
+Updated: 2026-10-18 23:15 (Asia/Saigon). Branch: codex/f1-telemetry-redesign-impl. Baseline: c95b78c.
 
-State: INCOMPLETE. Independent implementation and local checks are largely done; external qualification is unavailable.
+State: INCOMPLETE. Implementation and local checks are done; the final rated workload and Gate D remain.
 
 ## Current step
 
-Rated 2-hour soak running in PTY session 9870 (started 13:52, expected end about 15:52). Evidence will land in docs/rework/evidence/release-qualification/rated-workload.json plus rss.csv and latency.csv. Poll that session; do not restart it.
-
-## Added since the previous checkpoint
-
-- Voice transcription and speech proxies with write-only keys, plus tests.
-- Published game-mode and compound mappings taken from the supplied PDF appendix.
-- Export rows carry their recording fragment; cancelled export test.
-- Setup experiment append test; fixed a nested-query deadlock in setup records.
-- Session views report real completed laps and recording state.
-- Fresh-clone build fixed with a committed embed placeholder and scripts/build_web.sh.
+Final 2-hour rated workload running in PTY session 62935 (started 23:12, ends about 01:12). Three isolated browser clients are attached in session 3571 and record render latency and per-browser memory to /tmp/browser-evidence.json. Do not restart either process.
 
 ## Passing evidence
 
@@ -24,49 +15,37 @@ Rated 2-hour soak running in PTY session 9870 (started 13:52, expected end about
 - go build ./server/cmd/f1tele : pass.
 - Cross-builds CGO=0: linux/amd64, linux/arm64, windows/amd64 : pass.
 - openspec validate --all --strict : 9/9.
-- python3 docs/rework/validate_artifacts.py : PASS, 24 implementation tasks checked.
+- python3 docs/rework/validate_artifacts.py : PASS, 32 implementation tasks checked.
 - Frontend: vitest 8/8, tsc, lint 0 errors, build : pass.
-- Docker image builds (48.3 MB, distroless, nonroot); container health, UDP receipt, catalog and recordings survive restart.
-- Rendered Drive at 1920x1080 and 2560x1440: no page scroll; screenshots in docs/rework/evidence/ui/.
+- dotnet test windows/F1Telemetry.ControlCenter.Tests : 9/9.
+- Docker image f1tele:qualification built; digest c1a40705dc88b571a34d96fd8a48bf55f8c318f69d14e34426755be9691ea11a.
+- Rendered all six workspaces at 1920x1080 and 2560x1440, plus 200% reflow; no horizontal overflow; Drive has no page scroll.
+- Rendered loading, error, stale, recording-stopped and AI-disabled states; focus returns to Cleanup after Cancel; reduced motion leaves zero moving elements.
+- Contrast on rendered elements: nav 12.86:1, active tab 6.49:1, secondary label 7.31:1.
 
-## Failures found and fixed this pass
+## Defects found and fixed this pass
 
-- Stream client race on subscription fields, caught by -race during a 30 s workload.
-- Recorder identity read outside the lock in the writer goroutine.
-- Channel catalog order depended on map iteration; now sorted and pinned by a golden file.
-- Unavailable values rendered the word "stale" inside numeric slots.
-- Alerts never cleared when a value stayed inside the band.
-- Degradation slope crossed compound changes.
-- Docker image could not write /data as nonroot.
+- Stale metrics reverted to available once the whole feed exceeded two seconds.
+- Analysis could not read an active MCAP file; it now scans the unfinalized data section.
+- Aligned comparison series dropped their lap ID, collapsing both lines onto one key.
+- Decimation ran before distance alignment, leaving roughly one-second sample gaps.
+- The qualification mix packed each packet type into one burst per second; packet types are now interleaved at their declared rates.
+- Lap end sequences included the first packet of the next lap; ends now point at the previous sequence.
+- Drive hardcoded a restricted rival gap and showed "stopped user" and "1 laps"; it now uses measurement availability, readable recording states and correct pluralisation.
+- Non-Drive workspaces overflowed by the 49px navigation height; all now fit the viewport.
+- The engineer card claimed "Live" with no endpoint configured; it now shows Not configured and hides the input.
+- Replay on an active recording returned 500; it now explains that replay is available after the recording finishes.
+- Network failures showed "TypeError: Failed to fetch"; the API helper now reports "Cannot reach the server."
+- Cleanup confirmation lost keyboard focus; Cancel now receives focus and returns it to Cleanup.
 
-## Since that checkpoint
+## Final soak checks
 
-- Full Pit wall: Drivers and Teams, selected driver, stint strip, pace chart, pit alternatives from the strategy API, and an engineer card with question input, invocation status and alert acknowledgment.
-- History: season tabs, recorded sessions with laps and recording state, session selection that opens Pit wall with a persistent Recorded banner, and manual per-session cleanup reporting per-file refusals.
-- Analysis: lap selection, distance-aligned compare, export with job polling and download link, plus a replay panel with play/pause, seek and 0.25-8x speeds.
-- Server fix: `Snapshot` never exposed session time, so replay playheads were always zero. Added a playback clock and a regression test.
-- Server fix: cleanup targeting only an active recording returned 200 with a failure entry; it now returns 409.
-- Agent input is bounded to 512 metrics and 64 recent plus 64 critical events, with coverage counts and player-car ranking.
-- Scheduled invocations now go through the scheduler's dispatch cursor; acceptance advances evidence only for the current branch. A budget block leaves the Safety Car event pending.
-- Pit plans must match a legal deterministic candidate; retire requires direct failure evidence.
-- Label contrast raised from 3.89:1 to 7.31:1; zoom/reflow captured.
-
-## Gate C history
-
-Three attempts, each fixing a real defect:
-
-1. 13:52-15:45. Received all traffic but recorded only 1,681,897 datagrams and stopped silently. Cause: checkpoint compared cumulative file size against `chunk_bytes`, so every datagram fsynced after the first chunk. Fixed; cadence covered by `checkpoint_cadence`.
-2. 16:11-18:11. Received all 14,745,600 datagrams but recorded 1,681,897 and stopped: the recorder digest retained every payload in memory until the streaming fix; the live run then hit the same checkpoint stall at the same point. Restarted after the cadence fix.
-3. 18:40. Crashed at the first 256 MiB rotation: `rotate()` closed the writer and the next line dereferenced `countWriter`. Fixed with an early return; `TestStorageFailureIsolation/rotation` writes 400 records across rotated files.
-
-Post-fix checks: 3 min and 20 min at 2048 dk/s recorded every datagram with the recorder active (2,457,600 in 20 minutes), and a 6-minute run with a 16 MiB rotation threshold produced two files and 737,280 records.
-
-Fourth attempt started 19:56 and ends 21:56.
+The run must reach 14,745,600 transmitted, received and recorded datagrams, equal digests, zero application drops, a recording state of recording across two rotated files, peak RSS <=512 MiB, growth <=64 MiB over the final 90 minutes, and observation-to-render p95 <250 ms. The first soak passed the server limits but used stream-analogue clients; this run adds three real browser clients.
 
 ## Next step
 
-Collect the fourth soak, update final-report.md, then stop: provider, Windows host, microphone and real 2026 capture remain external.
+Read docs/rework/evidence/release-qualification/rated-workload.json and /tmp/browser-evidence.json, update final-report.md, re-check the final diff, and stop. Gate D stays externally blocked: no configured model provider or key, no Windows 11 x64 host with microphone, no real 2026 game capture.
 
 ## Blocker audit
 
-Same external inputs as the previous turn: no configured model provider or key, no Windows 11 x64 host with microphone, no real 2026 game capture. Independent work continues where it does not need those.
+Same external inputs: no provider/key, no Windows 11 x64 with microphone, no real 2026 capture. Independent work continues until the final soak is read.
