@@ -51,6 +51,9 @@ func (i *Invoker) Run(ctx context.Context, profile string, input contract.AgentI
 	if err != nil {
 		return "", 0, err
 	}
+	if endpoint.Protocol == "responses" {
+		return i.runResponses(ctx, profile, system, input, endpoint, apiKey, tools)
+	}
 	cm, err := buildModel(ctx, endpoint, apiKey)
 	if err != nil {
 		return "", 0, err

@@ -91,6 +91,9 @@ func BuildTools(profile string, b ToolBackend, obs contract.Observation) ([]tool
 }
 
 func (b ToolBackend) readWindow(ctx context.Context, args map[string]any, obs contract.Observation) contract.ToolResult {
+	if b.Engine == nil {
+		return toolErr("unavailable", "history is not available in this process", "none", "report the limitation")
+	}
 	from := str(args, "from_seq")
 	to := str(args, "to_seq")
 	cars := intsArg(args, "car_indices")
@@ -121,6 +124,9 @@ func (b ToolBackend) readWindow(ctx context.Context, args map[string]any, obs co
 }
 
 func (b ToolBackend) compareLaps(ctx context.Context, args map[string]any, obs contract.Observation) contract.ToolResult {
+	if b.Engine == nil {
+		return toolErr("unavailable", "history is not available in this process", "none", "report the limitation")
+	}
 	q := contract.CompareQuery{SessionID: obs.Context.SessionID, BranchID: obs.Context.BranchID, LapIDs: stringsArg(args, "lap_ids"), Channels: stringsArg(args, "channels"), MaxPoints: intArg(args, "max_points")}
 	res, err := b.Engine.Compare(ctx, q)
 	if err != nil {
@@ -130,6 +136,9 @@ func (b ToolBackend) compareLaps(ctx context.Context, args map[string]any, obs c
 }
 
 func (b ToolBackend) evaluate(ctx context.Context, args map[string]any, obs contract.Observation) contract.ToolResult {
+	if b.Eval == nil || b.Snapshot == nil {
+		return toolErr("unavailable", "strategy is not available in this process", "none", "report the limitation")
+	}
 	snap := b.Snapshot()
 	wins, _ := args["pit_windows"].([]any)
 	var pw []contract.PitWindowIn
