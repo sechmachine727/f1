@@ -87,7 +87,7 @@ func (m *Manager) run(ctx context.Context, inv contract.Invocation, cfg contract
 	input := contract.AgentInput{
 		SchemaVersion: contract.SchemaVersion, InvocationID: inv.ID, ConversationID: m.convID,
 		Profile: inv.Profile, EndpointID: endpoint.ID, Model: endpoint.Model,
-		Observation: m.Reducer.Observation(nil, nil, nil, nil),
+		Observation: BoundObservation(m.Reducer.Observation(nil, nil, nil, nil), m.Reducer.PlayerCar()),
 		Continuity:  contract.Continuity{MeasuredOutcomes: []string{}, BranchReset: false},
 		RequestText: text,
 		Limits: contract.Limits{MaxSteps: cfg.Agent.MaxSteps, MaxToolCalls: cfg.Agent.MaxToolCalls,
