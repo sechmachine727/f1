@@ -16,47 +16,62 @@ func (s *Service) List(ctx context.Context) ([]contract.SetupRecord, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 	var out []contract.SetupRecord
 	for rows.Next() {
 		var rec contract.SetupRecord
 		var raw string
 		if err := rows.Scan(&rec.ID, &rec.SessionID, &rec.BranchID, &rec.InvocationID, &raw, &rec.CreatedAtMs); err != nil {
+			rows.Close()
 			return nil, err
 		}
 		_ = json.Unmarshal([]byte(raw), &rec.Output)
 		rec.Sources = []contract.SourceInspection{}
 		rec.Experiments = []contract.Experiment{}
-		srows, _ := s.Catalog.DB().QueryContext(ctx, "SELECT source_json, inspected, truncated FROM setup_sources WHERE record_id=?", rec.ID)
-		for srows != nil && srows.Next() {
-			var sj string
-			var inspected, truncated int
-			if err := srows.Scan(&sj, &inspected, &truncated); err == nil {
-				var si contract.SourceInspection
-				_ = json.Unmarshal([]byte(sj), &si)
-				si.Inspected, si.Truncated = inspected == 1, truncated == 1
-				rec.Sources = append(rec.Sources, si)
-			}
-		}
-		if srows != nil {
-			srows.Close()
-		}
-		erows, _ := s.Catalog.DB().QueryContext(ctx, "SELECT id, record_id, baseline_json, trial_json, conditions, outcome, created_at_ms FROM setup_experiments WHERE record_id=?", rec.ID)
-		for erows != nil && erows.Next() {
-			var e contract.Experiment
-			var bj, tj string
-			if err := erows.Scan(&e.ID, &e.RecordID, &bj, &tj, &e.Conditions, &e.Outcome, &e.CreatedAtMs); err == nil {
-				_ = json.Unmarshal([]byte(bj), &e.BaselineLapIDs)
-				_ = json.Unmarshal([]byte(tj), &e.TrialLapIDs)
-				rec.Experiments = append(rec.Experiments, e)
-			}
-		}
-		if erows != nil {
-			erows.Close()
-		}
 		out = append(out, rec)
 	}
-	return out, rows.Err()
+	err = rows.Err()
+	rows.Close()
+	if err != nil {
+		return nil, err
+	}
+	// The catalog uses a single connection; nested queries must wait until the
+	// outer result set is closed.
+	for i := range out {
+		srows, err := s.Catalog.DB().QueryContext(ctx, "SELECT source_json, inspected, truncated FROM setup_sources WHERE record_id=?", out[i].ID)
+		if err != nil {
+			return nil, err
+		}
+		for srows.Next() {
+			var sj string
+			var inspected, truncated int
+			if err := srows.Scan(&sj, &inspected, &truncated); err != nil {
+				srows.Close()
+				return nil, err
+			}
+			var si contract.SourceInspection
+			_ = json.Unmarshal([]byte(sj), &si)
+			si.Inspected, si.Truncated = inspected == 1, truncated == 1
+			out[i].Sources = append(out[i].Sources, si)
+		}
+		srows.Close()
+		erows, err := s.Catalog.DB().QueryContext(ctx, "SELECT id, record_id, baseline_json, trial_json, conditions, outcome, created_at_ms FROM setup_experiments WHERE record_id=?", out[i].ID)
+		if err != nil {
+			return nil, err
+		}
+		for erows.Next() {
+			var e contract.Experiment
+			var bj, tj string
+			if err := erows.Scan(&e.ID, &e.RecordID, &bj, &tj, &e.Conditions, &e.Outcome, &e.CreatedAtMs); err != nil {
+				erows.Close()
+				return nil, err
+			}
+			_ = json.Unmarshal([]byte(bj), &e.BaselineLapIDs)
+			_ = json.Unmarshal([]byte(tj), &e.TrialLapIDs)
+			out[i].Experiments = append(out[i].Experiments, e)
+		}
+		erows.Close()
+	}
+	return out, nil
 }
 
 func (s *Service) Create(ctx context.Context, invocationID string) (contract.SetupRecord, error) {

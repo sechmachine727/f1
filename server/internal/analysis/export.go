@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"f1tele/server/internal/contract"
+	"f1tele/server/internal/history"
 	"f1tele/server/internal/protocol"
 
 	"github.com/foxglove/mcap/go/mcap"
@@ -60,9 +61,12 @@ func (e *Engine) Export(ctx context.Context, req contract.ExportRequest) (string
 	}
 	from, _ := strconv.ParseUint(req.Range.FromSeq, 10, 64)
 	to, _ := strconv.ParseUint(req.Range.ToSeq, 10, 64)
-	paths, err := e.Catalog.RecordingsForSession(ctx, req.SessionID)
+	ranges, err := e.Catalog.RecordingRanges(ctx, req.SessionID)
 	if err != nil {
 		return "", man, err
+	}
+	if len(ranges) == 0 {
+		return "", man, history.ErrNotFound
 	}
 	detail, err := e.Catalog.Session(ctx, req.SessionID)
 	if err != nil {
@@ -74,9 +78,17 @@ func (e *Engine) Export(ctx context.Context, req contract.ExportRequest) (string
 			man.Units[ch] = s.Unit
 		}
 	}
-	for _, path := range paths {
-		man.SourceFiles = append(man.SourceFiles, filepath.Base(path))
-		err := scanFile(ctx, path, func(m *mcap.Message) error {
+	fragmentFor := func(seq uint64) string {
+		for _, r := range ranges {
+			if seq >= r.FirstSeq && seq <= r.LastSeq {
+				return r.FragmentID
+			}
+		}
+		return detail.Context.FragmentID
+	}
+	for _, rr := range ranges {
+		man.SourceFiles = append(man.SourceFiles, filepath.Base(rr.Path))
+		err := scanFile(ctx, rr.Path, func(m *mcap.Message) error {
 			seq := uint64(m.Sequence)
 			if seq < from || seq > to {
 				return nil
@@ -98,7 +110,7 @@ func (e *Engine) Export(ctx context.Context, req contract.ExportRequest) (string
 					}
 					row := contract.ExportRow{
 						SchemaVersion: contract.SchemaVersion, SessionID: req.SessionID, BranchID: req.BranchID,
-						FragmentID: detail.Context.FragmentID, Seq: strconv.FormatUint(seq, 10),
+						FragmentID: fragmentFor(seq), Seq: strconv.FormatUint(seq, 10),
 						ReceivedAtMs: int64(m.LogTime / 1e6), SessionTimeMs: int64Ptr(int64(p.Header.SessionTime * 1000)),
 						CarIndex: intPtr(car), Channel: ch, Unit: spec.Unit, Availability: "available",
 						Basis: "observed", SourceID: "export.raw", Confidence: "high",

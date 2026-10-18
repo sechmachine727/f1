@@ -66,3 +66,31 @@ func (c *Catalog) RecordingsForSession(ctx context.Context, sessionID string) ([
 	}
 	return out, rows.Err()
 }
+
+// RecordingRange binds a file to the fragment and receive-sequence span it
+// covers, so exports can label rows with the fragment they came from.
+type RecordingRange struct {
+	Path       string
+	FragmentID string
+	FirstSeq   uint64
+	LastSeq    uint64
+}
+
+func (c *Catalog) RecordingRanges(ctx context.Context, sessionID string) ([]RecordingRange, error) {
+	rows, err := c.db.QueryContext(ctx, "SELECT r.path, r.fragment_id, r.first_seq, r.last_seq FROM recordings r JOIN fragments f ON f.id=r.fragment_id WHERE f.session_id=? ORDER BY r.first_seq, r.created_at_ms", sessionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []RecordingRange
+	for rows.Next() {
+		var rr RecordingRange
+		var first, last int64
+		if err := rows.Scan(&rr.Path, &rr.FragmentID, &first, &last); err != nil {
+			return nil, err
+		}
+		rr.FirstSeq, rr.LastSeq = uint64(first), uint64(last)
+		out = append(out, rr)
+	}
+	return out, rows.Err()
+}
