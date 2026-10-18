@@ -117,6 +117,59 @@ func TestRecordingRoundTrip(t *testing.T) {
 }
 
 func TestStorageFailureIsolation(t *testing.T) {
+	// Checkpoints are rate-limited: a stalled clock must not make every write
+	// durable. Without this, a 2 kHz stream fsyncs thousands of times a second.
+	t.Run("checkpoint cadence", func(t *testing.T) {
+		cat, dir := newTestCatalog(t)
+		cfg, _ := defaultRecCfg()
+		cfg.ChunkBytes = 1
+		cfg.ChunkFlushMs = 1000
+		now := time.Unix(1_700_000_000, 0)
+		rec := NewRecorder(cfg, cat, dir, nil)
+		rec.now = func() time.Time { return now }
+		rec.Start()
+		rec.SetIdentity("s", "f", "c")
+		ctx := context.Background()
+		if err := cat.EnsureSourceContext(ctx, "c", "ip"); err != nil {
+			t.Fatal(err)
+		}
+		_ = cat.CreateSession(ctx, "s", contract.Context{SourceContextID: "c", ModeFamily: "solo", SeasonEvidence: []string{}})
+		_ = cat.CreateFragment(ctx, contract.Fragment{ID: "f", SessionID: "s", SourceContextID: "c", StartedAtMs: 1})
+		pkt := protocol.BuildPacket(2026, 6, protocol.Header{Format: 2026, PacketVersion: 1, SessionUID: 5}, nil, map[int]map[string]float64{0: {"m_speed": 200}}, nil)
+		deadline := time.Now().Add(2 * time.Second)
+		// The first checkpoint after opening is expected.
+		rec.Record(1, now, pkt)
+		for time.Now().Before(deadline) {
+			time.Sleep(20 * time.Millisecond)
+			if durableOffset(t, cat) > 0 {
+				break
+			}
+		}
+		base := durableOffset(t, cat)
+		if base == 0 {
+			t.Fatal("no initial checkpoint")
+		}
+		for i := 0; i < 50; i++ {
+			rec.Record(uint64(i+2), now, pkt)
+			time.Sleep(10 * time.Millisecond)
+			if offset := durableOffset(t, cat); offset != base {
+				t.Fatalf("checkpointed again (%d -> %d) with a frozen clock", base, offset)
+			}
+			if rec, _ := rec.State(); rec != RecRecording {
+				t.Fatalf("recorder left recording: %s", rec)
+			}
+		}
+		now = now.Add(2 * time.Second)
+		rec.Record(51, now, pkt)
+		for time.Now().Before(deadline) {
+			time.Sleep(20 * time.Millisecond)
+			if durableOffset(t, cat) > 0 {
+				rec.Stop()
+				return
+			}
+		}
+		t.Fatal("no checkpoint after the flush window elapsed")
+	})
 	t.Run("queue", func(t *testing.T) {
 		cat, dir := newTestCatalog(t)
 		cfg, _ := defaultRecCfg()
@@ -336,6 +389,15 @@ func TestReplayPlayhead(t *testing.T) {
 }
 
 func ptr(s string) *string { return &s }
+
+func durableOffset(t *testing.T, cat *Catalog) int64 {
+	t.Helper()
+	var offset int64
+	if err := cat.DB().QueryRow("SELECT COALESCE(MAX(durable_offset),0) FROM recordings").Scan(&offset); err != nil {
+		t.Fatal(err)
+	}
+	return offset
+}
 
 func sum(b []byte) []byte { h := sha256.Sum256(b); return h[:] }
 
