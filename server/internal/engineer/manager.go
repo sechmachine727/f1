@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -215,6 +216,28 @@ func (m *Manager) Cancel(ctx context.Context, id string) error {
 	cancel()
 	_, err := m.Catalog.DB().Exec("UPDATE invocations SET status='cancelled', ended_at_ms=? WHERE id=?", time.Now().UnixMilli(), id)
 	return err
+}
+
+// AcceptedText returns the driver message of an accepted invocation, used by
+// the speech proxy so callers never supply text or keys.
+func (m *Manager) AcceptedText(ctx context.Context, id string) (string, error) {
+	var raw sql.NullString
+	var status string
+	err := m.Catalog.DB().QueryRowContext(ctx, "SELECT status, output_json FROM invocations WHERE id=?", id).Scan(&status, &raw)
+	if err != nil {
+		return "", err
+	}
+	if status != "accepted" || !raw.Valid {
+		return "", errors.New("invocation is not accepted")
+	}
+	var out contract.AgentOutput
+	if err := json.Unmarshal([]byte(raw.String), &out); err != nil {
+		return "", err
+	}
+	if out.DriverMessage == nil || strings.TrimSpace(*out.DriverMessage) == "" {
+		return "", errors.New("accepted invocation has no driver message to speak")
+	}
+	return *out.DriverMessage, nil
 }
 
 func (m *Manager) Tick(snap state.Snapshot) {

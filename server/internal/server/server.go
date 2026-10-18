@@ -26,6 +26,7 @@ import (
 	"f1tele/server/internal/setup"
 	"f1tele/server/internal/state"
 	"f1tele/server/internal/strategy"
+	"f1tele/server/internal/voice"
 	"f1tele/server/internal/web"
 )
 
@@ -90,10 +91,12 @@ func New(store *config.Store, logger *slog.Logger) (*Server, error) {
 		Fetch: setupSvc.Fetch,
 	}}
 	mgr := engineer.NewManager(store, reducer, cat, inv, s.arbiter)
+	voiceSvc := voice.New(store)
+	voiceSvc.AcceptedText = mgr.AcceptedText
 	s.engineerMgr = mgr
 	s.api = httpapi.New(httpapi.Deps{
 		Config: store, Catalog: cat, Reducer: reducer, Recorder: rec, Engine: s.engine,
-		Evaluator: s.eval, Arbiter: s.arbiter, Engineer: mgr, Setup: setupSvc, InstanceID: "inst-" + installID(dir),
+		Evaluator: s.eval, Arbiter: s.arbiter, Engineer: mgr, Setup: setupSvc, Voice: voiceSvc, InstanceID: "inst-" + installID(dir),
 		Version: Version, StartedAt: time.Now(), Hub: httpapi.NewHub(),
 		OnRecordStart: func() error { return rec.Resume() },
 		OnRecordStop:  func() { rec.StopByUser(); reducer.SetRecordingState(history.RecStoppedUser) },
