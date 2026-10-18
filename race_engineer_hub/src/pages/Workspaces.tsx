@@ -528,7 +528,91 @@ export function Analysis() {
           </div>
         </section>
       </div>
+      {sessionId ? <ReplayPanel sessionId={sessionId} branchId={branchId} /> : null}
     </div>
+  );
+}
+
+function ReplayPanel({ sessionId, branchId }: { sessionId: string; branchId: string }) {
+  const [replay, setReplay] = useState<any>(null);
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function start() {
+    setBusy(true);
+    setError("");
+    try {
+      const r = await api<any>("/replays", {
+        method: "POST",
+        body: JSON.stringify({ session_id: sessionId, branch_id: branchId, speed: 1, skip_long_pauses: false }),
+      });
+      setReplay(r);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function patch(p: Record<string, unknown>) {
+    if (!replay) return;
+    try {
+      setReplay(await api<any>("/replays/" + replay.id, { method: "PATCH", body: JSON.stringify(p) }));
+    } catch (e) {
+      setError(String(e));
+    }
+  }
+
+  async function close() {
+    if (!replay) return;
+    await api<any>("/replays/" + replay.id, { method: "DELETE" }).catch(() => null);
+    setReplay(null);
+  }
+
+  return (
+    <section className={panel + " p-4"}>
+      <div className="flex items-baseline justify-between">
+        <div className={label}>Replay</div>
+        {replay ? (
+          <span className="text-[12px] text-neutral-400">
+            {replay.paused ? "Paused" : "Playing"} · {replay.speed}x · {(replay.playhead_session_time_ms / 1000).toFixed(1)} s
+          </span>
+        ) : null}
+      </div>
+      {error ? <p role="alert" className="mt-2 text-[12px] text-[#f2483c]">{error}</p> : null}
+      {!replay ? (
+        <button onClick={start} disabled={busy || !sessionId} className={"mt-2 " + nav + " bg-[#1d3b2c] text-[#4fd48a] disabled:opacity-40"}>
+          {busy ? "Opening…" : "Open replay"}
+        </button>
+      ) : (
+        <div className="mt-2 space-y-2">
+          <div className="flex gap-2">
+            <button className={nav + " bg-[#151920] text-neutral-200"} onClick={() => patch({ paused: !replay.paused })}>
+              {replay.paused ? "Play" : "Pause"}
+            </button>
+            {[0.25, 1, 4, 8].map((s) => (
+              <button key={s} onClick={() => patch({ speed: s })}
+                className={nav + (replay.speed === s ? " bg-[#1d3b2c] text-[#4fd48a]" : " bg-[#151920] text-neutral-300")}>
+                {s}x
+              </button>
+            ))}
+            <button className={nav + " text-neutral-400"} onClick={close}>Close</button>
+          </div>
+          <label className="block text-[12px] text-neutral-400" htmlFor="replay-seek">Playhead (seconds)</label>
+          <input
+            id="replay-seek"
+            type="range"
+            min={0}
+            max={Math.max(60, Math.round(replay.playhead_session_time_ms / 1000) + 60)}
+            defaultValue={Math.round(replay.playhead_session_time_ms / 1000)}
+            onMouseUp={(e) => patch({ position_ms: Number((e.target as HTMLInputElement).value) * 1000 })}
+            onKeyUp={(e) => patch({ position_ms: Number((e.target as HTMLInputElement).value) * 1000 })}
+            className="w-full accent-[#5fd68f]"
+          />
+          <p className="text-[11px] text-neutral-500">Replay runs in its own reducer. The live source, recording and live engineer calls are untouched.</p>
+        </div>
+      )}
+    </section>
   );
 }
 

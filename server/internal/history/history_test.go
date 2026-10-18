@@ -275,6 +275,66 @@ func TestLegacyImportAndRecovery(t *testing.T) {
 	}
 }
 
+// TestReplayPlayhead covers a seek on a real recording: the playhead must move
+// to the requested session time and never past the end of the file.
+func TestReplayPlayhead(t *testing.T) {
+	cat, dir := newTestCatalog(t)
+	ctx := context.Background()
+	cfg, _ := defaultRecCfg()
+	rec := NewRecorder(cfg, cat, dir, nil)
+	rec.Start()
+	rec.SetIdentity("s", "f", "c")
+	if err := cat.EnsureSourceContext(ctx, "c", "ip"); err != nil {
+		t.Fatal(err)
+	}
+	if err := cat.CreateSession(ctx, "s", contract.Context{SourceContextID: "c", ModeFamily: "solo", SeasonEvidence: []string{}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := cat.CreateFragment(ctx, contract.Fragment{ID: "f", SessionID: "s", SourceContextID: "c", StartedAtMs: 1}); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 40; i++ {
+		pkt := protocol.BuildPacket(2026, 6, protocol.Header{Format: 2026, PacketVersion: 1, SessionUID: 5, SessionTime: float64(i) * 0.5, OverallFrameID: uint32(i)}, nil, map[int]map[string]float64{0: {"m_speed": 200}}, nil)
+		rec.Record(uint64(i+1), time.UnixMilli(1_700_000_000_000+int64(i)*500), pkt)
+	}
+	rec.Stop()
+	paths, err := cat.RecordingsForSession(ctx, "s")
+	if err != nil || len(paths) != 1 {
+		t.Fatalf("paths %v err %v", paths, err)
+	}
+	src, err := LoadReplay(paths[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	rp := NewReplay("r", "s", "b", 1, false, src)
+	if v := rp.View(); v.PlayheadSessionTimeMs != 0 {
+		t.Fatalf("fresh replay playhead %d, want 0", v.PlayheadSessionTimeMs)
+	}
+	rp.SeekTo(10_000)
+	if got := rp.View().PlayheadSessionTimeMs; got < 10_000 || got > 20_500 {
+		t.Fatalf("playhead after seek = %d ms", got)
+	}
+	rp.SeekTo(10_000_000)
+	if got := rp.View().PlayheadSessionTimeMs; got != 19_500 {
+		t.Fatalf("playhead past the end = %d, want last sample 19500", got)
+	}
+	// Playback advances on its own once unpaused, without touching the source.
+	rp.SeekTo(0)
+	paused, speed := false, 8.0
+	rp.Patch(contract.ReplayPatch{Paused: &paused, Speed: &speed})
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		if rp.View().PlayheadSessionTimeMs >= 1_000 {
+			break
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	if got := rp.View().PlayheadSessionTimeMs; got < 1_000 {
+		t.Fatalf("playback did not advance: %d ms", got)
+	}
+	rp.Close()
+}
+
 func ptr(s string) *string { return &s }
 
 func sum(b []byte) []byte { h := sha256.Sum256(b); return h[:] }

@@ -223,8 +223,12 @@ func (a *API) patchReplay(w http.ResponseWriter, r *http.Request) {
 
 func (a *API) deleteReplay(w http.ResponseWriter, r *http.Request) {
 	a.mu.Lock()
+	rp := a.replays[r.PathValue("id")]
 	delete(a.replays, r.PathValue("id"))
 	a.mu.Unlock()
+	if rp != nil {
+		rp.Close()
+	}
 	writeJSON(w, 200, map[string]any{"ok": true})
 }
 

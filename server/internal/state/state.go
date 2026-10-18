@@ -670,6 +670,9 @@ func (r *Reducer) Snapshot(cars []int, channels []string) Snapshot {
 	if r.carCount > 0 && r.playerCar < r.carCount {
 		s.Lap = intp(r.laps[r.playerCar])
 	}
+	if st := r.lastSessionTime; st > 0 {
+		s.SessionTimeMs = int64p(int64(math.Round(st * 1000)))
+	}
 	if st, ok := r.fields[key{1, "session.track_temp_c", -1}]; ok {
 		s.Session["track_temp_c"] = st.value.F
 	}

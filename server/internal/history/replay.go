@@ -69,6 +69,8 @@ type Replay struct {
 	source  *ReplaySource
 	reducer *state.Reducer
 	index   int
+	cursor  int64
+	stop    chan struct{}
 }
 
 func NewReplay(id, sessionID, branchID string, speed float64, skip bool, src *ReplaySource) *Replay {
@@ -81,6 +83,7 @@ func (r *Replay) apply() {
 	m := r.source.Messages[r.index]
 	p, _ := protocol.Decode(m.Data)
 	r.reducer.Apply(m.Seq, time.UnixMilli(m.ReceivedAt), m.Data, p, "")
+	r.cursor = m.ReceivedAt
 	r.index++
 }
 
@@ -101,6 +104,7 @@ func (r *Replay) SeekTo(sessionTimeMs int64) {
 	defer r.mu.Unlock()
 	r.reducer = state.New("replay:"+r.id, nil)
 	r.index = 0
+	r.cursor = 0
 	for r.index < len(r.source.Messages) {
 		r.apply()
 		s := r.reducer.Snapshot(nil, nil)
@@ -132,4 +136,90 @@ func (r *Replay) Patch(p contract.ReplayPatch) {
 	if p.PositionMs != nil {
 		r.SeekTo(int64(*p.PositionMs))
 	}
+	if paused {
+		r.stopClock()
+	} else {
+		r.mu.Lock()
+		if r.cursor == 0 && r.index < len(r.source.Messages) {
+			r.cursor = r.source.Messages[r.index].ReceivedAt - 1
+		}
+		r.mu.Unlock()
+		r.startClock()
+	}
 }
+
+// startClock advances the playhead at the requested speed. Replay time follows
+// the recorded receive timestamps, so a paused game stays paused instead of
+// racing through a quiet stretch.
+func (r *Replay) startClock() {
+	r.mu.Lock()
+	if r.stop != nil {
+		r.mu.Unlock()
+		return
+	}
+	stop := make(chan struct{})
+	r.stop = stop
+	r.mu.Unlock()
+	go func() {
+		ticker := time.NewTicker(100 * time.Millisecond)
+		defer ticker.Stop()
+		last := time.Now()
+		for {
+			select {
+			case <-stop:
+				return
+			case now := <-ticker.C:
+				stepMs := float64(now.Sub(last).Milliseconds()) * r.Speed()
+				last = now
+				if stepMs <= 0 {
+					continue
+				}
+				r.advance(stepMs)
+			}
+		}
+	}()
+}
+
+func (r *Replay) stopClock() {
+	r.mu.Lock()
+	if r.stop != nil {
+		close(r.stop)
+		r.stop = nil
+	}
+	r.mu.Unlock()
+}
+
+func (r *Replay) Speed() float64 {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.speed
+}
+
+// advance consumes messages whose recorded time falls inside the elapsed
+// window. Large recorded gaps are skipped only when the user asked for it.
+func (r *Replay) advance(stepMs float64) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.paused || r.index >= len(r.source.Messages) {
+		return
+	}
+	target := r.cursor + int64(stepMs)
+	for r.index < len(r.source.Messages) {
+		next := r.source.Messages[r.index].ReceivedAt
+		if next > target {
+			break
+		}
+		if r.skip && next-r.cursor > 2000 {
+			// Jump past a recorded pause (formation, red flag) instead of
+			// waiting it out at playback speed.
+			r.cursor = next - 1
+		}
+		r.apply()
+	}
+	if r.cursor < target {
+		r.cursor = target
+	}
+}
+
+// Close stops playback and releases the goroutine.
+func (r *Replay) Close() { r.stopClock() }
