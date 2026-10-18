@@ -283,6 +283,37 @@ export function History({ onOpen }: { onOpen: () => void }) {
   const [season, setSeason] = useState("2026");
   const { items, error } = useSessions(season);
   const sel = useSelection();
+  const [notice, setNotice] = useState("");
+  const [confirming, setConfirming] = useState<string | null>(null);
+
+  // Cleanup is manual and per-session: it lists the catalogued recording files,
+  // asks for confirmation, and reports per-file refusals from the server.
+  async function removeRecording(sessionId: string) {
+    setNotice("");
+    try {
+      const detail = await api<any>("/sessions/" + sessionId);
+      const ids = (detail.recordings ?? []).map((r: any) => r.id);
+      if (ids.length === 0) {
+        setNotice("This session has no recording files.");
+        return;
+      }
+      const res = await api<any>("/history/cleanup", {
+        method: "POST",
+        body: JSON.stringify({ recording_ids: ids, session_ids: [], confirmed: true }),
+      });
+      const failed = res.failures ?? [];
+      setNotice(
+        failed.length
+          ? "Removed " + res.deleted_ids.length + "; kept " + failed.length + ": " + failed.map((f: any) => f.message).join("; ")
+          : "Removed " + res.deleted_ids.length + " recording file" + (res.deleted_ids.length === 1 ? "" : "s") + ".",
+      );
+    } catch (e) {
+      setNotice(String(e));
+    } finally {
+      setConfirming(null);
+    }
+  }
+
   return (
     <div className="min-h-screen bg-[#0b0d11] text-neutral-100 p-4 space-y-3">
       <div className="flex items-center gap-2" role="tablist" aria-label="Season">
@@ -294,10 +325,11 @@ export function History({ onOpen }: { onOpen: () => void }) {
         ))}
       </div>
       {error ? <p role="alert" className="text-[#f2483c]">{error}</p> : null}
+      {notice ? <p role="status" className="text-[13px] text-neutral-300">{notice}</p> : null}
       <ul className={panel + " divide-y divide-[#232830]" }>
         {items.length === 0 ? <li><Empty>No recorded sessions in this view.</Empty></li> : null}
         {items.map((s) => (
-          <li key={s.id}>
+          <li key={s.id} className="flex items-stretch">
             <button
               className="flex w-full items-center justify-between px-4 py-3 text-left hover:bg-[#151920] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#4fd48a]"
               aria-pressed={sel.sessionId === s.id}
@@ -321,6 +353,21 @@ export function History({ onOpen }: { onOpen: () => void }) {
               </span>
               <span className="text-[12px] text-neutral-400">{s.recording_state} · {s.completeness}</span>
             </button>
+            {confirming === s.id ? (
+              <span className="flex items-center gap-2 px-3 text-[12px]">
+                <span className="text-neutral-300">Delete recording files?</span>
+                <button className={nav + " bg-[#4a1d22] text-[#ffb4b4]"} onClick={() => removeRecording(s.id)}>Delete</button>
+                <button className={nav + " text-neutral-300"} onClick={() => setConfirming(null)}>Cancel</button>
+              </span>
+            ) : (
+              <button
+                className={nav + " px-3 text-[12px] text-neutral-400 hover:bg-[#151920]"}
+                aria-label={"Delete recordings for " + (s.display_name || s.id)}
+                onClick={() => setConfirming(s.id)}
+              >
+                Cleanup
+              </button>
+            )}
           </li>
         ))}
       </ul>

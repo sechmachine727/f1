@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -175,6 +176,42 @@ func TestCleanupProtectsActiveRecording(t *testing.T) {
 	}
 	if len(res.Failures) != 1 || res.Failures[0].Code != "not_found" {
 		t.Fatalf("cleanup %#v", res)
+	}
+}
+
+// TestCleanupRefusesActiveRecording covers the spec scenario: cleanup that only
+// touches a protected source returns 409 and deletes nothing.
+func TestCleanupRefusesActiveRecording(t *testing.T) {
+	d, _ := deps(t)
+	if err := d.Catalog.EnsureSourceContext(context.Background(), "c", "ip"); err != nil {
+		t.Fatal(err)
+	}
+	if err := d.Catalog.CreateSession(context.Background(), "s", contract.Context{SourceContextID: "c", ModeFamily: "solo", SeasonEvidence: []string{}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := d.Catalog.CreateFragment(context.Background(), contract.Fragment{ID: "f", SessionID: "s", SourceContextID: "c", StartedAtMs: 1}); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(t.TempDir(), "active.mcap")
+	if err := os.WriteFile(path, []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := d.Catalog.CreateRecording(context.Background(), contract.Recording{ID: "r-active", FragmentID: "f", State: "active", Range: contract.Range{FromSeq: "0", ToSeq: "0"}, Gaps: []string{}}, path, 1); err != nil {
+		t.Fatal(err)
+	}
+	srv := httptest.NewServer(New(d).Handler(nil))
+	defer srv.Close()
+	body := "{\"recording_ids\":[\"r-active\"],\"session_ids\":[],\"confirmed\":true}"
+	resp, err := http.Post(srv.URL+"/api/v1/history/cleanup", "application/json", strings.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 409 {
+		t.Fatalf("status %d, want 409", resp.StatusCode)
+	}
+	if _, err := os.Stat(path); err != nil {
+		t.Fatal("protected recording file was removed")
 	}
 }
 

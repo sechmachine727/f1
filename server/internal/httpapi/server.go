@@ -488,9 +488,11 @@ func (a *API) cleanup(w http.ResponseWriter, r *http.Request) {
 	}
 	res := contract.CleanupResult{DeletedIDs: []string{}, Failures: []contract.CleanupFailure{}}
 	rec, _ := a.Recorder.State()
+	protected := 0
 	for _, id := range req.RecordingIDs {
 		if rec == "recording" {
 			res.Failures = append(res.Failures, contract.CleanupFailure{ID: id, Code: "active", Message: "recording is active"})
+			protected++
 			continue
 		}
 		var path, st string
@@ -501,6 +503,7 @@ func (a *API) cleanup(w http.ResponseWriter, r *http.Request) {
 		}
 		if st == "active" {
 			res.Failures = append(res.Failures, contract.CleanupFailure{ID: id, Code: "active", Message: "recording protected"})
+			protected++
 			continue
 		}
 		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
@@ -512,6 +515,12 @@ func (a *API) cleanup(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		res.DeletedIDs = append(res.DeletedIDs, id)
+	}
+	// A request that only touches protected sources fails as a whole; a mixed
+	// batch reports per-file results.
+	if len(res.DeletedIDs) == 0 && protected > 0 {
+		writeJSON(w, 409, res)
+		return
 	}
 	writeJSON(w, 200, res)
 }
