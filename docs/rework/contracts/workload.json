@@ -1,0 +1,141 @@
+{
+  "version": "1.0.0",
+  "seed": 20261018,
+  "healthy_duration_seconds": 7200,
+  "format": 2026,
+  "cars": 24,
+  "wire_payload_sizes": {
+    "0": 1325,
+    "1": 926,
+    "2": 1399,
+    "3": 45,
+    "4": 1470,
+    "5": 1233,
+    "6": 1448,
+    "7": 1445,
+    "8": 1134,
+    "9": 1062,
+    "10": 1133,
+    "11": 1460,
+    "12": 231,
+    "13": 273,
+    "14": 104,
+    "15": 1231,
+    "16": 269
+  },
+  "base_packets_per_second": {
+    "0": 60,
+    "1": 20,
+    "2": 60,
+    "3": 40,
+    "4": 10,
+    "5": 10,
+    "6": 60,
+    "7": 60,
+    "8": 0,
+    "9": 0,
+    "10": 20,
+    "11": 960,
+    "12": 480,
+    "13": 60,
+    "14": 0,
+    "15": 20,
+    "16": 60
+  },
+  "base_packets_per_second_total": 1920,
+  "duplicate_packets_per_second": 128,
+  "total_packets_per_second": 2048,
+  "raw_payload_bytes_per_second": 2141822,
+  "healthy_expected_datagrams": 14745600,
+  "healthy_expected_payload_bytes": 15421118400,
+  "duplicate_policy": "Within each second, base datagrams are indexed by ascending packet ID then ordinal. The final128 output slots copy base indices0..127 byte-for-byte (60 Motion,20 Session,48 Lap). Duplicates are6.25% of total received traffic and remain in raw MCAP.",
+  "send_policy": "Emit2048 slots per second at slot/2048 offsets. Base1920 slots precede128 duplicates. History11 cycles carIdx0..23 forty times; TyreSets12 cycles0..23 twenty times. Use128-bit seed-independent counters for expected transmitted count/bytes and a receiver-intake digest independent from the recorder.",
+  "coverage_policy": "IDs8,9,14 occur once in separate prelude/postlude fixtures outside the healthy count; they are not periodically injected into an active race. This is a declared synthetic stress mix, not a claim about actual game packet frequencies.",
+  "reorder_policy": {
+    "start_second": 1200,
+    "duration_seconds": 10,
+    "rule": "Swap adjacent pairs of original high-rate slots0..63; retain identical send count/bytes and record the exact transmitted order."
+  },
+  "event_policy": {
+    "packet3_default": "BUTN with buttonStatus cycling0,1,0,2 by ordinal",
+    "safety_car_status": {
+      "start_second": 1800,
+      "end_second": 1810,
+      "value": 1
+    },
+    "race_control_fields": "Use the supplied2026 v1.2 typed fixtures for partial-aero/overtake events in separate rare-event tests."
+  },
+  "header_policy": "Use the canonical2026 packet fixtures from go-telemetry-core,24 active cars, player0, formula13, same game UID/source. Patch overallFrameIdentifier=floor(global_slot*60/2048), sessionTime=overallFrame/60 minus active rewind offsets, frameIdentifier follows game timeline. Keep exact packet lengths.",
+  "dynamic_values": {
+    "lap_seconds": 90,
+    "lap_distance_m": 5000,
+    "car_speed_kph": "180+((second+car_index*7)%100)",
+    "throttle_fraction": "((frame+car_index*3)%101)/100",
+    "surface_c": "80+((floor(second/15)+car_index+wheel_index)%31)",
+    "wear_pct": "min(95,2.5*((lap-1)%12)+wheel_index/2)",
+    "remaining_fields": "Use meaningful typed baseline golden fixture values/sentinels; the fixture hash is pinned before the soak and recorded in evidence. Do not replace payloads with zero-filled short datagrams."
+  },
+  "phases": [
+    {
+      "at_second": 0,
+      "action": "warmup10minutes"
+    },
+    {
+      "at_second": 1200,
+      "action": "10second declared reorder phase"
+    },
+    {
+      "at_second": 1800,
+      "action": "cancel a strategy invocation carrying the SC event; next input must retain it"
+    },
+    {
+      "at_second": 2100,
+      "action": "flashback30seconds; preserve raw datagrams and surviving-prefix branch"
+    },
+    {
+      "at_second": 2160,
+      "action": "nested flashback20seconds"
+    },
+    {
+      "at_second": 2400,
+      "action": "slow then reconnect Pit wall browser, UDP unchanged"
+    },
+    {
+      "at_second": 3600,
+      "action": "export60seconds while Analysis queries continue"
+    }
+  ],
+  "clients": [
+    {
+      "workspace": "Drive",
+      "viewport": [
+        1920,
+        1080
+      ],
+      "selected_car_hz": 60
+    },
+    {
+      "workspace": "Pit wall",
+      "viewport": [
+        1920,
+        1080
+      ],
+      "standings_hz": 5
+    },
+    {
+      "workspace": "Analysis",
+      "viewport": [
+        1920,
+        1080
+      ],
+      "query_interval_seconds": 5,
+      "range_seconds": 60,
+      "channels": [
+        "car.speed_mps",
+        "tyre.fl.surface_c"
+      ],
+      "max_points": 1000
+    }
+  ],
+  "loss_oracle": "Compare the fixed expected sender counts/bytes with OS receive counters and receiver-intake counts/digest. Compare receiver-intake counts/digest to reopened MCAP receive-order payloads. Never redefine expected traffic as whatever the recorder admitted. Report source/OS loss separately; absence of OS counters is unavailable, not zero."
+}

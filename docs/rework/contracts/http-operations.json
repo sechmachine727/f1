@@ -1,0 +1,244 @@
+{
+  "schema_version": "1.0.0",
+  "schema": "v1.schema.json",
+  "error_schema": "Error",
+  "list_query": {
+    "cursor": "opaque string or absent",
+    "limit": "integer1..100 default25"
+  },
+  "operations": [
+    {
+      "method": "GET",
+      "path": "/api/v1/health",
+      "request": null,
+      "response": "Health"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/channels",
+      "request": null,
+      "response": "ChannelList"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/config",
+      "request": null,
+      "response": "ConfigView"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/config",
+      "request": "ConfigPatch",
+      "response": "ConfigView"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/sessions",
+      "request": null,
+      "response": "SessionList"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/sessions/{id}",
+      "request": null,
+      "response": "SessionDetail"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/sessions/{id}",
+      "request": "SessionPatch",
+      "response": "SessionDetail"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/careers",
+      "request": null,
+      "response": "CareerList"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/careers",
+      "request": "CareerCreate",
+      "response": "Career"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/sessions/{id}/branches",
+      "request": null,
+      "response": "BranchList"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/sessions/{id}/laps",
+      "request": null,
+      "response": "LapList"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/analysis/query",
+      "request": "Query",
+      "response": "AnalysisResult"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/analysis/compare",
+      "request": "CompareQuery",
+      "response": "AnalysisResult"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/strategy/evaluate",
+      "request": "StrategyQuery",
+      "response": "StrategyEvaluation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/imports",
+      "request": "multipart:file",
+      "response": "Job"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/exports",
+      "request": "ExportRequest",
+      "response": "Job"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/jobs/{id}",
+      "request": null,
+      "response": "Job"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/jobs/{id}",
+      "request": null,
+      "response": "Job"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/downloads/{id}",
+      "request": null,
+      "response": "binary:application/zip"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/replays",
+      "request": "ReplayCreate",
+      "response": "Replay"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/replays/{id}",
+      "request": "ReplayPatch",
+      "response": "Replay"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/replays/{id}",
+      "request": null,
+      "response": "Ack"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/engineer/requests",
+      "request": "Request",
+      "response": "Invocation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/engineer/invocations",
+      "request": null,
+      "response": "InvocationList"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/engineer/invocations/{id}/cancel",
+      "request": null,
+      "response": "Invocation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/alerts/{id}/acknowledge",
+      "request": null,
+      "response": "Alert"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/setups",
+      "request": null,
+      "response": "SetupList"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/setups",
+      "request": "SetupCreate",
+      "response": "SetupRecord"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/setups/{id}/experiments",
+      "request": "ExperimentCreate",
+      "response": "Experiment"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/voice/transcriptions",
+      "request": "binary:audio/wav",
+      "response": "Transcript"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/voice/speech",
+      "request": "SpeechRequest",
+      "response": "binary:audio/wav"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/recording/start",
+      "request": null,
+      "response": "Health"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/recording/stop",
+      "request": null,
+      "response": "Health"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/history/cleanup",
+      "request": "CleanupRequest",
+      "response": "CleanupResult"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/control/stop",
+      "request": null,
+      "response": "Ack"
+    }
+  ],
+  "allowed_filters": {
+    "GET /api/v1/sessions": {
+      "regulation_season": "2025,2026,unassigned",
+      "mode_family": "Context.mode_family",
+      "track_id": "integer",
+      "career_id": "UUID or unassigned",
+      "source_context_id": "UUID"
+    },
+    "GET /api/v1/sessions/{id}/laps": {
+      "branch_id": "required UUID",
+      "car_index": "integer0..23 or absent"
+    },
+    "GET /api/v1/engineer/invocations": {
+      "session_id": "UUID or absent",
+      "branch_id": "UUID or absent",
+      "status": "Invocation.status or absent"
+    },
+    "GET /api/v1/setups": {
+      "session_id": "UUID or absent",
+      "branch_id": "UUID or absent"
+    }
+  },
+  "pagination": "Opaque cursor is base64url of last started_at_ms/id sort key for sessions/invocations/setups; careers/branches/laps use stable ID or lap/car ordering. Unknown query keys return400. Cursor values are data, not access tokens."
+}

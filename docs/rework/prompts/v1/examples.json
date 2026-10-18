@@ -1,0 +1,410 @@
+[
+  {
+    "name": "unchanged-plan",
+    "input": {
+      "schema_version": "1.0.0",
+      "invocation_id": "i-1",
+      "conversation_id": "c-1",
+      "profile": "scheduled_strategy",
+      "endpoint_id": "local-test",
+      "model": "fixture-model",
+      "observation": {
+        "schema_version": "1.0.0",
+        "context": {
+          "session_id": "s-1",
+          "fragment_id": "f-1",
+          "branch_id": "b-1",
+          "game_session_uid": "1844674407370955161",
+          "source_kind": "live",
+          "udp_format": 2026,
+          "game_year": 25,
+          "regulation_season": 2026,
+          "season_evidence": [
+            "udp:1:m_formula=13"
+          ],
+          "season_link_id": "10",
+          "weekend_link_id": "20",
+          "session_link_id": "30",
+          "game_mode_code": null,
+          "mode_family": "career",
+          "session_type_code": null,
+          "online": false,
+          "track_id": 3,
+          "player_car_index": 0,
+          "revision": 1,
+          "source_context_id": "src-local-1",
+          "formula_code": 13,
+          "game_major_version": null,
+          "game_minor_version": null
+        },
+        "observation_seq": "110",
+        "captured_at_ms": 100000,
+        "session_time_ms": 90000,
+        "lap": 18,
+        "window": {
+          "from_seq": "81",
+          "to_seq": "110"
+        },
+        "metrics": [
+          {
+            "id": "m-energy",
+            "car_index": 0,
+            "channel": "energy.store_j",
+            "measurement": {
+              "value": 2500000,
+              "availability": "available",
+              "unit": "J",
+              "as_of_ms": 100000,
+              "basis": "observed",
+              "source_id": "udp:7:m_ersStoreEnergy",
+              "confidence": "high",
+              "reason": null
+            }
+          }
+        ],
+        "events": [],
+        "estimates": [],
+        "coverage": {
+          "truncated": false,
+          "omitted_event_count": 0,
+          "gaps": [],
+          "stale_channels": []
+        },
+        "strategy_evaluation": null
+      },
+      "continuity": {
+        "previous_accepted": null,
+        "provider_rationale_summary": null,
+        "evidence_cursor": "80",
+        "last_attempt": null,
+        "measured_outcomes": [],
+        "branch_reset": false
+      },
+      "request_text": null,
+      "limits": {
+        "max_steps": 4,
+        "max_tool_calls": 8,
+        "deadline_ms": 15000,
+        "max_output_tokens": 2048,
+        "max_context_tokens": 16384
+      }
+    },
+    "output": {
+      "schema_version": "1.0.0",
+      "invocation_id": "i-1",
+      "session_id": "s-1",
+      "branch_id": "b-1",
+      "observation_seq": "110",
+      "decision": "keep",
+      "confidence": "medium",
+      "notify": false,
+      "urgency": "routine",
+      "driver_message": null,
+      "plan": {
+        "action": "hold",
+        "pit_lap_start": null,
+        "pit_lap_end": null,
+        "compound": null,
+        "alternatives": [],
+        "candidate_id": null
+      },
+      "rationale_summary": "No new evidence supports changing the plan.",
+      "evidence_ids": [
+        "m-energy"
+      ],
+      "assumptions": [],
+      "predictions": [],
+      "recheck": {
+        "after_completed_laps": 1,
+        "event_types": [
+          "safety_car",
+          "weather_changed"
+        ]
+      },
+      "analysis": "No new evidence supports changing the plan.",
+      "limitations": [
+        "No applicable battery capacity or finish target."
+      ],
+      "sources": [],
+      "setup_changes": []
+    }
+  },
+  {
+    "name": "restricted-rival",
+    "input": {
+      "schema_version": "1.0.0",
+      "invocation_id": "i-1",
+      "conversation_id": "c-1",
+      "profile": "scheduled_strategy",
+      "endpoint_id": "local-test",
+      "model": "fixture-model",
+      "observation": {
+        "schema_version": "1.0.0",
+        "context": {
+          "session_id": "s-1",
+          "fragment_id": "f-1",
+          "branch_id": "b-1",
+          "game_session_uid": "1844674407370955161",
+          "source_kind": "live",
+          "udp_format": 2026,
+          "game_year": 25,
+          "regulation_season": 2026,
+          "season_evidence": [
+            "udp:1:m_formula=13"
+          ],
+          "season_link_id": "10",
+          "weekend_link_id": "20",
+          "session_link_id": "30",
+          "game_mode_code": null,
+          "mode_family": "career",
+          "session_type_code": null,
+          "online": false,
+          "track_id": 3,
+          "player_car_index": 0,
+          "revision": 1,
+          "source_context_id": "src-local-1",
+          "formula_code": 13,
+          "game_major_version": null,
+          "game_minor_version": null
+        },
+        "observation_seq": "110",
+        "captured_at_ms": 100000,
+        "session_time_ms": 90000,
+        "lap": 18,
+        "window": {
+          "from_seq": "81",
+          "to_seq": "110"
+        },
+        "metrics": [
+          {
+            "id": "m-rival-fuel",
+            "car_index": 1,
+            "channel": "fuel.mass_kg",
+            "measurement": {
+              "value": null,
+              "availability": "restricted",
+              "unit": "kg",
+              "as_of_ms": 100000,
+              "basis": "observed",
+              "source_id": "udp:7:restricted",
+              "confidence": "none",
+              "reason": "restricted"
+            }
+          }
+        ],
+        "events": [],
+        "estimates": [],
+        "coverage": {
+          "truncated": false,
+          "omitted_event_count": 0,
+          "gaps": [],
+          "stale_channels": []
+        },
+        "strategy_evaluation": null
+      },
+      "continuity": {
+        "previous_accepted": null,
+        "provider_rationale_summary": null,
+        "evidence_cursor": "80",
+        "last_attempt": null,
+        "measured_outcomes": [],
+        "branch_reset": false
+      },
+      "request_text": null,
+      "limits": {
+        "max_steps": 4,
+        "max_tool_calls": 8,
+        "deadline_ms": 15000,
+        "max_output_tokens": 2048,
+        "max_context_tokens": 16384
+      }
+    },
+    "output": {
+      "schema_version": "1.0.0",
+      "invocation_id": "i-1",
+      "session_id": "s-1",
+      "branch_id": "b-1",
+      "observation_seq": "110",
+      "decision": "insufficient_data",
+      "confidence": "medium",
+      "notify": false,
+      "urgency": "routine",
+      "driver_message": null,
+      "plan": {
+        "action": "hold",
+        "pit_lap_start": null,
+        "pit_lap_end": null,
+        "compound": null,
+        "alternatives": [],
+        "candidate_id": null
+      },
+      "rationale_summary": "Rival fuel is restricted.",
+      "evidence_ids": [
+        "m-rival-fuel"
+      ],
+      "assumptions": [],
+      "predictions": [],
+      "recheck": {
+        "after_completed_laps": 1,
+        "event_types": [
+          "safety_car",
+          "weather_changed"
+        ]
+      },
+      "analysis": "Rival fuel is restricted.",
+      "limitations": [
+        "Rival fuel is unavailable."
+      ],
+      "sources": [],
+      "setup_changes": []
+    }
+  },
+  {
+    "name": "cancelled-call-retains-event",
+    "input": {
+      "schema_version": "1.0.0",
+      "invocation_id": "i-1",
+      "conversation_id": "c-1",
+      "profile": "scheduled_strategy",
+      "endpoint_id": "local-test",
+      "model": "fixture-model",
+      "observation": {
+        "schema_version": "1.0.0",
+        "context": {
+          "session_id": "s-1",
+          "fragment_id": "f-1",
+          "branch_id": "b-1",
+          "game_session_uid": "1844674407370955161",
+          "source_kind": "live",
+          "udp_format": 2026,
+          "game_year": 25,
+          "regulation_season": 2026,
+          "season_evidence": [
+            "udp:1:m_formula=13"
+          ],
+          "season_link_id": "10",
+          "weekend_link_id": "20",
+          "session_link_id": "30",
+          "game_mode_code": null,
+          "mode_family": "career",
+          "session_type_code": null,
+          "online": false,
+          "track_id": 3,
+          "player_car_index": 0,
+          "revision": 1,
+          "source_context_id": "src-local-1",
+          "formula_code": 13,
+          "game_major_version": null,
+          "game_minor_version": null
+        },
+        "observation_seq": "110",
+        "captured_at_ms": 100000,
+        "session_time_ms": 90000,
+        "lap": 18,
+        "window": {
+          "from_seq": "81",
+          "to_seq": "110"
+        },
+        "metrics": [
+          {
+            "id": "m-energy",
+            "car_index": 0,
+            "channel": "energy.store_j",
+            "measurement": {
+              "value": 2500000,
+              "availability": "available",
+              "unit": "J",
+              "as_of_ms": 100000,
+              "basis": "observed",
+              "source_id": "udp:7:m_ersStoreEnergy",
+              "confidence": "high",
+              "reason": null
+            }
+          }
+        ],
+        "events": [
+          {
+            "id": "e-sc",
+            "seq": "101",
+            "type": "safety_car",
+            "severity": "important",
+            "session_time_ms": 88000,
+            "car_index": null,
+            "summary": "Safety Car deployed; pit alternatives need reassessment.",
+            "evidence_ids": []
+          }
+        ],
+        "estimates": [],
+        "coverage": {
+          "truncated": false,
+          "omitted_event_count": 0,
+          "gaps": [],
+          "stale_channels": []
+        },
+        "strategy_evaluation": null
+      },
+      "continuity": {
+        "previous_accepted": null,
+        "provider_rationale_summary": null,
+        "evidence_cursor": "80",
+        "last_attempt": {
+          "invocation_id": "i-0",
+          "status": "cancelled",
+          "ended_at_ms": 99900,
+          "error_code": null
+        },
+        "measured_outcomes": [],
+        "branch_reset": false
+      },
+      "request_text": null,
+      "limits": {
+        "max_steps": 4,
+        "max_tool_calls": 8,
+        "deadline_ms": 15000,
+        "max_output_tokens": 2048,
+        "max_context_tokens": 16384
+      }
+    },
+    "output": {
+      "schema_version": "1.0.0",
+      "invocation_id": "i-1",
+      "session_id": "s-1",
+      "branch_id": "b-1",
+      "observation_seq": "110",
+      "decision": "insufficient_data",
+      "confidence": "medium",
+      "notify": false,
+      "urgency": "routine",
+      "driver_message": null,
+      "plan": {
+        "action": "hold",
+        "pit_lap_start": null,
+        "pit_lap_end": null,
+        "compound": null,
+        "alternatives": [],
+        "candidate_id": null
+      },
+      "rationale_summary": "Safety Car changes pit loss; no evaluated pit candidate is supplied.",
+      "evidence_ids": [
+        "m-energy",
+        "e-sc"
+      ],
+      "assumptions": [],
+      "predictions": [],
+      "recheck": {
+        "after_completed_laps": 1,
+        "event_types": [
+          "safety_car",
+          "weather_changed"
+        ]
+      },
+      "analysis": "Safety Car changes pit loss; no evaluated pit candidate is supplied.",
+      "limitations": [
+        "No applicable battery capacity or finish target.",
+        "Re-evaluate legal pit candidates before calling a stop."
+      ],
+      "sources": [],
+      "setup_changes": []
+    }
+  }
+]

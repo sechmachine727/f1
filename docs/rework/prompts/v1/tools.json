@@ -1,0 +1,257 @@
+{
+  "version": "1.0.0",
+  "scope": "Server injects invocation session/branch; models cannot choose another source or mutate state.",
+  "result_schema": "../../contracts/v1.schema.json#/$defs/ToolResult",
+  "tools": [
+    {
+      "name": "read_telemetry_window",
+      "description": "Read an already-received window in the invocation session/branch; cannot wait for future data.",
+      "profiles": [
+        "scheduled_strategy",
+        "continuous_strategy",
+        "live_question",
+        "post_race"
+      ],
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "from_seq",
+          "to_seq",
+          "car_indices",
+          "channels",
+          "max_points"
+        ],
+        "properties": {
+          "from_seq": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]*)$"
+          },
+          "to_seq": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]*)$"
+          },
+          "car_indices": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 23
+            },
+            "maxItems": 24
+          },
+          "channels": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "maxItems": 16
+          },
+          "max_points": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 20000
+          }
+        }
+      },
+      "returns": "ReadWindowResult inside ToolResult.data; error has data=null and a typed error.",
+      "data_schema": "../../contracts/v1.schema.json#/$defs/ReadWindowResult"
+    },
+    {
+      "name": "compare_laps",
+      "description": "Compare two to four recorded laps in the invocation branch with validity and condition differences.",
+      "profiles": [
+        "live_question",
+        "post_race",
+        "setup_research"
+      ],
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "lap_ids",
+          "channels",
+          "max_points"
+        ],
+        "properties": {
+          "lap_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 2,
+            "maxItems": 4
+          },
+          "channels": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 1,
+            "maxItems": 16
+          },
+          "max_points": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 20000
+          }
+        }
+      },
+      "returns": "AnalysisResult inside ToolResult.data; error has data=null and a typed error.",
+      "data_schema": "../../contracts/v1.schema.json#/$defs/AnalysisResult"
+    },
+    {
+      "name": "evaluate_strategy",
+      "description": "Calculate legal deterministic pit alternatives using the frozen invocation observation.",
+      "profiles": [
+        "scheduled_strategy",
+        "continuous_strategy",
+        "live_question",
+        "post_race"
+      ],
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "observation_seq",
+          "pit_windows"
+        ],
+        "properties": {
+          "observation_seq": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]*)$"
+          },
+          "pit_windows": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "first_lap",
+                "last_lap",
+                "compound"
+              ],
+              "properties": {
+                "first_lap": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "last_lap": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "compound": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            },
+            "maxItems": 16
+          }
+        }
+      },
+      "returns": "StrategyEvaluation inside ToolResult.data; error has data=null and a typed error.",
+      "data_schema": "../../contracts/v1.schema.json#/$defs/StrategyEvaluation"
+    },
+    {
+      "name": "search_setups",
+      "description": "Search the configured provider for setup evidence with explicit applicability context.",
+      "profiles": [
+        "setup_research"
+      ],
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "query",
+          "regulation_season",
+          "game_build",
+          "track_id",
+          "conditions",
+          "assists",
+          "use_case",
+          "max_results"
+        ],
+        "properties": {
+          "query": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "regulation_season": {
+            "enum": [
+              2025,
+              2026,
+              null
+            ]
+          },
+          "game_build": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "track_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "conditions": {
+            "type": "string",
+            "minLength": 1
+          },
+          "assists": {
+            "type": "string",
+            "minLength": 1
+          },
+          "use_case": {
+            "enum": [
+              "race",
+              "time_trial",
+              "both",
+              "unknown"
+            ]
+          },
+          "max_results": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 5
+          }
+        }
+      },
+      "returns": "SearchResult inside ToolResult.data; error has data=null and a typed error.",
+      "data_schema": "../../contracts/v1.schema.json#/$defs/SearchResult"
+    },
+    {
+      "name": "fetch_setup_source",
+      "description": "Read one HTTP(S) source returned by search or supplied by the user and retain provenance.",
+      "profiles": [
+        "setup_research"
+      ],
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "url",
+          "source_id"
+        ],
+        "properties": {
+          "url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "source_id": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "returns": "SourceInspection inside ToolResult.data; error has data=null and a typed error.",
+      "data_schema": "../../contracts/v1.schema.json#/$defs/SourceInspection"
+    }
+  ]
+}
