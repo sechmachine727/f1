@@ -8,7 +8,14 @@
 ## Results
 
 - Control-center core tests: 9 passed, 0 failed (macOS, .NET SDK 10.0.401). Covers owned-child start, unrelated-service non-adoption, matching identity adoption, executable mismatch, flush-then-stop, timeout offering retry without killing, crash exit-code preservation, voice turn cap and interruption, WAV validation.
-- The WinUI project targets net10.0-windows10.0.26100.0 with Windows App SDK 1.8.260921001 and is unpackaged, self-contained, win-x64. It cannot be built on macOS.
+- The WinUI project targets net10.0-windows10.0.26100.0 with Windows App SDK 1.8.260921001 and is unpackaged, self-contained, win-x64.
+
+  Build attempts on macOS:
+
+  - `dotnet build F1Telemetry.ControlCenter -c Release -r win-x64` -> `NETSDK1100: To build a project targeting Windows on this operating system, set the EnableWindowsTargeting property to true`.
+  - with `-p:EnableWindowsTargeting=true` -> `XamlCompiler output file ... output.json was not created. The XAML compiler may have crashed.` The WinUI XAML compiler requires Windows.
+
+  So the C# and XAML in the app project have not been compiled anywhere. Only the shared core project compiles and tests here.
 
 ## Not verified
 
