@@ -4,6 +4,7 @@ package qualification
 import (
 	"crypto/sha256"
 	"encoding/binary"
+	"fmt"
 	"hash"
 	"math"
 	"sync"
@@ -131,6 +132,8 @@ func (c *Corpus) build(second, slot int, pid uint8, ord int) []byte {
 		scalar["m_numActiveCars"] = 24
 		for car := 0; car < 24; car++ {
 			cars[car] = map[string]float64{"m_yourTelemetry": 1, "m_teamId": float64(car / 2), "m_driverId": float64(car + 1)}
+			// Illustrative grid names; the stress mix does not model a real entry list.
+			strings[fmt.Sprintf("m_name[%d]", car)] = fmt.Sprintf("Driver %02d", car+1)
 		}
 	case 6:
 		for car := range cars {

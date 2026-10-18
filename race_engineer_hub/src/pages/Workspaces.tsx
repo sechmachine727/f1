@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { LineChart, Line, ResponsiveContainer, XAxis, YAxis, Tooltip, ReferenceLine } from "recharts";
 import { api, availabilityLabel, metric, text, useLive, value, type Snapshot } from "@/lib/live";
 import { clearSelection, select, useSelection } from "@/lib/selection";
+import { EngineerCard } from "@/components/EngineerCard";
 
 export const nav =
   "px-3 py-1.5 text-sm rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#4fd48a]";
@@ -13,8 +14,7 @@ const wheelLabel: Record<string, string> = { fl: "FL", fr: "FR", rl: "RL", rr: "
 
 function seat(s: Snapshot, i: number): string {
   const name = text(metric(s, "car.driver_name", i));
-  if (name !== "—") return name;
-  return `Car ${i}`;
+  return name && name !== "—" ? name : `Car ${i}`;
 }
 
 function kmh(m: ReturnType<typeof metric>): string {
@@ -215,6 +215,7 @@ export function PitWall() {
               </div>
             )}
           </div>
+          <EngineerCard />
           <div>
             <div className={label}>Wear by corner</div>
             <div className="grid grid-cols-4 gap-2 mt-1">
