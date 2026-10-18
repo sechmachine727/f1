@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"hash"
 	"io"
 	"os"
 	"path/filepath"
@@ -64,7 +65,7 @@ type Recorder struct {
 	countWriter *countingWriter
 	fileBytes   int64
 	channels    map[uint8]uint16
-	hasher      hashWriter
+	hasher      hash.Hash
 	lastSeq     uint64
 	firstSeq    uint64
 	startedAt   int64
@@ -82,9 +83,8 @@ func (c *countingWriter) Write(p []byte) (int, error) {
 	return n, err
 }
 
-type hashWriter struct{ h []byte }
-
-func (h *hashWriter) add(b []byte) { h.h = append(h.h, b...) }
+// The payload digest streams; retaining every datagram would cost gigabytes
+// over a two-hour race.
 
 // NewRecorder builds a recorder; Start must be called before Record.
 func NewRecorder(cfg contract.RecordingConfig, catalog *Catalog, dir string, disk DiskFree) *Recorder {
@@ -206,7 +206,7 @@ func (r *Recorder) write(item recorderItem) {
 		r.fail(err)
 		return
 	}
-	r.hasher.add(item.data)
+	r.hasher.Write(item.data)
 	if r.firstSeq == 0 {
 		r.firstSeq = item.seq
 	}
@@ -269,7 +269,7 @@ func (r *Recorder) ensureOpen(item recorderItem, identity [3]string) error {
 	w.WriteHeader(&mcap.Header{Profile: "f1tele", Library: "f1tele/1.0.0"})
 	w.AddSchema(&mcap.Schema{ID: 1, Name: "f1udp", Encoding: "none", Data: []byte("unchanged received datagrams")})
 	r.firstSeq, r.lastSeq = 0, 0
-	r.hasher = hashWriter{}
+	r.hasher = sha256.New()
 	rec := contract.Recording{ID: r.recordingID, FragmentID: identity[1], State: "active", Range: contract.Range{FromSeq: "0", ToSeq: "0"}, Gaps: []string{}}
 	if err := r.catalog.CreateRecording(context.Background(), rec, path, r.startedAt); err != nil {
 		return err
@@ -322,8 +322,8 @@ func (r *Recorder) finishFile(state string) {
 		r.fail(err)
 		return
 	}
-	sum := sha256.Sum256(r.hasher.h)
-	_ = r.catalog.CloseRecording(context.Background(), r.recordingID, r.countWriter.n, r.lastSeq, hex.EncodeToString(sum[:]), state)
+	sum := r.hasher.Sum(nil)
+	_ = r.catalog.CloseRecording(context.Background(), r.recordingID, r.countWriter.n, r.lastSeq, hex.EncodeToString(sum), state)
 	_ = r.file.Close()
 	r.file, r.writer, r.countWriter = nil, nil, nil
 	r.fileBytes = 0
