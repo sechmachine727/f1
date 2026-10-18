@@ -221,6 +221,17 @@ func (a *API) patchReplay(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, rp.View())
 }
 
+func (a *API) getReplay(w http.ResponseWriter, r *http.Request) {
+	a.mu.Lock()
+	rp := a.replays[r.PathValue("id")]
+	a.mu.Unlock()
+	if rp == nil {
+		writeErr(w, r, 404, "not_found", "unknown replay")
+		return
+	}
+	writeJSON(w, 200, rp.View())
+}
+
 func (a *API) deleteReplay(w http.ResponseWriter, r *http.Request) {
 	a.mu.Lock()
 	rp := a.replays[r.PathValue("id")]

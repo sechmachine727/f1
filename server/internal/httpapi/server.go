@@ -116,6 +116,7 @@ func (a *API) Handler(static http.Handler) http.Handler {
 	mux.HandleFunc("DELETE /api/v1/jobs/{id}", a.deleteJob)
 	mux.HandleFunc("GET /api/v1/downloads/{id}", a.download)
 	mux.HandleFunc("POST /api/v1/replays", a.createReplay)
+	mux.HandleFunc("GET /api/v1/replays/{id}", a.getReplay)
 	mux.HandleFunc("PATCH /api/v1/replays/{id}", a.patchReplay)
 	mux.HandleFunc("DELETE /api/v1/replays/{id}", a.deleteReplay)
 	mux.HandleFunc("POST /api/v1/engineer/requests", a.engineerRequest)

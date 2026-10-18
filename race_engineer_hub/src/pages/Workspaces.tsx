@@ -538,6 +538,16 @@ function ReplayPanel({ sessionId, branchId }: { sessionId: string; branchId: str
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
+  // Playback runs on the server; poll the playhead while unpaused so the
+  // displayed time follows it without opening a second stream.
+  useEffect(() => {
+    if (!replay || replay.paused) return;
+    const id = setInterval(() => {
+      api<any>("/replays/" + replay.id).then(setReplay).catch(() => null);
+    }, 500);
+    return () => clearInterval(id);
+  }, [replay?.id, replay?.paused]);
+
   async function start() {
     setBusy(true);
     setError("");
