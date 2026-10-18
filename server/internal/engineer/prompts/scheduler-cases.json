@@ -1,0 +1,547 @@
+{
+  "version": "1.0.0",
+  "cases": [
+    {
+      "id": "cancel-does-not-consume-safety-car",
+      "initial": {
+        "branch": "b-1",
+        "dispatch_cursor": "100",
+        "evidence_cursor": "80"
+      },
+      "steps": [
+        {
+          "action": "event",
+          "seq": "101",
+          "event_id": "e-sc",
+          "type": "safety_car"
+        },
+        {
+          "action": "dispatch",
+          "through_seq": "102",
+          "id": "i-1"
+        },
+        {
+          "action": "cancel",
+          "id": "i-1"
+        },
+        {
+          "action": "dispatch",
+          "through_seq": "106",
+          "id": "i-2"
+        },
+        {
+          "action": "accept",
+          "id": "i-2",
+          "through_seq": "106"
+        }
+      ],
+      "expected": {
+        "second_input_event_ids": [
+          "e-sc"
+        ],
+        "after_cancel_evidence_cursor": "80",
+        "after_cancel_dispatch_cursor": "102",
+        "final_evidence_cursor": "106"
+      }
+    },
+    {
+      "id": "new-evidence-during-run",
+      "initial": {
+        "branch": "b-1",
+        "dispatch_cursor": "80",
+        "evidence_cursor": "80"
+      },
+      "steps": [
+        {
+          "action": "dispatch",
+          "through_seq": "100",
+          "id": "i-1"
+        },
+        {
+          "action": "event",
+          "seq": "101",
+          "event_id": "e-rain",
+          "type": "weather_changed"
+        },
+        {
+          "action": "accept",
+          "id": "i-1",
+          "through_seq": "100"
+        },
+        {
+          "action": "dispatch",
+          "through_seq": "110",
+          "id": "i-2"
+        }
+      ],
+      "expected": {
+        "second_input_event_ids": [
+          "e-rain"
+        ],
+        "evidence_cursor": "100"
+      }
+    },
+    {
+      "id": "branch-change-rejects-old-result",
+      "initial": {
+        "branch": "b-1",
+        "dispatch_cursor": "80",
+        "evidence_cursor": "80"
+      },
+      "steps": [
+        {
+          "action": "event",
+          "seq": "85",
+          "event_id": "e-prefix-sc",
+          "type": "safety_car"
+        },
+        {
+          "action": "dispatch",
+          "through_seq": "100",
+          "id": "i-1"
+        },
+        {
+          "action": "flashback",
+          "branch": "b-2",
+          "anchor_seq": "90"
+        },
+        {
+          "action": "accept",
+          "id": "i-1",
+          "through_seq": "100"
+        },
+        {
+          "action": "dispatch",
+          "through_seq": "112",
+          "id": "i-2"
+        }
+      ],
+      "expected": {
+        "accepted": false,
+        "branch": "b-2",
+        "branch_reset": true,
+        "opaque_continuation_cleared": true,
+        "evidence_cursor": null,
+        "dispatch_cursor": null,
+        "last_inherited_seq": "89",
+        "previous_accepted": null,
+        "second_input_event_ids": [
+          "e-prefix-sc"
+        ]
+      }
+    },
+    {
+      "id": "budget-keeps-evidence",
+      "initial": {
+        "branch": "b-1",
+        "dispatch_cursor": "100",
+        "evidence_cursor": "80"
+      },
+      "steps": [
+        {
+          "action": "event",
+          "seq": "101",
+          "event_id": "e-sc",
+          "type": "safety_car"
+        },
+        {
+          "action": "budget_blocked"
+        },
+        {
+          "action": "budget_reset"
+        },
+        {
+          "action": "dispatch",
+          "through_seq": "110",
+          "id": "i-2"
+        }
+      ],
+      "expected": {
+        "input_event_ids": [
+          "e-sc"
+        ],
+        "evidence_cursor": "80",
+        "critical_alert_delivered": true
+      }
+    },
+    {
+      "id": "questions-do-not-advance-strategy",
+      "initial": {
+        "branch": "b-1",
+        "dispatch_cursor": "100",
+        "evidence_cursor": "80"
+      },
+      "steps": [
+        {
+          "action": "dispatch_question",
+          "through_seq": "110",
+          "id": "q-1"
+        },
+        {
+          "action": "accept_question",
+          "id": "q-1",
+          "through_seq": "110"
+        }
+      ],
+      "expected": {
+        "evidence_cursor": "80"
+      }
+    },
+    {
+      "id": "all-latches-between-dispatches",
+      "rule": {
+        "kind": "all",
+        "children": [
+          {
+            "kind": "lap",
+            "every_completed_laps": 2
+          },
+          {
+            "kind": "event",
+            "event_types": [
+              "weather_changed"
+            ]
+          }
+        ]
+      },
+      "steps": [
+        {
+          "action": "lap_completed",
+          "lap": 1
+        },
+        {
+          "action": "event",
+          "seq": "50",
+          "event_id": "e-rain",
+          "type": "weather_changed"
+        },
+        {
+          "action": "lap_completed",
+          "lap": 2
+        }
+      ],
+      "expected": {
+        "dispatch_count": 1,
+        "includes_event": "e-rain"
+      }
+    },
+    {
+      "id": "provider-change-portable-continuity",
+      "initial": {
+        "provider": "a",
+        "model": "m1",
+        "protocol": "responses"
+      },
+      "steps": [
+        {
+          "action": "change_endpoint",
+          "provider": "b",
+          "model": "m2",
+          "protocol": "chat_completions"
+        }
+      ],
+      "expected": {
+        "opaque_continuation_cleared": true,
+        "previous_accepted_preserved": true
+      }
+    },
+    {
+      "id": "continuous-stop-is-terminal",
+      "steps": [
+        {
+          "action": "enable_continuous",
+          "max_minutes": 15,
+          "cadence_seconds": 10
+        },
+        {
+          "action": "advance_minutes",
+          "minutes": 15
+        }
+      ],
+      "expected": {
+        "continuous_enabled": false,
+        "automatic_restart": false
+      }
+    },
+    {
+      "id": "failed-does-not-consume-event",
+      "initial": {
+        "branch": "b-1",
+        "dispatch_cursor": "100",
+        "evidence_cursor": "80"
+      },
+      "steps": [
+        {
+          "action": "event",
+          "seq": "101",
+          "event_id": "e-sc",
+          "type": "safety_car"
+        },
+        {
+          "action": "dispatch",
+          "through_seq": "102",
+          "id": "i-1"
+        },
+        {
+          "action": "failed",
+          "id": "i-1"
+        },
+        {
+          "action": "dispatch",
+          "through_seq": "106",
+          "id": "i-2"
+        }
+      ],
+      "expected": {
+        "after_attempt_dispatch_cursor": "102",
+        "after_attempt_evidence_cursor": "80",
+        "second_input_event_ids": [
+          "e-sc"
+        ]
+      }
+    },
+    {
+      "id": "timeout-does-not-consume-event",
+      "initial": {
+        "branch": "b-1",
+        "dispatch_cursor": "100",
+        "evidence_cursor": "80"
+      },
+      "steps": [
+        {
+          "action": "event",
+          "seq": "101",
+          "event_id": "e-sc",
+          "type": "safety_car"
+        },
+        {
+          "action": "dispatch",
+          "through_seq": "102",
+          "id": "i-1"
+        },
+        {
+          "action": "timeout",
+          "id": "i-1"
+        },
+        {
+          "action": "dispatch",
+          "through_seq": "106",
+          "id": "i-2"
+        }
+      ],
+      "expected": {
+        "after_attempt_dispatch_cursor": "102",
+        "after_attempt_evidence_cursor": "80",
+        "second_input_event_ids": [
+          "e-sc"
+        ]
+      }
+    },
+    {
+      "id": "invalid-does-not-consume-event",
+      "initial": {
+        "branch": "b-1",
+        "dispatch_cursor": "100",
+        "evidence_cursor": "80"
+      },
+      "steps": [
+        {
+          "action": "event",
+          "seq": "101",
+          "event_id": "e-sc",
+          "type": "safety_car"
+        },
+        {
+          "action": "dispatch",
+          "through_seq": "102",
+          "id": "i-1"
+        },
+        {
+          "action": "invalid",
+          "id": "i-1"
+        },
+        {
+          "action": "dispatch",
+          "through_seq": "106",
+          "id": "i-2"
+        }
+      ],
+      "expected": {
+        "after_attempt_dispatch_cursor": "102",
+        "after_attempt_evidence_cursor": "80",
+        "second_input_event_ids": [
+          "e-sc"
+        ]
+      }
+    },
+    {
+      "id": "superseded-does-not-consume-event",
+      "initial": {
+        "branch": "b-1",
+        "dispatch_cursor": "100",
+        "evidence_cursor": "80"
+      },
+      "steps": [
+        {
+          "action": "event",
+          "seq": "101",
+          "event_id": "e-sc",
+          "type": "safety_car"
+        },
+        {
+          "action": "dispatch",
+          "through_seq": "102",
+          "id": "i-1"
+        },
+        {
+          "action": "superseded",
+          "id": "i-1"
+        },
+        {
+          "action": "dispatch",
+          "through_seq": "106",
+          "id": "i-2"
+        }
+      ],
+      "expected": {
+        "after_attempt_dispatch_cursor": "102",
+        "after_attempt_evidence_cursor": "80",
+        "second_input_event_ids": [
+          "e-sc"
+        ]
+      }
+    },
+    {
+      "id": "budget_blocked-does-not-consume-event",
+      "initial": {
+        "branch": "b-1",
+        "dispatch_cursor": "100",
+        "evidence_cursor": "80"
+      },
+      "steps": [
+        {
+          "action": "event",
+          "seq": "101",
+          "event_id": "e-sc",
+          "type": "safety_car"
+        },
+        {
+          "action": "dispatch",
+          "through_seq": "102",
+          "id": "i-1"
+        },
+        {
+          "action": "budget_blocked",
+          "id": "i-1"
+        },
+        {
+          "action": "dispatch",
+          "through_seq": "106",
+          "id": "i-2"
+        }
+      ],
+      "expected": {
+        "after_attempt_dispatch_cursor": "102",
+        "after_attempt_evidence_cursor": "80",
+        "second_input_event_ids": [
+          "e-sc"
+        ]
+      }
+    },
+    {
+      "id": "manual-preemption-preserves-strategy-evidence",
+      "initial": {
+        "branch": "b-1",
+        "dispatch_cursor": "100",
+        "evidence_cursor": "80"
+      },
+      "steps": [
+        {
+          "action": "event",
+          "seq": "101",
+          "event_id": "e-sc",
+          "type": "safety_car"
+        },
+        {
+          "action": "dispatch",
+          "through_seq": "102",
+          "id": "i-1"
+        },
+        {
+          "action": "dispatch_question",
+          "through_seq": "103",
+          "id": "q-1"
+        },
+        {
+          "action": "accept_question",
+          "id": "q-1",
+          "through_seq": "103"
+        },
+        {
+          "action": "dispatch",
+          "through_seq": "106",
+          "id": "i-2"
+        }
+      ],
+      "expected": {
+        "cancelled_id": "i-1",
+        "evidence_cursor": "80",
+        "second_input_event_ids": [
+          "e-sc"
+        ]
+      }
+    },
+    {
+      "id": "new-logical-session-clears-plan",
+      "initial": {
+        "branch": "b-1",
+        "dispatch_cursor": "100",
+        "evidence_cursor": "80",
+        "previous_accepted": "i-0"
+      },
+      "steps": [
+        {
+          "action": "new_session",
+          "session_id": "s-2",
+          "branch": "b-2"
+        }
+      ],
+      "expected": {
+        "dispatch_cursor": null,
+        "evidence_cursor": null,
+        "previous_accepted": null,
+        "opaque_continuation_cleared": true
+      }
+    },
+    {
+      "id": "expired-continuation-resets-next-turn",
+      "initial": {
+        "branch": "b-1",
+        "evidence_cursor": "80",
+        "previous_accepted": "i-0"
+      },
+      "steps": [
+        {
+          "action": "dispatch",
+          "through_seq": "102",
+          "id": "i-1"
+        },
+        {
+          "action": "provider_error",
+          "code": "invalid_continuation"
+        },
+        {
+          "action": "next_trigger",
+          "through_seq": "106",
+          "id": "i-2"
+        }
+      ],
+      "expected": {
+        "same_invocation_retry": false,
+        "opaque_continuation_cleared": true,
+        "portable_accepted_preserved": true,
+        "evidence_cursor": "80"
+      }
+    }
+  ]
+}

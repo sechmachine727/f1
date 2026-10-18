@@ -1,163 +1,59 @@
-import { TyreTelemetry } from "@/components/TyreTelemetry";
-import { EngineTelemetry } from "@/components/EngineTelemetry";
-import { AeroTelemetry } from "@/components/AeroTelemetry";
-import { TyreAlertPanel } from "@/components/TyreAlertPanel";
-import { PuAlertPanel } from "@/components/PuAlertPanel";
-import { DamageAlertPanel } from "@/components/DamageAlertPanel";
-import { RaceEngineerPanel } from "@/components/RaceEngineerPanel";
-import { DriverRadioInput } from "@/components/DriverRadioInput";
-import { TrackMap } from "@/components/TrackMap";
-import { LapTimingPanel } from "@/components/LapTimingPanel";
-import { StandingsPanel } from "@/components/StandingsPanel";
-import { DetailedTyresView } from "@/components/DetailedTyresView";
-import { useSessionTelemetry, formatTimeLeft } from "@/hooks/useSessionTelemetry";
-import { useTyreTelemetry } from "@/hooks/useTyreTelemetry";
-import { usePowerUnitTelemetry } from "@/hooks/usePowerUnitTelemetry";
-import { useAeroTelemetry } from "@/hooks/useAeroTelemetry";
-import { useRaceEngineerReport } from "@/hooks/useRaceEngineerReport";
-import { useTimingData } from "@/hooks/useTimingData";
-import { Flag, Clock, CloudSun, Thermometer, MapPin, CircleParking } from "lucide-react";
-import { useState, useCallback } from "react";
-import type { ReportEntry } from "@/components/ExpandableReportPanel";
-
-const WEATHER_LABELS: Record<number, string> = {
-  0: "Clear", 1: "Light Cloud", 2: "Overcast",
-  3: "Light Rain", 4: "Heavy Rain", 5: "Storm",
-};
-
-const Index = () => {
-  const session = useSessionTelemetry();
-  const { tyreAlerts: { alerts: tyreAlerts, activeCount: tyreActiveCount }, tyresReport, wearHistory, data: tyreData, tyreSets } = useTyreTelemetry();
-  const { puAlerts: { alerts: puAlerts, activeCount: puActiveCount }, puReport } = usePowerUnitTelemetry();
-  const { aeroAlerts: { alerts: aeroAlerts, activeCount: aeroActiveCount }, damageReport } = useAeroTelemetry();
-  const raceEngineerReport = useRaceEngineerReport();
-  const { timing, standings, lapCompleted } = useTimingData();
-  const [detailedTyresOpen, setDetailedTyresOpen] = useState(false);
-  const [driverMessages, setDriverMessages] = useState<ReportEntry[]>([]);
-  const handleDriverSend = useCallback((text: string, time: string) => {
-    setDriverMessages((prev) => [...prev, { text, time, source: "driver" as const }]);
-  }, []);
-
-  const handleSessionReset = useCallback(() => {
-    setDriverMessages([]);
-  }, []);
-
-  const sessionType = session?.sessionType ?? "—";
-  const trackName = session?.trackName ?? "—";
-  const timeLeftStr = session ? formatTimeLeft(session.sessionTimeLeft) : "—";
-  const totalLaps = session?.totalLaps ?? 0;
-
-  return (
-    <div className="h-screen overflow-hidden bg-background p-3 flex flex-col">
-      {/* Header */}
-      <header className="flex items-center justify-between mb-3 pb-2 border-b border-border/50 shrink-0">
-        <div className="flex items-center gap-3">
-          <Flag className="h-4 w-4 text-accent" />
-          <h1 className="font-display text-sm md:text-base font-bold tracking-wider text-foreground">
-            {trackName} — PIT WALL
-          </h1>
-          <span className="font-display text-[10px] font-bold tracking-wider text-accent bg-accent/10 border border-accent/30 px-2 py-0.5 rounded">
-            {sessionType}
-          </span>
-          {session && (
-            <div className="flex items-center gap-1 text-[10px] text-muted-foreground uppercase tracking-wider font-display">
-              <CloudSun className="h-3 w-3 text-primary" />
-              <span>{WEATHER_LABELS[session.weather] ?? "Unknown"}</span>
-            </div>
-          )}
-          {session && (
-            <div className="flex items-center gap-1 text-[10px] text-muted-foreground uppercase tracking-wider font-display">
-              <Thermometer className="h-3 w-3 text-primary" />
-              <span>{session.airTemp}°C AIR</span>
-              <span className="text-border/80">/</span>
-              <MapPin className="h-3 w-3 text-primary" />
-              <span>{session.trackTemp}°C TRACK</span>
-            </div>
-          )}
-        </div>
-        <div className="flex items-center gap-4 text-[10px] text-muted-foreground uppercase tracking-wider font-display">
-          {session && session.pitStatus === 1 && (
-            <div className="flex items-center gap-1.5 bg-warning/20 border border-warning/50 rounded px-2 py-0.5 animate-pulse">
-              <CircleParking className="h-3.5 w-3.5 text-warning" />
-              <span className="text-warning font-bold text-[11px]">PIT IN</span>
-              {session.pitLaneTimerActive && (
-                <span className="text-warning font-bold tabular-nums min-w-[3.5ch] text-right">{(session.pitLaneTimeMs / 1000).toFixed(1)}s</span>
-              )}
-            </div>
-          )}
-          {session && session.pitStatus === 2 && (
-            <div className="flex items-center gap-1.5 bg-accent/20 border border-accent/50 rounded px-2 py-0.5 animate-pulse">
-              <CircleParking className="h-3.5 w-3.5 text-accent" />
-              <span className="text-accent font-bold text-[11px]">PIT BOX</span>
-              {session.pitStopTimeMs > 0 && (
-                <span className="text-accent font-bold tabular-nums">{(session.pitStopTimeMs / 1000).toFixed(1)}s</span>
-              )}
-            </div>
-          )}
-          {session && session.pitStatus === 0 && session.numPitStops > 0 && (
-            <div className="flex items-center gap-1 bg-primary/10 border border-primary/30 rounded px-2 py-0.5">
-              <CircleParking className="h-3 w-3 text-primary" />
-              <span className="text-primary font-bold">PIT &times;{session.numPitStops}</span>
-            </div>
-          )}
-          {session && session.sessionTimeLeft > 0 ? (
-            <div className="flex items-center gap-1">
-              <Clock className="h-3 w-3 text-warning animate-pulse" />
-              <span className="text-warning">{timeLeftStr} LEFT</span>
-            </div>
-          ) : totalLaps > 0 ? (
-            <div className="flex items-center gap-1">
-              <Clock className="h-3 w-3 text-primary" />
-              <span>{totalLaps} LAPS</span>
-            </div>
-          ) : null}
-        </div>
-      </header>
-
-      {/* Telemetry Grid + Alerts */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 mb-3 flex-1 min-h-0">
-        <div className="flex flex-col gap-2 min-h-0">
-          <TyreTelemetry onExpand={() => setDetailedTyresOpen(true)} />
-          <TyreAlertPanel alerts={tyreAlerts} activeCount={tyreActiveCount} engineerResponses={tyresReport.responses} onExpand={() => setDetailedTyresOpen(true)} />
-        </div>
-        <div className="flex flex-col gap-2 min-h-0">
-          <EngineTelemetry />
-          <PuAlertPanel alerts={puAlerts} activeCount={puActiveCount} engineerResponses={puReport.responses} />
-        </div>
-        <div className="flex flex-col gap-2 min-h-0">
-          <AeroTelemetry />
-          <DamageAlertPanel alerts={aeroAlerts} activeCount={aeroActiveCount} engineerResponses={damageReport.responses} />
-        </div>
-      </div>
-
-      {/* Bottom: Race Engineer + Driver Radio | Timing + Standings | Track Map */}
-      <div className="shrink-0 grid grid-cols-1 gap-3 h-[22rem]" style={{ gridTemplateColumns: "1fr 1fr auto 1fr" }}>
-        <div className="lg:col-span-2 flex flex-col gap-2 min-h-0">
-          <RaceEngineerPanel report={raceEngineerReport} driverMessages={driverMessages} className="flex-1 min-h-0" />
-          <DriverRadioInput onSend={handleDriverSend} onSessionReset={handleSessionReset} />
-        </div>
-        <div className="flex flex-col gap-1.5 min-h-0">
-          <LapTimingPanel timing={timing} lapCompleted={lapCompleted} className="flex-1 min-h-0" />
-          <StandingsPanel standings={standings} sessionType={sessionType} className="flex-1 min-h-0" />
-        </div>
-        <div className="min-h-0">
-          <TrackMap />
-        </div>
-      </div>
-
-      <DetailedTyresView
-        open={detailedTyresOpen}
-        onClose={() => setDetailedTyresOpen(false)}
-        tyreData={tyreData}
-        wearHistory={wearHistory}
-        session={session}
-        tyreAlerts={tyreAlerts}
-        tyreActiveCount={tyreActiveCount}
-        engineerResponses={tyresReport.responses}
-        tyreSets={tyreSets}
-      />
-    </div>
-  );
-};
-
-export default Index;
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import { useEffect, useState } from "react";
+import { Drive } from "@/components/Drive";
+import { api, metric, text, useLive } from "@/lib/live";
+import { LineChart, Line, ResponsiveContainer, XAxis, YAxis, Tooltip } from "recharts";
+type Tab = "drive" | "pit" | "history" | "analysis" | "setups" | "settings";
+const tabs: { id: Tab; label: string }[] = [
+  { id: "drive", label: "Drive" }, { id: "pit", label: "Pit wall" }, { id: "history", label: "History" },
+  { id: "analysis", label: "Analysis" }, { id: "setups", label: "Setups" }, { id: "settings", label: "Settings" },
+];
+const nav = "px-3 py-1.5 text-sm rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#4fd48a]";
+function PitWall() {
+  const s = useLive();
+  const cars = Array.from({ length: 24 }, (_, i) => i).filter((i) => metric(s, "car.speed_mps", i) || i === (s.context?.player_car_index ?? 0));
+  return <div className="min-h-screen bg-[#0b0d11] text-neutral-100 p-4">
+    <div className="flex justify-between border border-[#232830] bg-[#11141a] px-4 py-2"><h2 className="text-lg font-semibold">Pit wall · Drivers</h2><span className="text-sm text-neutral-400">{s.context ? "Live · selected session" : "Waiting for telemetry"}</span></div>
+    <table className="w-full mt-3 text-sm border border-[#232830]"><thead className="bg-[#151920] text-neutral-400"><tr><th className="text-left p-2">Pos</th><th className="text-left p-2">Car</th><th className="text-right p-2">Speed</th><th className="text-right p-2">Wear</th><th className="text-right p-2">Fuel</th><th className="text-right p-2">Tyre</th></tr></thead>
+      <tbody>{cars.map((i) => <tr key={i} className="border-t border-[#232830]"><td className="p-2">{text(metric(s, "timing.car_position", i))}</td><td className="p-2">Car {i}{i === s.context?.player_car_index ? " · You" : ""}</td><td className="p-2 text-right tabular-nums">{text(metric(s, "car.speed_mps", i))}</td><td className="p-2 text-right tabular-nums">{text(metric(s, "tyre.fl.wear_pct", i))}</td><td className="p-2 text-right tabular-nums">{text(metric(s, "fuel.finish_margin_laps", i))}</td><td className="p-2 text-right">{text(metric(s, "tyre.compound", i))}</td></tr>)}</tbody></table>
+    
+  </div>;
+}
+function History() {
+  const [items, setItems] = useState<any[]>([]); const [season, setSeason] = useState<string>("2026"); const [error, setError] = useState("");
+  useEffect(() => { const q = season === "unassigned" ? "" : "?season=" + season; api<any>("/sessions" + q).then((d) => setItems(d.items ?? [])).catch((e) => setError(String(e))); }, [season]);
+  return <div className="min-h-screen bg-[#0b0d11] text-neutral-100 p-4"><div className="flex gap-2">{["2025", "2026", "unassigned"].map((t) => <button key={t} onClick={() => setSeason(t)} className={nav + (season === t ? " bg-[#1d3b2c] text-[#4fd48a]" : " bg-[#151920] text-neutral-300")}>{t === "unassigned" ? "Unassigned" : t + " season"}</button>)}</div>
+    {error && <p role="alert" className="mt-3 text-[#f2483c]">{error}</p>}
+    <ul className="mt-3 divide-y divide-[#232830] border border-[#232830]">{items.length === 0 ? <li className="p-4 text-neutral-400">No recorded sessions in this view.</li> : items.map((s) => <li key={s.id} className="p-3 flex justify-between"><span>{s.display_name || s.id} · track {s.track_id ?? "unknown"}</span><span className="text-neutral-400">{s.recording_state} · {s.completeness}</span></li>)}</ul>
+    </div>;
+}
+function Analysis() {
+  const [sessions, setSessions] = useState<any[]>([]); const [series, setSeries] = useState<any[]>([]); const [error, setError] = useState(""); const [busy, setBusy] = useState(false);
+  useEffect(() => { api<any>("/sessions").then((d) => setSessions(d.items ?? [])).catch((e) => setError(String(e))); }, []);
+  async function run() {
+    if (!sessions[0]) return; setBusy(true); setError("");
+    try { const s = sessions[0]; const d = await api<any>("/sessions/" + s.id); const r = await api<any>("/analysis/query", { method: "POST", body: JSON.stringify({ session_id: s.id, branch_id: d.surviving_branch_id, car_indices: [0], channels: ["car.speed_mps"], from_session_time_ms: 0, to_session_time_ms: 1e12, max_points: 300, alignment: "time" }) });
+      setSeries((r.series[0]?.points ?? []).map((p: any) => ({ t: Number(p.session_time_ms ?? 0) / 1000, v: p.measurement.value })));
+    } catch (e) { setError(String(e)); } finally { setBusy(false); }
+  }
+  return <div className="min-h-screen bg-[#0b0d11] text-neutral-100 p-4"><div className="flex gap-3 items-center"><button onClick={run} disabled={busy} className="bg-[#1d3b2c] text-[#4fd48a] px-3 py-1.5 text-sm">{busy ? "Loading…" : "Load selected session"}</button><span className="text-sm text-neutral-400">{sessions[0]?.id ?? "No session"}</span></div>
+    {error && <p role="alert" className="mt-3 text-[#f2483c]">{error}</p>}
+    <div className="h-[420px] mt-4 border border-[#232830] bg-[#11141a] p-3"><ResponsiveContainer width="100%" height="100%"><LineChart data={series}><XAxis dataKey="t" stroke="#777" /><YAxis stroke="#777" /><Tooltip contentStyle={{ background: "#11141a", border: "1px solid #232830" }} /><Line dataKey="v" stroke="#4fd48a" dot={false} /></LineChart></ResponsiveContainer></div>
+    </div>;
+}
+function Setups() {
+  const [items, setItems] = useState<any[]>([]); const [error, setError] = useState("");
+  useEffect(() => { api<any>("/setups").then((d) => setItems(d.items ?? [])).catch((e) => setError(String(e))); }, []);
+  return <div className="min-h-screen bg-[#0b0d11] text-neutral-100 p-4"><h2 className="text-lg">Setups</h2>{error && <p className="text-[#f2483c]">{error}</p>}{items.length === 0 ? <p className="mt-3 text-neutral-400">No setups saved.</p> : items.map((r) => <article key={r.id} className="mt-3 border border-[#232830] p-3"><p>{r.output?.driver_message ?? "Saved recommendation"}</p><p className="text-[12px] text-neutral-500">{r.sources?.length ?? 0} sources · {r.experiments?.length ?? 0} experiments</p></article>)}</div>;
+}
+function Settings() {
+  const [cfg, setCfg] = useState<any>(null); const [error, setError] = useState("");
+  useEffect(() => { api<any>("/config").then(setCfg).catch((e) => setError(String(e))); }, []);
+  return <div className="min-h-screen bg-[#0b0d11] text-neutral-100 p-4"><h2 className="text-lg">Settings</h2>{error && <p className="text-[#f2483c]">{error}</p>}{cfg && <dl className="mt-3 grid grid-cols-2 gap-2 text-sm"><dt className="text-neutral-400">HTTP</dt><dd>{cfg.active_config.http.host}:{cfg.active_config.http.port}</dd><dt className="text-neutral-400">UDP</dt><dd>{cfg.active_config.udp.host}:{cfg.active_config.udp.port}</dd><dt className="text-neutral-400">Recording</dt><dd>{cfg.active_config.recording.enabled ? "enabled" : "disabled"} · cap {Math.round(cfg.active_config.recording.cap_bytes / 1e9)} GB</dd><dt className="text-neutral-400">AI endpoint</dt><dd>{cfg.active_config.agent.endpoint_id ?? "not configured"}</dd><dt className="text-neutral-400">Search</dt><dd>{cfg.active_config.search.provider}</dd><dt className="text-neutral-400">Voice</dt><dd>{cfg.active_config.voice.enabled ? "enabled" : "disabled"}</dd></dl>}</div>;
+}
+export default function Index() {
+  const [tab, setTab] = useState<Tab>("drive");
+  useEffect(() => { document.title = "F1 Telemetry"; }, []);
+  return <div className="min-h-screen bg-[#0b0d11]"><nav aria-label="Workspaces" className="flex gap-1 border-b border-[#232830] bg-[#0d1015] px-3 py-2">{tabs.map((t) => <button key={t.id} onClick={() => setTab(t.id)} aria-current={tab === t.id ? "page" : undefined} className={nav + (tab === t.id ? " bg-[#1d3b2c] text-[#4fd48a]" : " text-neutral-300 hover:bg-[#151920]")}>{t.label}</button>)}</nav>
+    {tab === "drive" ? <Drive /> : tab === "pit" ? <PitWall /> : tab === "history" ? <History /> : tab === "analysis" ? <Analysis /> : tab === "setups" ? <Setups /> : <Settings />}</div>;
+}

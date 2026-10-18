@@ -1,33 +1,24 @@
-# syntax=docker/dockerfile:1
-
-# ---- Stage 1: build the Race Engineer Hub dashboard ----
-FROM node:22-slim AS ui
-WORKDIR /ui
+# syntax=docker/dockerfile:1.7
+FROM node:24-alpine AS web
+WORKDIR /src/race_engineer_hub
 COPY race_engineer_hub/package.json race_engineer_hub/package-lock.json ./
-RUN npm ci --no-audit --no-fund
+RUN npm ci
 COPY race_engineer_hub/ ./
-# Empty by default: the bundle derives ws://<page host>:8765 at runtime.
-ARG VITE_WS_URL=
-ENV VITE_WS_URL=${VITE_WS_URL}
 RUN npm run build
 
-# ---- Stage 2: telemetry bridge + static dashboard ----
-FROM python:3.12-slim
+FROM golang:1.27.1-alpine AS build
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download
+COPY server/ ./server/
+COPY --from=web /src/race_engineer_hub/dist ./server/internal/web/dist
+RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/f1tele ./server/cmd/f1tele
+RUN mkdir -p /out/data && chown 65532:65532 /out/data
 
-ENV PYTHONPATH=/app \
-    PYTHONUNBUFFERED=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1
-
-WORKDIR /app
-
-COPY requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt
-
-COPY . .
-COPY --from=ui /ui/dist ./race_engineer_hub/dist
-
-RUN chmod +x /app/docker/entrypoint.sh
-
-EXPOSE 20777/udp 8765 8081
-
-ENTRYPOINT ["/app/docker/entrypoint.sh"]
+FROM gcr.io/distroless/static-debian12:nonroot
+COPY --from=build /out/f1tele /f1tele
+COPY --from=build --chown=65532:65532 /out/data /data
+USER nonroot:nonroot
+VOLUME ["/data"]
+EXPOSE 8081/tcp 20777/udp
+ENTRYPOINT ["/f1tele","serve","--data-dir","/data"]

@@ -4,12 +4,12 @@ Dependencies: scheduled-race-engineer. Read docs/rework/{master-design,contracts
 
 ## 1. Search and source inspection
 
-- [ ] 1.1 Create setup/search.go adapters and httptest fixtures for Tavily/SearXNG, timeout429/403, malformed JSON and provider-disabled direct URLs. Verify: rtk go test ./server/internal/setup -run TestSearchProviders.
-- [ ] 1.2 Implement fetch.go with HTTP(S)/redirect/body/text limits and inspected/truncated metadata. Test source text containing prompt instructions, an unknown build and fetch failure after a promising snippet. Verify: rtk go test ./server/internal/setup -run TestSourceInspection.
+- [x] 1.1 Create setup/search.go adapters and httptest fixtures for Tavily/SearXNG, timeout429/403, malformed JSON and provider-disabled direct URLs. Verify: rtk go test ./server/internal/setup -run TestSearchProviders.
+- [x] 1.2 Implement fetch.go with HTTP(S)/redirect/body/text limits and inspected/truncated metadata. Test source text containing prompt instructions, an unknown build and fetch failure after a promising snippet. Verify: rtk go test ./server/internal/setup -run TestSourceInspection.
 
 ## 2. Recommendations and experiments
 
-- [ ] 2.1 Register the exact tools.json search/fetch tools only for setup_research; add semantic fixtures for2025-vs2026, race-vsTT, unknown menu bounds and locked adjustments. Verify no live strategy request can call search or mutate game/config state.
+- [x] 2.1 Register the exact tools.json search/fetch tools only for setup_research; add semantic fixtures for2025-vs2026, race-vsTT, unknown menu bounds and locked adjustments. Verify no live strategy request can call search or mutate game/config state.
 - [ ] 2.2 Create history migration002 and setup records/experiment APIs; wire Setups/Analysis to real saved records and outcome comparisons. Verify failed experiments append outcomes without rewriting the source hypothesis, and source numeric settings cite inspected content. Document configuration and player-applied workflow.
 
 ## 3. Change gate

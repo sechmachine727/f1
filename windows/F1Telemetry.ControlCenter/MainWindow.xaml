@@ -1,0 +1,31 @@
+<Window
+    x:Class="F1Telemetry.ControlCenter.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="F1 Telemetry">
+  <Grid Padding="24" RowSpacing="12">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" />
+      <RowDefinition Height="Auto" />
+    </Grid.RowDefinitions>
+    <TextBlock Text="F1 Telemetry" Style="{StaticResource TitleTextBlockStyle}" />
+    <StackPanel Grid.Row="1" Spacing="4">
+      <TextBlock x:Name="StatusText" Text="Starting server…" AutomationProperties.LiveSetting="Polite" />
+      <TextBlock x:Name="DetailText" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+      <TextBlock x:Name="AddressText" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
+      <TextBlock Text="Game UDP target: 127.0.0.1:20777 (or this PC's LAN address). Dashboard: http://127.0.0.1:8081" TextWrapping="Wrap" />
+    </StackPanel>
+    <StackPanel Grid.Row="2" Spacing="8">
+      <TextBlock Text="Voice" Style="{StaticResource SubtitleTextBlockStyle}" />
+      <TextBlock x:Name="VoiceText" Text="Idle" AutomationProperties.Name="Voice state" />
+      <TextBlock Text="Hold Ctrl+Alt+Space to talk. Rebinding is available in Settings. Text questions remain available." TextWrapping="Wrap" />
+    </StackPanel>
+    <StackPanel Grid.Row="3" Orientation="Horizontal" Spacing="8">
+      <Button x:Name="OpenButton" Content="Open dashboard" Click="Open_Click" />
+      <Button x:Name="StopButton" Content="Stop server" Click="Stop_Click" />
+      <Button x:Name="ExitButton" Content="Exit" Click="Exit_Click" />
+    </StackPanel>
+  </Grid>
+</Window>

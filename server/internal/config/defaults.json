@@ -1,0 +1,181 @@
+{
+  "schema_version": "1.0.0",
+  "http": {
+    "host": "0.0.0.0",
+    "port": 8081
+  },
+  "udp": {
+    "host": "0.0.0.0",
+    "port": 20777
+  },
+  "recording": {
+    "enabled": true,
+    "cap_bytes": 107374182400,
+    "free_reserve_bytes": 5368709120,
+    "warn_fraction": 0.8,
+    "queue_bytes": 67108864,
+    "chunk_bytes": 1048576,
+    "chunk_flush_ms": 1000,
+    "rotate_bytes": 268435456,
+    "automatic_cleanup": false
+  },
+  "agent": {
+    "enabled": false,
+    "endpoint_id": null,
+    "endpoints": [],
+    "rules": [
+      {
+        "id": "lap-and-events",
+        "enabled": true,
+        "predicate": {
+          "kind": "any",
+          "children": [
+            {
+              "kind": "lap",
+              "every_completed_laps": 1
+            },
+            {
+              "kind": "event",
+              "event_types": [
+                "pit_window_changed",
+                "rival_pitted",
+                "weather_changed",
+                "safety_car",
+                "virtual_safety_car",
+                "red_flag",
+                "tyre_risk",
+                "fuel_risk",
+                "energy_risk",
+                "damage_changed",
+                "race_control"
+              ]
+            }
+          ]
+        },
+        "filters": {
+          "mode_families": [
+            "career",
+            "solo",
+            "time_trial",
+            "multiplayer",
+            "other",
+            "unknown"
+          ],
+          "car_scope": "player",
+          "minimum_severity": "routine",
+          "validity": "valid"
+        },
+        "cooldown_seconds": 10
+      }
+    ],
+    "minimum_dispatch_gap_seconds": 10,
+    "max_calls_per_hour": 60,
+    "max_tokens_per_hour": 120000,
+    "max_cost_usd_per_hour": null,
+    "live_deadline_ms": 15000,
+    "analysis_deadline_ms": 90000,
+    "context_tokens": 16384,
+    "max_output_tokens": 2048,
+    "max_steps": 4,
+    "max_tool_calls": 8,
+    "continuous": {
+      "enabled": false,
+      "cadence_seconds": 10,
+      "max_minutes": 15
+    }
+  },
+  "notifications": {
+    "routine_gap_seconds": 30,
+    "caution_persistence_ms": 3000,
+    "critical_persistence_ms": 500,
+    "clear_persistence_ms": 5000
+  },
+  "search": {
+    "provider": "disabled",
+    "base_url": null,
+    "api_key_env": null,
+    "max_results": 5
+  },
+  "voice": {
+    "enabled": false,
+    "push_to_talk": "Ctrl+Alt+Space",
+    "transcription_endpoint": null,
+    "transcription_model": null,
+    "speech_endpoint": null,
+    "speech_model": null,
+    "speech_voice": null,
+    "max_utterance_seconds": 30,
+    "transcription_api_key_env": null,
+    "speech_api_key_env": null
+  },
+  "data_dir": null,
+  "reference_profiles": [
+    {
+      "id": "legacy-2025-surface-v1",
+      "label": "Legacy2025 dry surface reference",
+      "channels": [
+        "tyre.fl.surface_c",
+        "tyre.fr.surface_c",
+        "tyre.rl.surface_c",
+        "tyre.rr.surface_c"
+      ],
+      "regulation_seasons": [
+        2025
+      ],
+      "formula_codes": [
+        0
+      ],
+      "actual_compounds": [
+        "C0",
+        "C1",
+        "C2",
+        "C3",
+        "C4",
+        "C5",
+        "C6"
+      ],
+      "cold_below": null,
+      "target_low": null,
+      "target_high": null,
+      "caution_min": 104,
+      "critical_min": 109,
+      "unit": "degC",
+      "calibration_status": "provisional",
+      "source_ids": [
+        "repo:tyre_alert_processor.py:56-64"
+      ],
+      "notes": "Legacy integer UDP thresholds >103C/>108C. No verified cold/target/core optimum. Does not apply automatically to2026.",
+      "enabled": true
+    },
+    {
+      "id": "legacy-wear-v1",
+      "label": "Legacy consumed wear reference",
+      "channels": [
+        "tyre.fl.wear_pct",
+        "tyre.fr.wear_pct",
+        "tyre.rl.wear_pct",
+        "tyre.rr.wear_pct"
+      ],
+      "regulation_seasons": [
+        2025,
+        2026
+      ],
+      "formula_codes": [],
+      "actual_compounds": [],
+      "cold_below": null,
+      "target_low": 0,
+      "target_high": 75,
+      "caution_min": 75,
+      "critical_min": 90,
+      "unit": "%",
+      "calibration_status": "provisional",
+      "source_ids": [
+        "repo:tyre_alert_processor.py:66-70"
+      ],
+      "notes": "Consumed wear thresholds from legacy application, not verified failure limits; all valid compounds when raw wear is available.",
+      "enabled": true
+    }
+  ],
+  "capacity_profiles": [],
+  "track_profiles": []
+}

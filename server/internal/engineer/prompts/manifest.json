@@ -1,0 +1,13 @@
+{
+  "version": "1.0.0",
+  "author": "planning-assistant",
+  "sha256": {
+    "base.md": "5bc3e1997a251d350e5432f59972a4d8586c44e32e5f520487eab880b85c0264",
+    "scheduled-strategy.md": "31eac7d30e98027a08b470c6a1dbb15553b9ef0e4ae631d5ae58fa4a86a87ba3",
+    "continuous-strategy.md": "1ab80f4dfe19c1865ce42beb796a3aee0950f7eee1912ebce35723cc35d8b33f",
+    "live-question.md": "535cf564e6409fdfcbf169f5b82d7249cdb16550a9eeeef2db856e9e0c3905b5",
+    "post-race.md": "5ab876c249dc3da76cdae14cb16b8e04a56437b770fd87dc52616efa5998b692",
+    "setup-research.md": "8527961e3c1d918912b7953efd5b862ed56dcbdce219c6697abb81ffc1e159aa",
+    "tools.json": "a36bf07d043eb79e83c13b46590d09129ee8113b88a4667b4cb3c710f9b02e08"
+  }
+}

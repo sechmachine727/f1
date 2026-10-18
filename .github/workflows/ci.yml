@@ -9,17 +9,95 @@ on:
 permissions:
   contents: read
 
+env:
+  GO_VERSION: "1.27.1"
+  NODE_VERSION: "24"
+
 jobs:
-  test:
-    name: Python tests
+  go:
+    name: Go server
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-go@v6
         with:
-          python-version: "3.12"
-          cache: pip
-      - name: Install dependencies
-        run: pip install -r requirements.txt
-      - name: Run tests
-        run: python -m pytest
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+      - name: Test
+        run: go test -race ./server/...
+      - name: Vet
+        run: go vet ./server/...
+      - name: Build
+        run: go build ./server/cmd/f1tele
+      - name: Cross-build
+        run: |
+          for target in windows/amd64 linux/amd64 linux/arm64; do
+            GOOS=${target%/*} GOARCH=${target#*/} CGO_ENABLED=0 go build -o /tmp/f1tele-${target%/*}-${target#*/} ./server/cmd/f1tele
+          done
+
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: race_engineer_hub
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: race_engineer_hub/package-lock.json
+      - run: npm ci
+      - run: npm run test -- --run
+      - run: npx tsc --noEmit
+      - run: npm run lint
+      - run: npm run build
+
+  artifacts:
+    name: Contract and prompt checks
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v6
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: race_engineer_hub/package-lock.json
+      - name: Install frontend dependencies for the artifact validator
+        working-directory: race_engineer_hub
+        run: npm ci
+      - name: Validate contract artifacts
+        run: python3 docs/rework/validate_artifacts.py
+      - name: Verify prompt manifest
+        run: go test ./server/internal/engineer -run TestPromptBundleMatchesManifest
+
+  windows:
+    name: Windows package (build only)
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v6
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: race_engineer_hub/package-lock.json
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: "10.0.x"
+      - name: Control center tests
+        run: dotnet test windows/F1Telemetry.ControlCenter.Tests
+      - name: Portable ZIP
+        shell: pwsh
+        run: ./windows/package.ps1
+      - uses: actions/upload-artifact@v7
+        with:
+          name: F1Telemetry-windows-x64
+          path: artifacts/F1Telemetry-1.0.0-win-x64.zip
+          if-no-files-found: error

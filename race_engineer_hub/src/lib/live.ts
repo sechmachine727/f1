@@ -1,0 +1,96 @@
+import { useEffect, useState } from "react";
+export type Measurement = { value: number | string | boolean | null; availability: string; unit: string; as_of_ms: number | null; basis: string; source_id: string; confidence: string; reason: string | null };
+export type Metric = { id: string; car_index: number | null; channel: string; measurement: Measurement };
+export type Context = { session_id: string; branch_id: string; track_id: number | null; regulation_season: number | null; mode_family: string; player_car_index: number | null };
+export type Event = { id: string; type: string; severity: string; summary: string };
+export type Alert = { id: string; severity: string; summary: string; acknowledged: boolean; state: string };
+export type Snapshot = { context: Context | null; metrics: Map<string, Metric>; events: Event[]; alerts: Alert[]; status: string | null; connected: boolean; recording: string; seq: number };
+const initial: Snapshot = { context: null, metrics: new Map(), events: [], alerts: [], status: null, connected: false, recording: "idle", seq: 0 };
+let state = initial;
+const listeners = new Set<() => void>();
+let socket: WebSocket | null = null;
+function emit() { listeners.forEach((l) => l()); }
+
+export type StreamMsg = {
+  type: string; seq: string; base_seq: string | null; context: Context | null;
+  metrics: Metric[]; removed_metric_ids: string[]; events: Event[]; alerts: Alert[] | null; status: string | null;
+};
+
+// applyMessage is the whole stream contract: snapshot replaces, delta merges by
+// metric id, explicit removals delete, and a base_seq mismatch asks for a resync.
+export function applyMessage(prev: Snapshot, msg: StreamMsg): { next: Snapshot; resync: boolean } {
+  if (msg.type === "resync_required") return { next: prev, resync: true };
+  const applied = Number(prev.seq);
+  if (msg.type === "delta" && msg.base_seq !== null && Number(msg.base_seq) !== applied) {
+    return { next: prev, resync: true };
+  }
+  const metrics = new Map(prev.metrics);
+  if (msg.type === "snapshot") metrics.clear();
+  for (const m of msg.metrics ?? []) metrics.set(m.id, m);
+  for (const id of msg.removed_metric_ids ?? []) metrics.delete(id);
+  const events = [...prev.events, ...(msg.events ?? [])].slice(-40);
+  return {
+    next: {
+      metrics, events,
+      context: msg.context ?? prev.context,
+      alerts: msg.alerts && msg.alerts.length ? msg.alerts : prev.alerts,
+      status: msg.status ?? prev.status,
+      recording: msg.status ?? prev.recording,
+      seq: Number(msg.seq),
+      connected: prev.connected,
+    },
+    resync: false,
+  };
+}
+function set(patch: Partial<Snapshot>) { state = { ...state, ...patch }; emit(); }
+export function connect() {
+  if (socket) return;
+  const proto = location.protocol === "https:" ? "wss" : "ws";
+  const ws = new WebSocket(proto + "://" + location.host + "/api/v1/stream");
+  socket = ws;
+  ws.onopen = () => {
+    set({ connected: true });
+    ws.send(JSON.stringify({ type: "subscribe", schema_version: "1.0.0", request_id: "ui", source_id: "live", car_indices: [], channels: [], max_hz: 20, after_seq: null }));
+  };
+  ws.onclose = () => { socket = null; set({ connected: false }); setTimeout(connect, 1500); };
+  ws.onerror = () => ws.close();
+  ws.onmessage = (ev) => {
+    const msg = JSON.parse(ev.data) as StreamMsg;
+    const { next, resync } = applyMessage(state, msg);
+    if (resync) {
+      ws.send(JSON.stringify({ type: "subscribe", schema_version: "1.0.0", request_id: "resync", source_id: "live", car_indices: [], channels: [], max_hz: 20, after_seq: null }));
+      return;
+    }
+    set(next);
+  };
+}
+export function useLive(): Snapshot {
+  const [, force] = useState(0);
+  useEffect(() => { const l = () => force((n) => n + 1); listeners.add(l); connect(); return () => { listeners.delete(l); }; }, []);
+  return state;
+}
+export function metric(s: Snapshot, channel: string, car?: number | null): Measurement | null {
+  const idx = car ?? s.context?.player_car_index ?? 0;
+  return s.metrics.get(channel + "@" + idx)?.measurement ?? s.metrics.get(channel)?.measurement ?? null;
+}
+export function value(m: Measurement | null): number | null { return m && m.availability === "available" && typeof m.value === "number" ? m.value : null; }
+export function text(m: Measurement | null): string {
+  if (!m || m.availability !== "available") return "—";
+  return String(m.value);
+}
+export function availabilityLabel(m: Measurement | null): string {
+  if (!m) return "No data";
+  switch (m.availability) {
+    case "available": return "Live";
+    case "stale": return "No update";
+    case "restricted": return "Restricted";
+    case "not_received": return "No data";
+    case "unsupported": return "Unsupported";
+    default: return "Invalid";
+  }
+}
+export async function api<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch("/api/v1" + path, { ...init, headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) } });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({ message: res.statusText }))).message);
+  return res.json();
+}

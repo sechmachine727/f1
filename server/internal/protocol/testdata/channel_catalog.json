@@ -1,0 +1,3512 @@
+[
+ {
+  "name": "aero.active_mode",
+  "unit": "mode",
+  "value_type": "string",
+  "source_fields": [
+   "packet16.m_activeAeroMode"
+  ],
+  "availability_rule": "available when received and fresh",
+  "frequency_class": "high_rate"
+ },
+ {
+  "name": "aero.available",
+  "unit": "flag",
+  "value_type": "boolean",
+  "source_fields": [
+   "packet16.m_activeAeroAvailable"
+  ],
+  "availability_rule": "available when received and fresh",
+  "frequency_class": "status"
+ },
+ {
+  "name": "boost.active",
+  "unit": "flag",
+  "value_type": "boolean",
+  "source_fields": [
+   "packet16.m_overtakeActive"
+  ],
+  "availability_rule": "available when received and fresh",
+  "frequency_class": "high_rate"
+ },
+ {
+  "name": "brake.fl.temp_c",
+  "unit": "degC",
+  "value_type": "number",
+  "source_fields": [
+   "packet6.m_brakesTemperature"
+  ],
+  "availability_rule": "available for the player and unrestricted senders; restricted for participants with m_yourTelemetry=0",
+  "frequency_class": "high_rate"
+ },
+ {
+  "name": "brake.fr.temp_c",
+  "unit": "degC",
+  "value_type": "number",
+  "source_fields": [
+   "packet6.m_brakesTemperature"
+  ],
+  "availability_rule": "available for the player and unrestricted senders; restricted for participants with m_yourTelemetry=0",
+  "frequency_class": "high_rate"
+ },
+ {
+  "name": "brake.rl.temp_c",
+  "unit": "degC",
+  "value_type": "number",
+  "source_fields": [
+   "packet6.m_brakesTemperature"
+  ],
+  "availability_rule": "available for the player and unrestricted senders; restricted for participants with m_yourTelemetry=0",
+  "frequency_class": "high_rate"
+ },
+ {
+  "name": "brake.rr.temp_c",
+  "unit": "degC",
+  "value_type": "number",
+  "source_fields": [
+   "packet6.m_brakesTemperature"
+  ],
+  "availability_rule": "available for the player and unrestricted senders; restricted for participants with m_yourTelemetry=0",
+  "frequency_class": "high_rate"
+ },
+ {
+  "name": "car.brake_fraction",
+  "unit": "fraction",
+  "value_type": "number",
+  "source_fields": [
+   "packet6.m_brake"
+  ],
+  "availability_rule": "available when received and fresh",
+  "frequency_class": "high_rate"
+ },
+ {
+  "name": "car.drs",
+  "unit": "flag",
+  "value_type": "boolean",
+  "source_fields": [
+   "packet6.m_drs"
+  ],
+  "availability_rule": "available when received and fresh",
+  "frequency_class": "high_rate"
+ },
+ {
+  "name": "car.engine_temp_c",
+  "unit": "degC",
+  "value_type": "number",
+  "source_fields": [
+   "packet6.m_engineTemperature"
+  ],
+  "availability_rule": "available when received and fresh",
+  "frequency_class": "status"
+ },
+ {
+  "name": "car.fia_flag",
+  "unit": "flag",
+  "value_type": "integer",
+  "source_fields": [
+   "packet7.m_vehicleFIAFlags"
+  ],
+  "availability_rule": "available when received and fresh",
+  "frequency_class": "status"
+ },
+ {
+  "name": "car.gear",
+  "unit": "gear",
+  "value_type": "integer",
+  "source_fields": [
+   "packet6.m_gear"
+  ],
+  "availability_rule": "available when received and fresh",
+  "frequency_class": "high_rate"
+ },
+ {
+  "name": "car.rpm",
+  "unit": "rpm",
+  "value_type": "integer",
+  "source_fields": [
+   "packet6.m_engineRPM"
+  ],
+  "availability_rule": "available when received and fresh",
+  "frequency_class": "high_rate"
+ },
+ {
+  "name": "car.speed_mps",
+  "unit": "m/s",
+  "value_type": "number",
+  "source_fields": [
+   "packet6.m_speed"
+  ],
+  "availability_rule": "available when received and fresh",
+  "frequency_class": "high_rate"
+ },
+ {
+  "name": "car.steer_fraction",
+  "unit": "fraction",
+  "value_type": "number",
+  "source_fields": [
+   "packet6.m_steer"
+  ],
+  "availability_rule": "available when received and fresh",
+  "frequency_class": "high_rate"
+ },
+ {
+  "name": "car.throttle_fraction",
+  "unit": "fraction",
+  "value_type": "number",
+  "source_fields": [
+   "packet6.m_throttle"
+  ],
+  "availability_rule": "available when received and fresh",
+  "frequency_class": "high_rate"
+ },
+ {
+  "name": "energy.deploy_mode",
+  "unit": "mode",
+  "value_type": "string",
+  "source_fields": [
+   "packet7.m_ersDeployMode"
+  ],
+  "availability_rule": "available for the player and unrestricted senders; restricted for participants with m_yourTelemetry=0",
+  "frequency_class": "high_rate"
+ },
+ {
+  "name": "energy.harvest_limit_j_per_lap",
+  "unit": "J",
+  "value_type": "number",
+  "source_fields": [
+   "packet7.m_ersHarvestLimitPerLap"
+  ],
+  "availability_rule": "available for the player and unrestricted senders; restricted for participants with m_yourTelemetry=0",
+  "frequency_class": "status"
+ },
+ {
+  "name": "energy.store_j",
+  "unit": "J",
+  "value_type": "number",
+  "source_fields": [
+   "packet7.m_ersStoreEnergy"
+  ],
+  "availability_rule": "available for the player and unrestricted senders; restricted for participants with m_yourTelemetry=0",
+  "frequency_class": "high_rate"
+ },
+ {
+  "name": "fuel.capacity_kg",
+  "unit": "kg",
+  "value_type": "number",
+  "source_fields": [
+   "packet7.m_fuelCapacity"
+  ],
+  "availability_rule": "available for the player and unrestricted senders; restricted for participants with m_yourTelemetry=0",
+  "frequency_class": "status"
+ },
+ {
+  "name": "fuel.finish_margin_laps",
+  "unit": "laps",
+  "value_type": "number",
+  "source_fields": [
+   "packet7.m_fuelRemainingLaps"
+  ],
+  "availability_rule": "available for the player and unrestricted senders; restricted for participants with m_yourTelemetry=0",
+  "frequency_class": "status"
+ },
+ {
+  "name": "fuel.mass_kg",
+  "unit": "kg",
+  "value_type": "number",
+  "source_fields": [
+   "packet7.m_fuelInTank"
+  ],
+  "availability_rule": "available for the player and unrestricted senders; restricted for participants with m_yourTelemetry=0",
+  "frequency_class": "status"
+ },
+ {
+  "name": "overtake.eligible",
+  "unit": "flag",
+  "value_type": "boolean",
+  "source_fields": [
+   "packet16.m_overtakeAvailable"
+  ],
+  "availability_rule": "available when received and fresh",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.0.m_gForceLateral",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet0.m_gForceLateral"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.0.m_gForceLongitudinal",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet0.m_gForceLongitudinal"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.0.m_gForceVertical",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet0.m_gForceVertical"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.0.m_pitch",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet0.m_pitch"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.0.m_roll",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet0.m_roll"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.0.m_worldForwardDirX",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet0.m_worldForwardDirX"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.0.m_worldForwardDirY",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet0.m_worldForwardDirY"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.0.m_worldForwardDirZ",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet0.m_worldForwardDirZ"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.0.m_worldPositionX",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet0.m_worldPositionX"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.0.m_worldPositionY",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet0.m_worldPositionY"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.0.m_worldPositionZ",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet0.m_worldPositionZ"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.0.m_worldRightDirX",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet0.m_worldRightDirX"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.0.m_worldRightDirY",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet0.m_worldRightDirY"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.0.m_worldRightDirZ",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet0.m_worldRightDirZ"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.0.m_worldVelocityX",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet0.m_worldVelocityX"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.0.m_worldVelocityY",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet0.m_worldVelocityY"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.0.m_worldVelocityZ",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet0.m_worldVelocityZ"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.0.m_yaw",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet0.m_yaw"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.1.m_DRSAssist",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet1.m_DRSAssist"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.1.m_ERSAssist",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet1.m_ERSAssist"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.1.m_activeAeroTrackStatus",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet1.m_activeAeroTrackStatus"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.1.m_affectsLicenceLevelMP",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet1.m_affectsLicenceLevelMP"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.1.m_affectsLicenceLevelSolo",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet1.m_affectsLicenceLevelSolo"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.1.m_aiDifficulty",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet1.m_aiDifficulty"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.1.m_airTemperatureChange",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet1.m_airTemperatureChange"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.1.m_antiLockBrakesAssist",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet1.m_antiLockBrakesAssist"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.1.m_brakingAssist",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet1.m_brakingAssist"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.1.m_carDamage",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet1.m_carDamage"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.1.m_carDamageRate",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet1.m_carDamageRate"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.1.m_collisions",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet1.m_collisions"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.1.m_collisionsOffForFirstLapOnly",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet1.m_collisionsOffForFirstLapOnly"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.1.m_cornerCuttingStringency",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet1.m_cornerCuttingStringency"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.1.m_dynamicRacingLine",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet1.m_dynamicRacingLine"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.1.m_dynamicRacingLineColourBlind",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet1.m_dynamicRacingLineColourBlind"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.1.m_dynamicRacingLineHiVis",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet1.m_dynamicRacingLineHiVis"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.1.m_dynamicRacingLineType",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet1.m_dynamicRacingLineType"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.1.m_equalCarPerformance",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet1.m_equalCarPerformance"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.1.m_flashbackLimit",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet1.m_flashbackLimit"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.1.m_forecastAccuracy",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet1.m_forecastAccuracy"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.1.m_formationLap",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet1.m_formationLap"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.1.m_formationLapExperience",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet1.m_formationLapExperience"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.1.m_formula",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet1.m_formula"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.1.m_gameMode",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet1.m_gameMode"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.1.m_gamePaused",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet1.m_gamePaused"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.1.m_gearboxAssist",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet1.m_gearboxAssist"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.1.m_isSpectating",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet1.m_isSpectating"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.1.m_lowFuelMode",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet1.m_lowFuelMode"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.1.m_mpOffForGriefing",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet1.m_mpOffForGriefing"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.1.m_mpUnsafePitRelease",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet1.m_mpUnsafePitRelease"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.1.m_networkGame",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet1.m_networkGame"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.1.m_numActiveAeroZonesFull",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet1.m_numActiveAeroZonesFull"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.1.m_numActiveAeroZonesPartial",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet1.m_numActiveAeroZonesPartial"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.1.m_numDRSZones",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet1.m_numDRSZones"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.1.m_numMarshalZones",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet1.m_numMarshalZones"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.1.m_numRedFlagPeriods",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet1.m_numRedFlagPeriods"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.1.m_numSafetyCarPeriods",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet1.m_numSafetyCarPeriods"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.1.m_numSessionsInWeekend",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet1.m_numSessionsInWeekend"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.1.m_numVirtualSafetyCarPeriods",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet1.m_numVirtualSafetyCarPeriods"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.1.m_numWeatherForecastSamples",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet1.m_numWeatherForecastSamples"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.1.m_parcFermeRules",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet1.m_parcFermeRules"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.1.m_pitAssist",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet1.m_pitAssist"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.1.m_pitLaneTyreSim",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet1.m_pitLaneTyreSim"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.1.m_pitReleaseAssist",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet1.m_pitReleaseAssist"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.1.m_pitSpeedLimit",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet1.m_pitSpeedLimit"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.1.m_pitStopExperience",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet1.m_pitStopExperience"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.1.m_pitStopRejoinPosition",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet1.m_pitStopRejoinPosition"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.1.m_pitStopWindowIdealLap",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet1.m_pitStopWindowIdealLap"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.1.m_pitStopWindowLatestLap",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet1.m_pitStopWindowLatestLap"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.1.m_raceStarts",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet1.m_raceStarts"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.1.m_rainPercentage",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet1.m_rainPercentage"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.1.m_recoveryMode",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet1.m_recoveryMode"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.1.m_recurringRewindPrompt",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet1.m_recurringRewindPrompt"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.1.m_redFlags",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet1.m_redFlags"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.1.m_ruleSet",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet1.m_ruleSet"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.1.m_safetyCar",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet1.m_safetyCar"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.1.m_safetyCarExperience",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet1.m_safetyCarExperience"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.1.m_seasonLinkIdentifier",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet1.m_seasonLinkIdentifier"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.1.m_sector2LapDistanceStart",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet1.m_sector2LapDistanceStart"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.1.m_sector3LapDistanceStart",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet1.m_sector3LapDistanceStart"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.1.m_sessionDuration",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet1.m_sessionDuration"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.1.m_sessionLength",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet1.m_sessionLength"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.1.m_sessionLinkIdentifier",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet1.m_sessionLinkIdentifier"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.1.m_sessionTimeLeft",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet1.m_sessionTimeLeft"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.1.m_sessionType",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet1.m_sessionType"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.1.m_sliProNativeSupport",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet1.m_sliProNativeSupport"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.1.m_spectatorCarIndex",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet1.m_spectatorCarIndex"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.1.m_speedUnitsLeadPlayer",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet1.m_speedUnitsLeadPlayer"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.1.m_speedUnitsSecondaryPlayer",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet1.m_speedUnitsSecondaryPlayer"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.1.m_startReactionTime",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet1.m_startReactionTime"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.1.m_steeringAssist",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet1.m_steeringAssist"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.1.m_surfaceType",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet1.m_surfaceType"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.1.m_temperatureUnitsLeadPlayer",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet1.m_temperatureUnitsLeadPlayer"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.1.m_temperatureUnitsSecondaryPlayer",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet1.m_temperatureUnitsSecondaryPlayer"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.1.m_timeOfDay",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet1.m_timeOfDay"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.1.m_timeOffset",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet1.m_timeOffset"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.1.m_totalLaps",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet1.m_totalLaps"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.1.m_trackId",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet1.m_trackId"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.1.m_trackTemperatureChange",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet1.m_trackTemperatureChange"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.1.m_tractionControlAssist",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet1.m_tractionControlAssist"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.1.m_tyreTemperature",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet1.m_tyreTemperature"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.1.m_weekendLinkIdentifier",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet1.m_weekendLinkIdentifier"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.1.m_weekendStructure",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet1.m_weekendStructure"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.1.m_zoneEnd",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet1.m_zoneEnd"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.1.m_zoneFlag",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet1.m_zoneFlag"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.1.m_zoneStart",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet1.m_zoneStart"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.10.m_brakesDamage",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet10.m_brakesDamage"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.10.m_diffuserDamage",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet10.m_diffuserDamage"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.10.m_drsFault",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet10.m_drsFault"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.10.m_engineBlown",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet10.m_engineBlown"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.10.m_engineCEWear",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet10.m_engineCEWear"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.10.m_engineDamage",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet10.m_engineDamage"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.10.m_engineESWear",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet10.m_engineESWear"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.10.m_engineICEWear",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet10.m_engineICEWear"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.10.m_engineMGUHWear",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet10.m_engineMGUHWear"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.10.m_engineMGUKWear",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet10.m_engineMGUKWear"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.10.m_engineSeized",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet10.m_engineSeized"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.10.m_engineTCWear",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet10.m_engineTCWear"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.10.m_ersFault",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet10.m_ersFault"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.10.m_floorDamage",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet10.m_floorDamage"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.10.m_frontLeftWingDamage",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet10.m_frontLeftWingDamage"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.10.m_frontRightWingDamage",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet10.m_frontRightWingDamage"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.10.m_gearBoxDamage",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet10.m_gearBoxDamage"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.10.m_rearWingDamage",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet10.m_rearWingDamage"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.10.m_sidepodDamage",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet10.m_sidepodDamage"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.11.m_bestLapTimeLapNum",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet11.m_bestLapTimeLapNum"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.11.m_bestSector1LapNum",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet11.m_bestSector1LapNum"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.11.m_bestSector2LapNum",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet11.m_bestSector2LapNum"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.11.m_bestSector3LapNum",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet11.m_bestSector3LapNum"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.11.m_carIdx",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet11.m_carIdx"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.11.m_endLap",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet11.m_endLap"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.11.m_lapTimeInMS",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet11.m_lapTimeInMS"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.11.m_lapValidBitFlags",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet11.m_lapValidBitFlags"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.11.m_sector3TimeMSPart",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet11.m_sector3TimeMSPart"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.11.m_sector3TimeMinutesPart",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet11.m_sector3TimeMinutesPart"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.11.m_tyreActualCompound",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet11.m_tyreActualCompound"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.11.m_tyreVisualCompound",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet11.m_tyreVisualCompound"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.12.m_available",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet12.m_available"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.12.m_fitted",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet12.m_fitted"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.12.m_fittedIdx",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet12.m_fittedIdx"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.12.m_lapDeltaTime",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet12.m_lapDeltaTime"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.12.m_lifeSpan",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet12.m_lifeSpan"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.12.m_recommendedSession",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet12.m_recommendedSession"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.12.m_usableLife",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet12.m_usableLife"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.12.m_wear",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet12.m_wear"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.13.m_angularAccelerationX",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet13.m_angularAccelerationX"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.13.m_angularAccelerationY",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet13.m_angularAccelerationY"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.13.m_angularAccelerationZ",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet13.m_angularAccelerationZ"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.13.m_angularVelocityX",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet13.m_angularVelocityX"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.13.m_angularVelocityY",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet13.m_angularVelocityY"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.13.m_angularVelocityZ",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet13.m_angularVelocityZ"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.13.m_chassisPitch",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet13.m_chassisPitch"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.13.m_chassisYaw",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet13.m_chassisYaw"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.13.m_frontAeroHeight",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet13.m_frontAeroHeight"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.13.m_frontRollAngle",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet13.m_frontRollAngle"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.13.m_frontWheelsAngle",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet13.m_frontWheelsAngle"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.13.m_heightOfCOGAboveGround",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet13.m_heightOfCOGAboveGround"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.13.m_localVelocityX",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet13.m_localVelocityX"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.13.m_localVelocityY",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet13.m_localVelocityY"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.13.m_localVelocityZ",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet13.m_localVelocityZ"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.13.m_rearAeroHeight",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet13.m_rearAeroHeight"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.13.m_rearRollAngle",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet13.m_rearRollAngle"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.13.m_suspensionAcceleration",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet13.m_suspensionAcceleration"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.13.m_suspensionPosition",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet13.m_suspensionPosition"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.13.m_suspensionVelocity",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet13.m_suspensionVelocity"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.13.m_wheelCamber",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet13.m_wheelCamber"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.13.m_wheelCamberGain",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet13.m_wheelCamberGain"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.13.m_wheelLatForce",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet13.m_wheelLatForce"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.13.m_wheelLongForce",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet13.m_wheelLongForce"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.13.m_wheelSlipAngle",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet13.m_wheelSlipAngle"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.13.m_wheelSlipRatio",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet13.m_wheelSlipRatio"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.13.m_wheelSpeed",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet13.m_wheelSpeed"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.13.m_wheelVertForce",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet13.m_wheelVertForce"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.14.m_customSetup",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet14.m_customSetup"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.14.m_sector1TimeInMS",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet14.m_sector1TimeInMS"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.14.m_sector2TimeInMS",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet14.m_sector2TimeInMS"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.14.m_sector3TimeInMS",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet14.m_sector3TimeInMS"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.14.m_valid",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet14.m_valid"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.15.m_lapStart",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet15.m_lapStart"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.15.m_positionForVehicleIdx",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet15.m_positionForVehicleIdx"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.16.m_activeAeroActivationDistance",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet16.m_activeAeroActivationDistance"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.16.m_drivingWrongWay",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet16.m_drivingWrongWay"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.16.m_overtakeActivationDistance",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet16.m_overtakeActivationDistance"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.2.m_cornerCuttingWarnings",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet2.m_cornerCuttingWarnings"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.2.m_currentLapInvalid",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet2.m_currentLapInvalid"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.2.m_deltaToCarInFrontMSPart",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet2.m_deltaToCarInFrontMSPart"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.2.m_deltaToCarInFrontMinutesPart",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet2.m_deltaToCarInFrontMinutesPart"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.2.m_deltaToRaceLeaderMSPart",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet2.m_deltaToRaceLeaderMSPart"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.2.m_deltaToRaceLeaderMinutesPart",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet2.m_deltaToRaceLeaderMinutesPart"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.2.m_driverStatus",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet2.m_driverStatus"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.2.m_gridPosition",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet2.m_gridPosition"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.2.m_numPitStops",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet2.m_numPitStops"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.2.m_numUnservedDriveThroughPens",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet2.m_numUnservedDriveThroughPens"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.2.m_numUnservedStopGoPens",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet2.m_numUnservedStopGoPens"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.2.m_penalties",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet2.m_penalties"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.2.m_pitLaneTimeInLaneInMS",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet2.m_pitLaneTimeInLaneInMS"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.2.m_pitLaneTimerActive",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet2.m_pitLaneTimerActive"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.2.m_pitStopShouldServePen",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet2.m_pitStopShouldServePen"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.2.m_pitStopTimerInMS",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet2.m_pitStopTimerInMS"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.2.m_resultStatus",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet2.m_resultStatus"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.2.m_safetyCarDelta",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet2.m_safetyCarDelta"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.2.m_sector",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet2.m_sector"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.2.m_sector1TimeMSPart",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet2.m_sector1TimeMSPart"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.2.m_sector1TimeMinutesPart",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet2.m_sector1TimeMinutesPart"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.2.m_sector2TimeMSPart",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet2.m_sector2TimeMSPart"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.2.m_sector2TimeMinutesPart",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet2.m_sector2TimeMinutesPart"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.2.m_speedTrapFastestLap",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet2.m_speedTrapFastestLap"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.2.m_timeTrialPBCarIdx",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet2.m_timeTrialPBCarIdx"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.2.m_timeTrialRivalCarIdx",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet2.m_timeTrialRivalCarIdx"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.2.m_totalDistance",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet2.m_totalDistance"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.2.m_totalWarnings",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet2.m_totalWarnings"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.3.m_eventStringCode",
+  "unit": "",
+  "value_type": "string",
+  "source_fields": [
+   "packet3.m_eventStringCode"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.4.m_aiControlled",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet4.m_aiControlled"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.4.m_driverId",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet4.m_driverId"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.4.m_liveryColours",
+  "unit": "",
+  "value_type": "string",
+  "source_fields": [
+   "packet4.m_liveryColours"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.4.m_myTeam",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet4.m_myTeam"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.4.m_name",
+  "unit": "",
+  "value_type": "string",
+  "source_fields": [
+   "packet4.m_name"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.4.m_nationality",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet4.m_nationality"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.4.m_networkId",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet4.m_networkId"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.4.m_numActiveCars",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet4.m_numActiveCars"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.4.m_numColours",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet4.m_numColours"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.4.m_platform",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet4.m_platform"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.4.m_raceNumber",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet4.m_raceNumber"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.4.m_showOnlineNames",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet4.m_showOnlineNames"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.4.m_teamId",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet4.m_teamId"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.4.m_techLevel",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet4.m_techLevel"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.4.m_yourTelemetry",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet4.m_yourTelemetry"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.5.m_ballast",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet5.m_ballast"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.5.m_brakeBias",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet5.m_brakeBias"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.5.m_brakePressure",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet5.m_brakePressure"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.5.m_engineBraking",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet5.m_engineBraking"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.5.m_frontAntiRollBar",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet5.m_frontAntiRollBar"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.5.m_frontCamber",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet5.m_frontCamber"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.5.m_frontLeftTyrePressure",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet5.m_frontLeftTyrePressure"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.5.m_frontRightTyrePressure",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet5.m_frontRightTyrePressure"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.5.m_frontSuspension",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet5.m_frontSuspension"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.5.m_frontSuspensionHeight",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet5.m_frontSuspensionHeight"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.5.m_frontToe",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet5.m_frontToe"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.5.m_frontWing",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet5.m_frontWing"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.5.m_fuelLoad",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet5.m_fuelLoad"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.5.m_nextFrontWingValue",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet5.m_nextFrontWingValue"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.5.m_offThrottle",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet5.m_offThrottle"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.5.m_onThrottle",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet5.m_onThrottle"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.5.m_rearAntiRollBar",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet5.m_rearAntiRollBar"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.5.m_rearCamber",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet5.m_rearCamber"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.5.m_rearLeftTyrePressure",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet5.m_rearLeftTyrePressure"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.5.m_rearRightTyrePressure",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet5.m_rearRightTyrePressure"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.5.m_rearSuspension",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet5.m_rearSuspension"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.5.m_rearSuspensionHeight",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet5.m_rearSuspensionHeight"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.5.m_rearToe",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet5.m_rearToe"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.5.m_rearWing",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet5.m_rearWing"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.6.m_clutch",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet6.m_clutch"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.6.m_mfdPanelIndex",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet6.m_mfdPanelIndex"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.6.m_mfdPanelIndexSecondaryPlayer",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet6.m_mfdPanelIndexSecondaryPlayer"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.6.m_revLightsBitValue",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet6.m_revLightsBitValue"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.6.m_revLightsPercent",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet6.m_revLightsPercent"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.6.m_suggestedGear",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet6.m_suggestedGear"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.7.m_antiLockBrakes",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet7.m_antiLockBrakes"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.7.m_drsActivationDistance",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet7.m_drsActivationDistance"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.7.m_drsAllowed",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet7.m_drsAllowed"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.7.m_enginePowerICE",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet7.m_enginePowerICE"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.7.m_enginePowerMGUK",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet7.m_enginePowerMGUK"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.7.m_ersDeployedThisLap",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet7.m_ersDeployedThisLap"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.7.m_ersHarvestedThisLapMGUH",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet7.m_ersHarvestedThisLapMGUH"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.7.m_ersHarvestedThisLapMGUK",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet7.m_ersHarvestedThisLapMGUK"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.7.m_frontBrakeBias",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet7.m_frontBrakeBias"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.7.m_fuelMix",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet7.m_fuelMix"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.7.m_idleRPM",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet7.m_idleRPM"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.7.m_maxGears",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet7.m_maxGears"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.7.m_maxRPM",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet7.m_maxRPM"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.7.m_networkPaused",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet7.m_networkPaused"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.7.m_pitLimiterStatus",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet7.m_pitLimiterStatus"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.7.m_tractionControl",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet7.m_tractionControl"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.7.m_visualTyreCompound",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet7.m_visualTyreCompound"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.8.m_bestLapTimeInMS",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet8.m_bestLapTimeInMS"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.8.m_numCars",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet8.m_numCars"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.8.m_numLaps",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet8.m_numLaps"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.8.m_numPenalties",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet8.m_numPenalties"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.8.m_numTyreStints",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet8.m_numTyreStints"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.8.m_penaltiesTime",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet8.m_penaltiesTime"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.8.m_points",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet8.m_points"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.8.m_position",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet8.m_position"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.8.m_resultReason",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet8.m_resultReason"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.8.m_totalRaceTime",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet8.m_totalRaceTime"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.8.m_tyreStintsActual",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet8.m_tyreStintsActual"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.8.m_tyreStintsEndLaps",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet8.m_tyreStintsEndLaps"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.8.m_tyreStintsVisual",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet8.m_tyreStintsVisual"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.9.m_carNumber",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet9.m_carNumber"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.9.m_numPlayers",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet9.m_numPlayers"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "raw.9.m_readyStatus",
+  "unit": "",
+  "value_type": "number",
+  "source_fields": [
+   "packet9.m_readyStatus"
+  ],
+  "availability_rule": "raw official field; availability follows the packet and restriction rules",
+  "frequency_class": "status"
+ },
+ {
+  "name": "regulation.applies_2026",
+  "unit": "flag",
+  "value_type": "boolean",
+  "source_fields": [
+   "packet16.m_2026Regulations"
+  ],
+  "availability_rule": "available when received and fresh",
+  "frequency_class": "session"
+ },
+ {
+  "name": "session.air_temp_c",
+  "unit": "degC",
+  "value_type": "number",
+  "source_fields": [
+   "packet1.m_airTemperature"
+  ],
+  "availability_rule": "available when received and fresh",
+  "frequency_class": "session"
+ },
+ {
+  "name": "session.safety_car_status",
+  "unit": "code",
+  "value_type": "integer",
+  "source_fields": [
+   "packet1.m_safetyCarStatus"
+  ],
+  "availability_rule": "available when received and fresh",
+  "frequency_class": "session"
+ },
+ {
+  "name": "session.track_length_m",
+  "unit": "m",
+  "value_type": "number",
+  "source_fields": [
+   "packet1.m_trackLength"
+  ],
+  "availability_rule": "available when received and fresh",
+  "frequency_class": "session"
+ },
+ {
+  "name": "session.track_temp_c",
+  "unit": "degC",
+  "value_type": "number",
+  "source_fields": [
+   "packet1.m_trackTemperature"
+  ],
+  "availability_rule": "available when received and fresh",
+  "frequency_class": "session"
+ },
+ {
+  "name": "session.weather",
+  "unit": "code",
+  "value_type": "integer",
+  "source_fields": [
+   "packet1.m_weather"
+  ],
+  "availability_rule": "available when received and fresh",
+  "frequency_class": "session"
+ },
+ {
+  "name": "timing.car_position",
+  "unit": "position",
+  "value_type": "integer",
+  "source_fields": [
+   "packet2.m_carPosition"
+  ],
+  "availability_rule": "available when received and fresh",
+  "frequency_class": "status"
+ },
+ {
+  "name": "timing.current_lap_ms",
+  "unit": "ms",
+  "value_type": "integer",
+  "source_fields": [
+   "packet2.m_currentLapTimeInMS"
+  ],
+  "availability_rule": "available when received and fresh",
+  "frequency_class": "high_rate"
+ },
+ {
+  "name": "timing.current_lap_num",
+  "unit": "lap",
+  "value_type": "integer",
+  "source_fields": [
+   "packet2.m_currentLapNum"
+  ],
+  "availability_rule": "available when received and fresh",
+  "frequency_class": "status"
+ },
+ {
+  "name": "timing.lap_distance_m",
+  "unit": "m",
+  "value_type": "number",
+  "source_fields": [
+   "packet2.m_lapDistance"
+  ],
+  "availability_rule": "available when received and fresh",
+  "frequency_class": "high_rate"
+ },
+ {
+  "name": "timing.lap_ms",
+  "unit": "ms",
+  "value_type": "integer",
+  "source_fields": [
+   "packet2.m_lastLapTimeInMS"
+  ],
+  "availability_rule": "available when received and fresh",
+  "frequency_class": "status"
+ },
+ {
+  "name": "timing.pit_status",
+  "unit": "status",
+  "value_type": "integer",
+  "source_fields": [
+   "packet2.m_pitStatus"
+  ],
+  "availability_rule": "available when received and fresh",
+  "frequency_class": "status"
+ },
+ {
+  "name": "timing.speed_trap_mps",
+  "unit": "m/s",
+  "value_type": "number",
+  "source_fields": [
+   "packet2.m_speedTrapFastestSpeed"
+  ],
+  "availability_rule": "available when received and fresh",
+  "frequency_class": "status"
+ },
+ {
+  "name": "tyre.age_laps",
+  "unit": "laps",
+  "value_type": "integer",
+  "source_fields": [
+   "packet7.m_tyresAgeLaps"
+  ],
+  "availability_rule": "available when received and fresh",
+  "frequency_class": "status"
+ },
+ {
+  "name": "tyre.compound",
+  "unit": "compound",
+  "value_type": "integer",
+  "source_fields": [
+   "packet7.m_actualTyreCompound"
+  ],
+  "availability_rule": "available when received and fresh",
+  "frequency_class": "status"
+ },
+ {
+  "name": "tyre.fl.blisters_pct",
+  "unit": "%",
+  "value_type": "number",
+  "source_fields": [
+   "packet10.m_tyreBlisters"
+  ],
+  "availability_rule": "available for the player and unrestricted senders; restricted for participants with m_yourTelemetry=0",
+  "frequency_class": "status"
+ },
+ {
+  "name": "tyre.fl.core_c",
+  "unit": "degC",
+  "value_type": "number",
+  "source_fields": [
+   "packet6.m_tyresInnerTemperature"
+  ],
+  "availability_rule": "available for the player and unrestricted senders; restricted for participants with m_yourTelemetry=0",
+  "frequency_class": "high_rate"
+ },
+ {
+  "name": "tyre.fl.damage_pct",
+  "unit": "%",
+  "value_type": "number",
+  "source_fields": [
+   "packet10.m_tyresDamage"
+  ],
+  "availability_rule": "available for the player and unrestricted senders; restricted for participants with m_yourTelemetry=0",
+  "frequency_class": "status"
+ },
+ {
+  "name": "tyre.fl.pressure_pa",
+  "unit": "Pa",
+  "value_type": "number",
+  "source_fields": [
+   "packet6.m_tyresPressure"
+  ],
+  "availability_rule": "available for the player and unrestricted senders; restricted for participants with m_yourTelemetry=0",
+  "frequency_class": "high_rate"
+ },
+ {
+  "name": "tyre.fl.surface_c",
+  "unit": "degC",
+  "value_type": "number",
+  "source_fields": [
+   "packet6.m_tyresSurfaceTemperature"
+  ],
+  "availability_rule": "available for the player and unrestricted senders; restricted for participants with m_yourTelemetry=0",
+  "frequency_class": "high_rate"
+ },
+ {
+  "name": "tyre.fl.wear_pct",
+  "unit": "%",
+  "value_type": "number",
+  "source_fields": [
+   "packet10.m_tyresWear"
+  ],
+  "availability_rule": "available for the player and unrestricted senders; restricted for participants with m_yourTelemetry=0",
+  "frequency_class": "status"
+ },
+ {
+  "name": "tyre.fr.blisters_pct",
+  "unit": "%",
+  "value_type": "number",
+  "source_fields": [
+   "packet10.m_tyreBlisters"
+  ],
+  "availability_rule": "available for the player and unrestricted senders; restricted for participants with m_yourTelemetry=0",
+  "frequency_class": "status"
+ },
+ {
+  "name": "tyre.fr.core_c",
+  "unit": "degC",
+  "value_type": "number",
+  "source_fields": [
+   "packet6.m_tyresInnerTemperature"
+  ],
+  "availability_rule": "available for the player and unrestricted senders; restricted for participants with m_yourTelemetry=0",
+  "frequency_class": "high_rate"
+ },
+ {
+  "name": "tyre.fr.damage_pct",
+  "unit": "%",
+  "value_type": "number",
+  "source_fields": [
+   "packet10.m_tyresDamage"
+  ],
+  "availability_rule": "available for the player and unrestricted senders; restricted for participants with m_yourTelemetry=0",
+  "frequency_class": "status"
+ },
+ {
+  "name": "tyre.fr.pressure_pa",
+  "unit": "Pa",
+  "value_type": "number",
+  "source_fields": [
+   "packet6.m_tyresPressure"
+  ],
+  "availability_rule": "available for the player and unrestricted senders; restricted for participants with m_yourTelemetry=0",
+  "frequency_class": "high_rate"
+ },
+ {
+  "name": "tyre.fr.surface_c",
+  "unit": "degC",
+  "value_type": "number",
+  "source_fields": [
+   "packet6.m_tyresSurfaceTemperature"
+  ],
+  "availability_rule": "available for the player and unrestricted senders; restricted for participants with m_yourTelemetry=0",
+  "frequency_class": "high_rate"
+ },
+ {
+  "name": "tyre.fr.wear_pct",
+  "unit": "%",
+  "value_type": "number",
+  "source_fields": [
+   "packet10.m_tyresWear"
+  ],
+  "availability_rule": "available for the player and unrestricted senders; restricted for participants with m_yourTelemetry=0",
+  "frequency_class": "status"
+ },
+ {
+  "name": "tyre.rl.blisters_pct",
+  "unit": "%",
+  "value_type": "number",
+  "source_fields": [
+   "packet10.m_tyreBlisters"
+  ],
+  "availability_rule": "available for the player and unrestricted senders; restricted for participants with m_yourTelemetry=0",
+  "frequency_class": "status"
+ },
+ {
+  "name": "tyre.rl.core_c",
+  "unit": "degC",
+  "value_type": "number",
+  "source_fields": [
+   "packet6.m_tyresInnerTemperature"
+  ],
+  "availability_rule": "available for the player and unrestricted senders; restricted for participants with m_yourTelemetry=0",
+  "frequency_class": "high_rate"
+ },
+ {
+  "name": "tyre.rl.damage_pct",
+  "unit": "%",
+  "value_type": "number",
+  "source_fields": [
+   "packet10.m_tyresDamage"
+  ],
+  "availability_rule": "available for the player and unrestricted senders; restricted for participants with m_yourTelemetry=0",
+  "frequency_class": "status"
+ },
+ {
+  "name": "tyre.rl.pressure_pa",
+  "unit": "Pa",
+  "value_type": "number",
+  "source_fields": [
+   "packet6.m_tyresPressure"
+  ],
+  "availability_rule": "available for the player and unrestricted senders; restricted for participants with m_yourTelemetry=0",
+  "frequency_class": "high_rate"
+ },
+ {
+  "name": "tyre.rl.surface_c",
+  "unit": "degC",
+  "value_type": "number",
+  "source_fields": [
+   "packet6.m_tyresSurfaceTemperature"
+  ],
+  "availability_rule": "available for the player and unrestricted senders; restricted for participants with m_yourTelemetry=0",
+  "frequency_class": "high_rate"
+ },
+ {
+  "name": "tyre.rl.wear_pct",
+  "unit": "%",
+  "value_type": "number",
+  "source_fields": [
+   "packet10.m_tyresWear"
+  ],
+  "availability_rule": "available for the player and unrestricted senders; restricted for participants with m_yourTelemetry=0",
+  "frequency_class": "status"
+ },
+ {
+  "name": "tyre.rr.blisters_pct",
+  "unit": "%",
+  "value_type": "number",
+  "source_fields": [
+   "packet10.m_tyreBlisters"
+  ],
+  "availability_rule": "available for the player and unrestricted senders; restricted for participants with m_yourTelemetry=0",
+  "frequency_class": "status"
+ },
+ {
+  "name": "tyre.rr.core_c",
+  "unit": "degC",
+  "value_type": "number",
+  "source_fields": [
+   "packet6.m_tyresInnerTemperature"
+  ],
+  "availability_rule": "available for the player and unrestricted senders; restricted for participants with m_yourTelemetry=0",
+  "frequency_class": "high_rate"
+ },
+ {
+  "name": "tyre.rr.damage_pct",
+  "unit": "%",
+  "value_type": "number",
+  "source_fields": [
+   "packet10.m_tyresDamage"
+  ],
+  "availability_rule": "available for the player and unrestricted senders; restricted for participants with m_yourTelemetry=0",
+  "frequency_class": "status"
+ },
+ {
+  "name": "tyre.rr.pressure_pa",
+  "unit": "Pa",
+  "value_type": "number",
+  "source_fields": [
+   "packet6.m_tyresPressure"
+  ],
+  "availability_rule": "available for the player and unrestricted senders; restricted for participants with m_yourTelemetry=0",
+  "frequency_class": "high_rate"
+ },
+ {
+  "name": "tyre.rr.surface_c",
+  "unit": "degC",
+  "value_type": "number",
+  "source_fields": [
+   "packet6.m_tyresSurfaceTemperature"
+  ],
+  "availability_rule": "available for the player and unrestricted senders; restricted for participants with m_yourTelemetry=0",
+  "frequency_class": "high_rate"
+ },
+ {
+  "name": "tyre.rr.wear_pct",
+  "unit": "%",
+  "value_type": "number",
+  "source_fields": [
+   "packet10.m_tyresWear"
+  ],
+  "availability_rule": "available for the player and unrestricted senders; restricted for participants with m_yourTelemetry=0",
+  "frequency_class": "status"
+ }
+]
