@@ -87,7 +87,7 @@ export function useTyreTelemetry(): {
   const lastRecordedFractionalLap = useRef<number>(0);
   const lastAppendedLap = useRef<number>(0);
   const prevPitStatus = useRef<number>(0);
-  const prevSessionTime = useRef<number>(0);
+  const prevSessionUid = useRef<number | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout>>();
 
@@ -114,15 +114,13 @@ export function useTyreTelemetry(): {
             setTyreSets(msg.tyreSets);
           }
 
-          // Session reset detection
-          if (msg.sessionTime !== undefined && msg.sessionTime < prevSessionTime.current - 5) {
+          // A flashback rewinds sessionTime; only a new session UID clears history.
+          if (prevSessionUid.current !== null && msg.sessionUid !== prevSessionUid.current) {
             setWearHistory([]);
             lastRecordedFractionalLap.current = 0;
             lastAppendedLap.current = 0;
           }
-          if (msg.sessionTime !== undefined) {
-            prevSessionTime.current = msg.sessionTime;
-          }
+          prevSessionUid.current = msg.sessionUid ?? null;
 
           // Record wear continuously using fractional laps (skip when in pit lane)
           const pitStatus = msg.pitStatus?.pitStatus ?? 0;

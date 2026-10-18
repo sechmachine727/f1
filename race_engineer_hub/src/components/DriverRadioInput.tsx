@@ -18,6 +18,7 @@ function formatSessionTime(seconds: number): string {
 export function DriverRadioInput({ onSend, onSessionReset }: DriverRadioInputProps) {
   const [message, setMessage] = useState("");
   const prevSessionTime = useRef<number>(0);
+  const prevSessionUid = useRef<number | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout>>();
 
@@ -33,10 +34,12 @@ export function DriverRadioInput({ onSend, onSessionReset }: DriverRadioInputPro
         try {
           const msg = JSON.parse(event.data);
           const st = msg.sessionTime ?? 0;
-          if (st < prevSessionTime.current) {
+          // A flashback rewinds sessionTime; only a new UID is a new session.
+          if (prevSessionUid.current !== null && msg.sessionUid !== prevSessionUid.current) {
             onSessionReset?.();
           }
           prevSessionTime.current = st;
+          prevSessionUid.current = msg.sessionUid ?? null;
         } catch {
           // ignore
         }

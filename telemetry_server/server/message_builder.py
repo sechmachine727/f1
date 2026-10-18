@@ -91,7 +91,9 @@ class MessageBuilder:
         marshal_zones = adapter.get_marshal_zones()
         sector_boundaries = adapter.get_sector_boundaries()
 
-        new_pit_alerts = self._pit.process(pit_status, session_time)
+        session_uid = adapter.session_uid
+
+        new_pit_alerts = self._pit.process(pit_status, session_time, session_uid)
         if new_pit_alerts:
             # Add to specialist alert logs for display in all panels
             self._aero.alerts_log.extend(new_pit_alerts)
@@ -106,17 +108,18 @@ class MessageBuilder:
             self._dispatch.race_engineer.queue(formatted)
 
         if self._state_ready_fn():
-            aero_snapshot = {**aero, "sessionTime": session_time}
+            aero_snapshot = {**aero, "sessionTime": session_time, "sessionUid": session_uid}
             new_aero_alerts = self._aero.process(aero_snapshot)
 
             new_tyre_alerts = self._tyre.process({
                 "sessionTime": session_time,
+                "sessionUid": session_uid,
                 "tyres": tyres,
                 "compound": compound,
                 "compoundVisual": compound_visual,
             })
 
-            new_pu_alerts = self._pu.process({**power_unit, "sessionTime": session_time})
+            new_pu_alerts = self._pu.process({**power_unit, "sessionTime": session_time, "sessionUid": session_uid})
         else:
             new_aero_alerts = []
             new_tyre_alerts = []
@@ -163,6 +166,7 @@ class MessageBuilder:
             "lapDistance": lap.get("lapDistance", 0),
             "speed": aero.get("speed", 0),
             "sessionTime": session_time,
+            "sessionUid": session_uid,
             "powerUnit": power_unit,
             "aero": aero,
             "session": session,

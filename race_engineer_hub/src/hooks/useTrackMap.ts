@@ -85,7 +85,7 @@ export function useTrackMap(): TrackMapState | null {
   const staticTrackRef = useRef<StaticTrackData | null>(null);
   const circuitInfoRef = useRef<CircuitInfo | null>(null);
 
-  const prevSessionTimeRef = useRef(0);
+  const prevSessionUidRef = useRef<number | null>(null);
   const prevTrackIdRef = useRef<number>(-1);
 
   useEffect(() => {
@@ -101,18 +101,17 @@ export function useTrackMap(): TrackMapState | null {
         try {
           const msg = JSON.parse(event.data);
           const trackMap = msg.trackMap;
-          const sessionTime: number = msg.sessionTime ?? 0;
           const trackId: number = msg.session?.trackId ?? -1;
           const trackName: string = msg.session?.trackName ?? "";
           const trackLength: number = msg.session?.trackLength ?? 0;
 
-          // Session reset — clear dynamic outline
-          if (sessionTime < prevSessionTimeRef.current) {
+          // A flashback rewinds sessionTime; only a new session UID clears the outline.
+          if (prevSessionUidRef.current !== null && msg.sessionUid !== prevSessionUidRef.current) {
             dynamicOutlineRef.current = [];
             dynamicCompleteRef.current = false;
             maxLapDistRef.current = 0;
           }
-          prevSessionTimeRef.current = sessionTime;
+          prevSessionUidRef.current = msg.sessionUid ?? null;
 
           // Track change — reload static data, reset dynamic outline
           if (trackId !== prevTrackIdRef.current) {

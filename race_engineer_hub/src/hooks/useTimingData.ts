@@ -86,7 +86,7 @@ export function useTimingData(): {
   const [standings, setStandings] = useState<StandingsEntry[]>([]);
   const [lapCompleted, setLapCompleted] = useState(false);
   const prevLapNum = useRef<number>(0);
-  const prevSessionTime = useRef<number>(0);
+  const prevSessionUid = useRef<number | null>(null);
   const flashTimer = useRef<ReturnType<typeof setTimeout>>();
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout>>();
@@ -108,13 +108,11 @@ export function useTimingData(): {
             const t = msg.timing as TimingData;
             const { personalBest: pb, overallBest: ob } = t;
 
-            // Detect session reset and clear color cache
-            if (msg.sessionTime !== undefined && msg.sessionTime < prevSessionTime.current) {
+            // A flashback rewinds sessionTime; only a new session UID clears the cache.
+            if (prevSessionUid.current !== null && msg.sessionUid !== prevSessionUid.current) {
               colorCache.current.clear();
             }
-            if (msg.sessionTime !== undefined) {
-              prevSessionTime.current = msg.sessionTime;
-            }
+            prevSessionUid.current = msg.sessionUid ?? null;
 
             // Snapshot sector colors for completed laps (only once per lap)
             for (const lap of t.lapHistory) {

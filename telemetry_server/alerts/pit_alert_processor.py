@@ -18,28 +18,29 @@ class PitAlertProcessor:
         self._prev_pit_status: int = 0
         self._prev_driver_status: int = 0
         self._initialized: bool = False
-        self.prev_session_time: float = 0.0
+        self.prev_session_uid: int | None = None
 
     def reset(self) -> None:
         """Clear state (e.g. on session change)."""
         self._prev_pit_status = 0
         self._prev_driver_status = 0
         self._initialized = False
-        self.prev_session_time = 0.0
+        self.prev_session_uid = None
 
-    def process(self, pit_data: dict, session_time: float) -> list[dict]:
+    def process(self, pit_data: dict, session_time: float, session_uid: int = 0) -> list[dict]:
         """Check for pit status transitions and return any new alerts.
 
         Args:
             pit_data: Dict from ``TelemetryStateAdapter.get_pit_status()``.
             session_time: Current session time in seconds.
+            session_uid: Current session UID; a change means a real new session.
 
         Returns:
             List of alert dicts (may be empty).
         """
-        if session_time < self.prev_session_time:
+        if self.prev_session_uid is not None and session_uid != self.prev_session_uid:
             self.reset()
-        self.prev_session_time = session_time
+        self.prev_session_uid = session_uid
 
         # Don't process until lap data packet has actually arrived.
         if not pit_data.get("dataAvailable", False):

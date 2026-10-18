@@ -19,24 +19,26 @@ class TyreAlertProcessor:
         """Initialise with empty state."""
         self.conditions: dict = {}
         self.alerts_log: list[dict] = []
-        self.prev_session_time: float = 0.0
+        self.prev_session_uid: int | None = None
         self.prev_compound: str = ""
 
     def reset(self) -> None:
         """Clear all accumulated state (e.g. on session change)."""
         self.conditions.clear()
         self.alerts_log.clear()
-        self.prev_session_time = 0.0
+        self.prev_session_uid = None
         self.prev_compound = ""
 
     def process(self, snapshot: dict) -> list[dict]:
         """Process a tyre snapshot and return any new alerts."""
         st = snapshot.get("sessionTime", 0.0)
+        uid = snapshot.get("sessionUid")
 
-        # Detect new session (session time resets)
-        if st < self.prev_session_time:
+        # A flashback rewinds sessionTime inside one session; only a new UID is a new session.
+        if uid is not None and self.prev_session_uid is not None and uid != self.prev_session_uid:
             self.reset()
-        self.prev_session_time = st
+        if uid is not None:
+            self.prev_session_uid = uid
 
         new_alerts: list[dict] = []
         current_conditions: dict = {}
