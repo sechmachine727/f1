@@ -97,6 +97,36 @@ func TestOutputAcceptance(t *testing.T) {
 	if _, err := ParseAndValidate(mustJSON(t, o), in); err != nil {
 		t.Fatalf("critical with evidence rejected: %v", err)
 	}
+
+	// A pit call must agree with a legal deterministic candidate.
+	start, end, compound := 8, 10, "C3"
+	withEval := inputFixture()
+	withEval.Observation.StrategyEvaluation = &contract.StrategyEvaluation{Context: withEval.Observation.Context, ObservationSeq: "42",
+		Candidates: []contract.StrategyCandidate{{ID: "pit-1", Stops: []contract.PlannedStop{{Lap: 9, Compound: "C3"}}, Legality: "legal"}}}
+	good := base
+	good.Plan = contract.Plan{Action: "pit", PitLapStart: &start, PitLapEnd: &end, Compound: &compound, Alternatives: []string{}}
+	if _, err := ParseAndValidate(mustJSON(t, good), withEval); err != nil {
+		t.Fatalf("matching pit plan rejected: %v", err)
+	}
+	wrongCompound := "C5"
+	bad := good
+	bad.Plan.Compound = &wrongCompound
+	if _, err := ParseAndValidate(mustJSON(t, bad), withEval); err == nil {
+		t.Fatal("pit plan outside the evaluated candidates accepted")
+	}
+	candidate := "pit-9"
+	bad = good
+	bad.Plan.CandidateID = &candidate
+	if _, err := ParseAndValidate(mustJSON(t, bad), withEval); err == nil {
+		t.Fatal("unknown candidate id accepted")
+	}
+
+	// Retire needs direct evidence.
+	retire := base
+	retire.Plan = contract.Plan{Action: "retire", Alternatives: []string{}}
+	if _, err := ParseAndValidate(mustJSON(t, retire), inputFixture()); err == nil {
+		t.Fatal("retire without failure evidence accepted")
+	}
 }
 
 func TestEvaluationCasesRemainByteIdentical(t *testing.T) {

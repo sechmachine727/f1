@@ -66,6 +66,44 @@ func ParseAndValidate(text string, in contract.AgentInput) (contract.AgentOutput
 		if *out.Plan.PitLapStart < 1 || *out.Plan.PitLapEnd < *out.Plan.PitLapStart {
 			return out, fmt.Errorf("%w: invalid pit window", ErrInvalidOutput)
 		}
+		// A pit call must match a deterministic candidate when one was supplied,
+		// so the model cannot invent a window the software did not evaluate.
+		if eval := in.Observation.StrategyEvaluation; eval != nil && len(eval.Candidates) > 0 {
+			matched := false
+			for _, cand := range eval.Candidates {
+				if cand.Legality == "illegal" {
+					continue
+				}
+				for _, stop := range cand.Stops {
+					if stop.Lap >= *out.Plan.PitLapStart && stop.Lap <= *out.Plan.PitLapEnd && stop.Compound == *out.Plan.Compound {
+						matched = true
+					}
+				}
+				if matched && out.Plan.CandidateID != nil && *out.Plan.CandidateID != cand.ID {
+					matched = false
+					continue
+				}
+			}
+			if !matched {
+				return out, fmt.Errorf("%w: pit plan does not match a legal deterministic candidate", ErrInvalidOutput)
+			}
+		}
+	}
+	if out.Plan.Action == "retire" {
+		retired := false
+		for _, e := range in.Observation.Events {
+			if (e.Type == "race_control" || e.Type == "other") && e.Severity == "critical" {
+				retired = true
+			}
+		}
+		for _, m := range in.Observation.Metrics {
+			if m.Measurement.Availability == "available" && m.Measurement.Confidence == "high" && m.Channel == "car.retired" {
+				retired = true
+			}
+		}
+		if !retired {
+			return out, fmt.Errorf("%w: retire needs direct deterministic retirement or failure evidence", ErrInvalidOutput)
+		}
 	}
 	return out, nil
 }
