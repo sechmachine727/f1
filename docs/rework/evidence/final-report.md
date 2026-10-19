@@ -39,6 +39,7 @@ Packaging: multi-stage Dockerfile (distroless, nonroot, writable `/data`), Compo
 | `npx tsc --noEmit`, `npm run lint`, `npm run build` | pass, 0 errors, 13 warnings |
 | `dotnet test windows/F1Telemetry.ControlCenter.Tests` | 9/9 |
 | `docker build -t f1tele:qualification .` | pass, 37.1 MB image |
+| final image health, UDP session, restart persistence | pass: `awaiting_telemetry` to catalogued session, same session after restart |
 
 Focused additions after the first report draft: `go test ./server/internal/analysis -run TestAnalysisSummaries` and `go test ./server/internal/engineer -run 'TestRecordOutcomes|TestPreviousAccepted'` pass, and the full race suite was rerun.
 
