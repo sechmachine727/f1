@@ -7,10 +7,46 @@ export type Event = { id: string; type: string; severity: string; summary: strin
 export type Alert = { id: string; severity: string; summary: string; acknowledged: boolean; state: string };
 export type Snapshot = { context: Context | null; metrics: Map<string, Metric>; events: Event[]; alerts: Alert[]; status: string | null; connected: boolean; recording: string; seq: number };
 const initial: Snapshot = { context: null, metrics: new Map(), events: [], alerts: [], status: null, connected: false, recording: "idle", seq: 0 };
+// Only channels the workspaces render. Subscribing to every canonical channel
+// pushed throttle/steer/brake samples for all 24 cars into the browser.
+const UI_CHANNELS = [
+  "car.speed_mps", "car.gear", "car.rpm", "car.drs", "car.engine_temp_c", "car.team_id", "car.driver_name",
+  "car.wing_front_left_damage_pct", "car.wing_front_right_damage_pct", "car.wing_rear_damage_pct",
+  "car.floor_damage_pct", "car.diffuser_damage_pct", "car.sidepod_damage_pct", "car.gearbox_damage_pct",
+  "car.engine_damage_pct", "car.drs_fault_pct", "car.ers_fault_pct",
+  "tyre.compound", "tyre.age_laps", "fuel.mass_kg", "fuel.capacity_kg", "fuel.finish_margin_laps",
+  "energy.store_j", "energy.deploy_mode", "energy.harvest_limit_j_per_lap", "overtake.eligible",
+  "timing.lap_ms", "timing.current_lap_num", "timing.current_lap_ms", "timing.lap_distance_m",
+  "timing.car_position", "timing.pit_stops", "timing.penalties_s", "timing.warnings",
+  "timing.gap_ahead_s", "timing.gap_leader_s",
+  "session.weather", "session.air_temp_c", "session.track_temp_c", "session.track_length_m",
+  "session.total_laps", "session.safety_car_status",
+  ...["fl", "fr", "rl", "rr"].flatMap((w) => [
+    "tyre." + w + ".surface_c", "tyre." + w + ".core_c", "tyre." + w + ".pressure_pa",
+    "tyre." + w + ".wear_pct", "tyre." + w + ".damage_pct", "tyre." + w + ".blisters_pct",
+    "brake." + w + ".temp_c", "brake." + w + ".damage_pct",
+  ]),
+];
 let state = initial;
+let pending = state;
+let flushTimer: ReturnType<typeof setTimeout> | null = null;
+let pendingObserved = 0;
 const listeners = new Set<() => void>();
 let socket: WebSocket | null = null;
 function emit() { listeners.forEach((l) => l()); }
+
+// Data arrives at 60Hz, but committing React at that rate repaints the whole
+// dashboard 60 times a second for numbers a driver reads at a glance. Coalesce
+// to 10Hz; the latest applied state is what renders, so no sample is skipped.
+function scheduleFlush() {
+  if (flushTimer !== null) return;
+  flushTimer = setTimeout(() => {
+    flushTimer = null;
+    state = pending;
+    emit();
+    recordRender(pendingObserved);
+  }, 100);
+}
 
 export type StreamMsg = {
   type: string; seq: string; base_seq: string | null; context: Context | null;
@@ -25,8 +61,9 @@ export function applyMessage(prev: Snapshot, msg: StreamMsg): { next: Snapshot; 
   if (msg.type === "delta" && msg.base_seq !== null && Number(msg.base_seq) !== applied) {
     return { next: prev, resync: true };
   }
-  const metrics = new Map(prev.metrics);
-  if (msg.type === "snapshot") metrics.clear();
+  // Deltas update the live map in place: the store keeps no old snapshots, and
+  // copying ~1000 entries per message was the largest allocation in the browser.
+  const metrics = msg.type === "snapshot" ? new Map<string, Metric>() : prev.metrics;
   for (const m of msg.metrics ?? []) metrics.set(m.id, m);
   for (const id of msg.removed_metric_ids ?? []) metrics.delete(id);
   const events = [...prev.events, ...(msg.events ?? [])].slice(-40);
@@ -43,7 +80,7 @@ export function applyMessage(prev: Snapshot, msg: StreamMsg): { next: Snapshot; 
     resync: false,
   };
 }
-function set(patch: Partial<Snapshot>) { state = { ...state, ...patch }; emit(); }
+function set(patch: Partial<Snapshot>) { state = { ...state, ...patch }; pending = state; emit(); }
 export function connect() {
   if (socket) return;
   void syncClock();
@@ -52,19 +89,20 @@ export function connect() {
   socket = ws;
   ws.onopen = () => {
     set({ connected: true });
-    ws.send(JSON.stringify({ type: "subscribe", schema_version: "1.0.0", request_id: "ui", source_id: "live", car_indices: Array.from({ length: 24 }, (_, i) => i), channels: [], max_hz: 60, after_seq: null }));
+    ws.send(JSON.stringify({ type: "subscribe", schema_version: "1.0.0", request_id: "ui", source_id: "live", car_indices: Array.from({ length: 24 }, (_, i) => i), channels: UI_CHANNELS, max_hz: 20, after_seq: null }));
   };
   ws.onclose = () => { socket = null; set({ connected: false }); setTimeout(connect, 1500); };
   ws.onerror = () => ws.close();
   ws.onmessage = (ev) => {
     const msg = JSON.parse(ev.data) as StreamMsg;
-    const { next, resync } = applyMessage(state, msg);
+    const { next, resync } = applyMessage(pending, msg);
     if (resync) {
-      ws.send(JSON.stringify({ type: "subscribe", schema_version: "1.0.0", request_id: "resync", source_id: "live", car_indices: Array.from({ length: 24 }, (_, i) => i), channels: [], max_hz: 60, after_seq: null }));
+      ws.send(JSON.stringify({ type: "subscribe", schema_version: "1.0.0", request_id: "resync", source_id: "live", car_indices: Array.from({ length: 24 }, (_, i) => i), channels: UI_CHANNELS, max_hz: 20, after_seq: null }));
       return;
     }
-    set(next);
-    recordRender(msg.observed_at_ms);
+    pending = next;
+    pendingObserved = msg.observed_at_ms ?? pendingObserved;
+    scheduleFlush();
   };
 }
 export function useLive(): Snapshot {

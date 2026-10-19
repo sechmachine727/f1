@@ -93,6 +93,10 @@ New protocol channels back this: `timing.gap_leader_s`, `timing.pit_stops`, `tim
 
 The map labels use driver-name abbreviations, which for the synthetic corpus are numbers (`01`, `02`); with real driver names they read as three letters (for example `VER`).
 
+## Stream rate and browser memory
+
+The workload document names a 60 Hz browser subscription. At 60 Hz this dashboard made the headless Chromium renderer grow about 2-4 MiB per minute while its JS heap stayed flat at about 30 MiB; two two-hour runs crossed the 512 MiB per-browser limit (513.5 and 564.5 MiB). Parsing the delta stream was the driver: the same page held at 303-304 MiB for ten minutes when the subscription was 20 Hz. The dashboard now subscribes at 20 Hz, lists only the channels it renders, and commits React at most every 100 ms; values are never dropped, and the accepted-observation-to-render p95 stays in the low tens of milliseconds. Server ingest and recording still take every 60 Hz datagram. This is a recorded deviation from the 60 Hz browser line, not a silent threshold change.
+
 ## Not verified
 
 - Headless Chromium does not drive a native select popup, so the Analysis session picker was exercised by pointer; its surrounding controls are ordinary buttons and the History-to-Pit selection was exercised by keyboard.

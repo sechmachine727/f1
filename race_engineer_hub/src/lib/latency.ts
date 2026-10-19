@@ -26,7 +26,9 @@ export function stats(): LatencyStats {
 export function recordRender(observedAtMs?: number) {
   if (!observedAtMs) return;
   requestAnimationFrame(() => {
-    samples.push(Date.now() + offset - observedAtMs);
+    // A negative value means the clock handshake over-corrected; clamp it so a
+    // render can never be reported as faster than the observation.
+    samples.push(Math.max(0, Date.now() + offset - observedAtMs));
     if (samples.length > 4096) samples.splice(0, 1024);
   });
 }

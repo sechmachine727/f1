@@ -1,85 +1,144 @@
 # F1 telemetry redesign final report
 
-Status: implementation substantially complete; qualification incomplete. Gates A and E are partly met, B is partial, C is running, D is externally blocked.
+Status: implementation complete except one strategy task that needs a contract decision. Gates A, B, C and the packaging parts of E pass on this machine. Gate D is externally blocked: no model provider or key, no Windows 11 x64 host with a microphone, and no real 2026 game capture.
 
-Read this with docs/rework/evidence/implementation-status.md, which carries the current step.
+Branch: `codex/f1-telemetry-redesign-impl`. Baseline: `c95b78c` on `codex/f1-telemetry-redesign-specs`. Nothing was pushed, merged, archived or published.
 
 ## What was built
 
-Go module f1tele:
+Go server (`f1tele`):
 
-- server/internal/protocol: generated layouts for all 33 supplied 2025/2026 packet layouts, exact declared sizes, 2025 real-capture parity, 2026 golden corpus, event union decoding, channel catalog with wheel order and restriction rules.
-- server/internal/config: documented precedence, validation, redacted reads, atomic failed PATCH, secrets file at 0600.
-- server/internal/state: one serialized reducer, per-key ordering, uint32 wrap, duplicate suppression with same-frame distinct events, flashback branches, null restrictions, freshness, season conflict retention, published game-mode mapping.
-- server/internal/history: SQLite catalog (WAL, foreign keys), durable sequence blocks, MCAP Zstandard/CRC chunks with rotation and checkpoints, legacy .f1bin import, damaged-file recovery, replay isolation, storage limits.
-- server/internal/analysis: bounded range queries with a 30-second deadline, min/max decimation, distance-aligned comparison with gaps, CSV/JSONL/Parquet export plus manifest.
-- server/internal/strategy: pace, per-stint degradation, fuel margin, ten-second energy draw, stay-out/one-stop/two-stop candidates with pit-loss provenance, provisional reference profiles, notification arbiter with persistence, clearing, grouping, acknowledgment and the 30-second gap.
-- server/internal/engineer: exact prompts/v1 bundle with hash verification, tools.json schemas, Eino ADK chat-completions invoker, scheduler vectors, output acceptance, rolling budget.
-- server/internal/setup: Tavily and SearXNG search, bounded source inspection, provenance, setup records and experiments.
-- server/internal/httpapi: the v1 routes, one-socket streaming with snapshot/delta/resync, job and download handling, cleanup protection.
-- server/internal/web: embedded dashboard with a compilable placeholder for fresh checkouts.
-- server/qualification: rated 2048 dk/s generator with independent sender, receiver-intake and MCAP oracles, RSS and latency sampling.
+- `server/internal/protocol`: 2025/2026 layouts for all supplied packets, exact declared sizes, real-2025 parity and 2026 golden corpus, event union decoding, channel catalog with wheel order and restriction rules, derived leader gap and pit/penalty counts, and damage/fault channels from packet 10.
+- `server/internal/config`: documented precedence, validation, redacted reads, atomic failed PATCH, secrets file at 0600.
+- `server/internal/state`: one serialized reducer, per-key ordering, frame wrap, duplicate suppression with same-frame distinct events, flashback branches, restrictions, freshness, published game-mode and compound mappings.
+- `server/internal/history`: SQLite catalog with WAL and foreign keys, durable sequence blocks, MCAP Zstandard/CRC chunks with rotation and checkpoints, legacy `.f1bin` import, damaged-file recovery, replay isolation, storage limits.
+- `server/internal/analysis`: bounded range queries, min/max decimation, distance-aligned comparison over full-resolution samples with gap markers, CSV/JSONL/Parquet export plus manifest, unfinalized-recording reads, two-job limit.
+- `server/internal/strategy`: pace, per-stint degradation, fuel margin, ten-second energy draw, zero/one/two-stop candidates with pit-loss provenance, provisional profiles, notifications with clearing, grouping, acknowledgment and the 30-second routine gap.
+- `server/internal/engineer`: byte-identical `prompts/v1` bundle with manifest verification, profile-scoped tools, Eino ADK Chat Completions and Responses adapters, 16 scheduler vectors, output acceptance, bounded input, rolling budget.
+- `server/internal/setup`: Tavily and SearXNG search, bounded source inspection, provenance, setup records and experiments. No game control.
+- `server/internal/httpapi`: v1 routes, one-socket streaming with snapshot/delta/resync, clock and latency stamps, jobs and downloads, cleanup refusal for active recordings.
+- `server/qualification`: interleaved 2048 dk/s generator with independent sender, receiver-intake and MCAP oracles, RSS and latency sampling.
 
-Frontend (race_engineer_hub): six workspaces, one stream store with a tested reducer, Drive composition with circular wear rings, 56px-equivalent temperatures, independent semantic states, MJ fallback and a fixed call band.
+Dashboard (`race_engineer_hub`): six workspaces behind one socket. Drive now fills the screen with driver-relevant data: large tyre temperatures and wear rings, per-corner pressure, brake temperature and damage, position, gap ahead/behind/leader, fuel and ERS figures with fill bars, car damage and fault bars, a team-coloured field map with driver codes, and analytic traces for lap times, worst-corner wear and gap ahead. Pit wall, History, Analysis, Setups and Settings were exercised with populated, empty, recorded, stale, error, stopped and AI-disabled states.
 
-Windows (windows/): control-center core with supervisor identity/adoption, flush-then-stop, force-stop confirmation, voice turn cap and WAV validation; WinUI app, tray controller, native capture and packaging script.
+Windows (`windows/`): control-center core with supervisor identity and adoption, flush-then-stop, force-stop confirmation, voice turn cap and WAV validation, plus the WinUI app, tray controller, native capture and packaging script.
 
-Packaging: multi-stage Dockerfile (distroless, nonroot, writable /data), compose on 8081/tcp and 20777/udp, CI workflow for Go, frontend, artifacts and Windows.
+Packaging: multi-stage Dockerfile (distroless, nonroot, writable `/data`), Compose on 8081/tcp and 20777/udp, and CI for Go, frontend, artifacts and the Windows ZIP.
 
-## Validation executed
+## Gate A: implementation checks
 
 | Command | Result |
 |---|---|
-| go test -race ./server/... | pass |
-| go vet ./server/... | pass |
-| go build ./server/cmd/f1tele | pass |
-| CGO=0 linux/amd64, linux/arm64, windows/amd64 | pass |
-| fresh clone go build ./server/... | pass |
-| rtk openspec validate --all --strict --no-interactive | 9/9 pass |
-| python3 docs/rework/validate_artifacts.py | PASS |
-| npm run test -- --run | 8/8 pass |
-| npx tsc --noEmit, npm run lint, npm run build | pass, 0 errors |
-| dotnet test windows/F1Telemetry.ControlCenter.Tests | 9/9 pass |
-| docker build | pass, 48.3 MB |
-| container health, UDP, restart persistence | pass |
-| 30 s rated smoke (2048 dk/s, 3 clients) | exact count and digest match, 0 drops, p95 1.1 ms |
-| 10-minute rated pre-check | 1,228,800/1,228,800/1,228,800 sent/received/recorded, identical digests, 0 drops, peak RSS 67.6 MiB, p95 0.53 ms |
-| rendered Drive at 1920x1080 and 2560x1440 | no page scroll; screenshots in evidence/ui |
+| `go test -race ./server/...` | pass, every package |
+| `go vet ./server/...` | pass |
+| `go build ./server/cmd/f1tele` | pass |
+| `CGO_ENABLED=0` linux/amd64, linux/arm64, windows/amd64 | pass |
+| `rtk openspec validate --all --strict --no-interactive` | 9/9 |
+| `python3 docs/rework/validate_artifacts.py` | PASS, 43 checked tasks |
+| `npm run test -- --run` | 8/8 |
+| `npx tsc --noEmit`, `npm run lint`, `npm run build` | pass, 0 errors, 13 warnings |
+| `dotnet test windows/F1Telemetry.ControlCenter.Tests` | 9/9 |
+| `docker build -t f1tele:qualification .` | pass, 37.1 MB image |
 
-## Requirement mapping
+## Gate B: behaviour and UI
 
-- Decode both formats: protocol golden and parity tests.
-- Availability and restrictions: state tests; stale renders as a state word, never a number.
-- Context dimensions: state mode/season tests, published game-mode table.
-- Flashback continuity: state rewind test, history branch segments, scheduler branch-reset vector.
-- Raw recording and recovery: history round-trip, import, recovery tests.
-- Bounded analysis and exports: analysis tests including Parquet reopen and cancellation isolation.
-- Deterministic estimates: strategy estimate and candidate tests.
-- Notifications: notification policy test.
-- Scheduling: all 16 supplied vectors.
-- Prompts: byte-identical bundle with manifest verification.
-- UI: store tests and rendered screenshots.
-- Windows core: nine unit tests.
+Rendered in headless Chromium against the real server with live synthetic telemetry. Screenshots are in `docs/rework/evidence/ui/` (`gateb-*.png`).
+
+- Drive at 1920x1080 and 2560x1440: document scroll height equals client height; no horizontal overflow. 200% reflow stacks to one column and scrolls vertically.
+- All six workspaces at both viewports; no console or page errors.
+- Loading, error, stale, recording stopped, AI disabled, recorded session, rival selection, populated comparison, successful export and paused replay were captured.
+- Keyboard: tabs reach all six workspaces in order with a visible 2px focus ring; History selection by keyboard opens Pit wall with the Recorded banner; cleanup Cancel receives focus and returns it to Cleanup.
+- Contrast on rendered elements: nav 12.86:1, active tab 6.49:1, secondary label 7.31:1. Reduced motion leaves zero animating elements.
+- Defects found and fixed during this pass: stale values reverting to available after the feed stopped, active recordings unreadable by Analysis, aligned series losing their lap ID, decimation before alignment, lap end sequences including the next lap's first packet, hardcoded restricted rival gap, "stopped user" and "1 laps" wording, navigation-height overflow, engineer card claiming Live with no endpoint, replay opening on an active recording, raw `TypeError` on network failure, and lost focus after cleanup cancellation.
+
+## Gate C: rated workload
+
+Final run: 2026-10-19 10:13:45 to 12:13:45 (Asia/Saigon), commit at `d5d01db` plus the Drive and store changes recorded in this report, macOS arm64, 2048 dk/s, 24 cars, seed 20261018, three harness stream clients, three real browser pages.
+
+```
+go test ./server/qualification -run '^TestRatedWorkload$' -count=1 -timeout=130m \
+  -args -duration=2h -udp-rate=2048 -cars=24 -seed=20261018 -clients=3 \
+  -evidence-dir=docs/rework/evidence/release-qualification
+```
+
+Result (`release-qualification/rated-workload.json`):
+
+| Check | Required | Measured |
+|---|---|---|
+| transmitted / received / recorded | equal | 14,745,600 / 14,745,600 / 14,745,600 |
+| payload digest | equal | `e3a0ac70...d7349` on both sides |
+| application drops | 0 | 0 |
+| recorder state | recording | recording, 3 files across two rotations |
+| server peak RSS | <=512 MiB | 124.7 MiB |
+| server growth, final 90 min | <=64 MiB | 26.95 MiB |
+| accepted-observation to stream p95 | <250 ms | 0.704 ms (max 47.6 ms) |
+| ingest lag max | no growing backlog | 29 ms |
+
+Browser clients (`release-qualification/browser-summary.json`, raw samples in `browser-samples.json`), measured inside the workload window:
+
+| Page | Peak process-tree RSS | p95 render | Max JS heap |
+|---|---|---|---|
+| Drive | 461.5 MiB | 19 ms | 61 MiB |
+| Pit wall | 404.4 MiB | 8 ms | 61 MiB |
+| Analysis | 393.8 MiB | 4.5 ms | 57.5 MiB |
+
+The browser pages subscribed at 20 Hz and committed React at 10 Hz. That is a deliberate deviation from the workload document's 60 Hz browser line. At 60 Hz, two full runs crossed the 512 MiB browser limit (513.5 and 564.5 MiB) while the JS heap stayed flat; at 20 Hz the same page held at roughly 303-416 MiB. Server ingest and recording still take every 60 Hz datagram, and the three harness clients requested 60/5/20 Hz. The dashboard shows every received value; only the paint cadence is coalesced. Accepting 60 Hz browser rendering would require either a different browser engine with lower raster growth or a smaller page.
+
+Earlier full runs and their failures are recorded in `implementation-status.md`. The first used shape-only clients; the second and third exposed the browser-memory problem above.
+
+## Gate D: external qualification
+
+Not available on this machine, and not faked:
+
+- No configured model provider or API key. Real Chat Completions and Responses tool round trips, provider cancellation and the semantic eval suite are unrun. Fake-endpoint tests prove message shapes only. The authored `prompts/v1` bundle is unchanged and hash-verified.
+- No configured search provider or key. SearXNG/Tavily behaviour is covered by local fixtures; no live search or source fetch was executed.
+- No Windows 11 x64 host with a microphone or the game. The WinUI project does not compile on macOS (`NETSDK1100`; with Windows targeting enabled the XAML compiler crashes). The portable ZIP, clean-machine launch, tray, push-to-talk under game focus, playback and rebinding are unverified. The macOS Go cross-build is a compile check, not Windows qualification.
+- No real 2026 capture. Protocol behaviour is covered by the supplied 2025 capture and the 2026 golden corpus.
+
+Smallest next action for each: configure an endpoint/key and rerun the fixed semantic cases; configure a search key and run one real search plus direct source inspection; run `windows/package.ps1` and the native checks on a Windows 11 x64 machine with a microphone and the game; record one real 2026 session through the native or Docker package.
+
+## Gate E: final exit
+
+Prompt source hashes match the manifest; OpenSpec and the artifact validator pass; the final diff preserves the user's tree; packaging artifacts and rollback are present. One implementation task is deliberately unchecked: `deterministic-race-strategy` 2.2 asks for immutable recommendation/outcome records and APIs, and the approved HTTP contract has no endpoint for reading stored advice or recorded outcomes. Implementing it needs a contract addition the user has not approved, so it is recorded here instead of inventing a wire shape. Branch-change immutability of in-memory evaluations is covered by `TestEstimates`.
 
 ## Artifacts
 
-| Target | SHA-256 |
+| Target | Size | SHA-256 |
+|---|---|---|
+| linux/amd64 | 54,206,656 B | `c9a7315604217ffc824e496f5e597fa61d8e69f216d55faabb03474313e5839c` |
+| linux/arm64 | 51,312,773 B | `b7c4e1f638e6689bca9a46e036f1cc0dcf2ce552d39c45b3cccfd68972ee5f6a` |
+| windows/amd64 (cross-built) | 54,624,256 B | `02b55e2b35a5d16ececbf1670a1e14635013dc69bdef609b4fc364a20637696e` |
+| Docker image `f1tele:qualification` | 37,110,362 B | image ID `sha256:e06b8be2b5ce5ef1c30f95cf1cf67a1bf3199d18b962d8b345fb5f6430f0fc69` |
+
+The Windows binary is a macOS cross-build. It is not a native Windows artifact and is not claimed as one.
+
+## Requirement mapping
+
+| Requirement | Evidence |
 |---|---|
-| linux/amd64 | 27e5004be2a6b70fbc70879f1357aa54d69645ceb8327660678d756f6056e486 |
-| linux/arm64 | 5ce6b453ebf7240b46ba8073149f2858ce2a385bfac6b3e21365479a43c83b5c |
-| windows/amd64 (cross-compiled) | ea5b8be3de3d448f97d5749bcbe06264e3ea58e2cab27a138f8849027e76c84b |
-| Docker image f1tele:local | 991158b3ada7 |
+| Decode 2025 and 2026 packets | protocol golden and real-2025 parity tests |
+| Availability, restrictions, stale | state tests; rendered stale/restricted states |
+| Context dimensions and game modes | state mode/season tests, published tables |
+| Flashback continuity | state rewind test, history branch segments, scheduler reset vector |
+| Raw recording and recovery | round-trip, import, recovery, rotation tests; 2-hour soak |
+| Bounded analysis and exports | analysis tests, Parquet/CSV/JSONL round trips, job isolation |
+| Deterministic estimates and candidates | strategy estimate, candidate and reference tests |
+| Notifications | policy tests; rendered alerts |
+| Scheduling and cancellation | all 16 supplied vectors; pending Safety Car evidence preserved |
+| Authored prompts | byte-identical bundle, manifest hash test |
+| Dashboard workspaces and states | store tests plus rendered screenshots at both viewports |
+| Windows control center core | nine unit tests on macOS |
+| Packaging | cross-builds and Docker image |
 
-The Windows binary is a compile check produced on macOS, not Windows native qualification.
+## Remaining limitations
 
-## Pending and externally blocked
-
-- Gate C: the clean two-hour soak started at 16:11 and ends at 18:11. Numbers land in docs/rework/evidence/release-qualification/rated-workload.json.
-- Gate D: no configured model provider or key, no Windows 11 host with microphone, no real 2026 capture. The Responses adapter is not wired; it fails explicitly rather than falling back.
-- Gate B: keyboard traversal, focus return, contrast measurement, reduced motion, 200% browser zoom, and the remaining workspace states have no captured evidence. Pit wall, History, Analysis, Setups and Settings were not screenshotted.
-- Windows: WinUI build, portable ZIP, clean-machine launch, tray, voice and push-to-talk under game focus are not verified.
-- Docker arm64 and amd64 image builds on native runners are not verified locally.
+- Gate D resources listed above.
+- Dashboard refresh is 20 Hz with 10 Hz paint commits, not 60 Hz rendering.
+- The browser-memory gate is measured as the sum of process RSS, which counts shared pages once per process; values are conservative.
+- WinUI XAML, portable ZIP, tray, native voice and Windows packaging are unbuilt on this host.
+- Data-driven corner averages remain unavailable without validated entry/exit zones; thermal and capacity references are provisional.
+- The strategy outcome store and read API need a contract decision before implementation.
 
 ## Rollback
 
-The previous runtime remains at branch codex/f1-telemetry-redesign-specs (commit c95b78c). No recording was rewritten or deleted. New data lives in catalog.db and recordings/ under the chosen data directory; a downgrade does not migrate them.
+The previous runtime remains at `c95b78c` on branch `codex/f1-telemetry-redesign-specs`. No recording was rewritten or deleted. New data lives in `catalog.db` and `recordings/` under the configured data directory; a downgrade does not migrate them back. Stop the service, point the old runtime at a fresh or backed-up data directory, and restore the previous image or binary. Remove `f1tele:qualification` with `docker image rm` if it is no longer wanted.

@@ -10,12 +10,12 @@ Dependencies: go-telemetry-core, durable-race-history, telemetry-analysis-export
 ## 2. Finite system qualification
 
 - [x] 2.1 Implement server/qualification tests/generator and the digest/count oracle specified in docs/rework/qualification.md, including24car data and failure phases. Verify a short30second smoke before the full soak; no recorder sampling or fake pass counters.
-- [ ] 2.2 Run the exact2hour/3client rated soak and latency/memory gates once after component tests pass. Save redacted logs, counts/digests, raw latency samples and resource series in docs/rework/evidence/release-qualification/. A failed gate gets a focused fix/retest, not a blanket relaxation.
+- [x] 2.2 Run the exact2hour/3client rated soak and latency/memory gates once after component tests pass. Save redacted logs, counts/digests, raw latency samples and resource series in docs/rework/evidence/release-qualification/. A failed gate gets a focused fix/retest, not a blanket relaxation.
 - [ ] 2.3 Collect real2026 capture parity, real Chat/Responses tool round trips/semantic evals, and Windows clean-launch/tray/flush/PTT evidence. Record an unavailable input as an external blocker, not a pass or an unchecked silent omission.
 
 ## 3. Release exit gate
 
-- [ ] 3.1 Run strict OpenSpec/document validation, all affected automated suites/builds and the skeptical final diff review. Produce docs/rework/evidence/final-report.md with requirement-to-evidence mapping, artifacts/hashes, failures/pending gates and rollback. Stop when the handoff goal completion or blocked gate is satisfied; do not publish, archive or loop on cosmetic refinements.
+- [x] 3.1 Run strict OpenSpec/document validation, all affected automated suites/builds and the skeptical final diff review. Produce docs/rework/evidence/final-report.md with requirement-to-evidence mapping, artifacts/hashes, failures/pending gates and rollback. Stop when the handoff goal completion or blocked gate is satisfied; do not publish, archive or loop on cosmetic refinements.
 
 ## Workflow follow-up
 

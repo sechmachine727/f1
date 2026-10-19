@@ -70,12 +70,12 @@ function Tyre({ pos, s }: { pos: string; s: Snapshot }) {
         <div className="grid grid-cols-2 gap-[0.9em]">
           <div>
             <div className="text-[0.66em] uppercase tracking-wider text-neutral-400">Surface</div>
-            <div className={"text-[2.9em] font-semibold leading-none tabular-nums " + surfState.cls}>{surf == null ? "—" : Math.round(surf)}<span className="align-top text-[0.5em]">°</span></div>
+            <div className={"text-[3.5em] font-semibold leading-none tabular-nums " + surfState.cls}>{surf == null ? "—" : Math.round(surf)}<span className="align-top text-[0.5em]">°</span></div>
             <div className="text-[0.68em] text-neutral-400">{surfState.label}</div>
           </div>
           <div>
             <div className="text-[0.66em] uppercase tracking-wider text-neutral-400">Core</div>
-            <div className={"text-[2.9em] font-semibold leading-none tabular-nums " + coreState.cls}>{core == null ? "—" : Math.round(core)}<span className="align-top text-[0.5em]">°</span></div>
+            <div className={"text-[3.5em] font-semibold leading-none tabular-nums " + coreState.cls}>{core == null ? "—" : Math.round(core)}<span className="align-top text-[0.5em]">°</span></div>
             <div className="text-[0.68em] text-neutral-400">{core == null ? stateLabel(coreM?.availability) : "Provisional"}</div>
           </div>
         </div>
@@ -156,18 +156,23 @@ function Spark({ series }: { series: Series }) {
 
 function FieldMap({ s }: { s: Snapshot }) {
   const length = value(metric(s, "session.track_length_m")) ?? 5000;
+  // The map only needs one refresh a second. Repainting it at the stream rate
+  // was the largest continuously invalidated area on the page.
+  const cache = useRef<{ at: number; cars: { i: number; d: number; pos: number }[] }>({ at: 0, cars: [] });
   const cars: { i: number; d: number; pos: number }[] = [];
   for (let i = 0; i < 24; i++) {
     const d = value(metric(s, "timing.lap_distance_m", i));
     const pos = value(metric(s, "timing.car_position", i));
     if (d != null && pos != null) cars.push({ i, d, pos });
   }
+  if (Date.now() - cache.current.at >= 1000) cache.current = { at: Date.now(), cars };
+  const shown = cache.current.cars.length ? cache.current.cars : cars;
   const player = s.context?.player_car_index ?? 0;
   // Keep near cars apart: three lanes, greedy so no two dots within 5% of the
   // lap share a lane.
   const lanes: number[][] = [[], [], []];
   const laneOf: Record<number, number> = {};
-  for (const c of [...cars].sort((a, b) => a.d - b.d)) {
+  for (const c of [...shown].sort((a, b) => a.d - b.d)) {
     let lane = lanes.findIndex((used) => used.every((d) => Math.abs(d - c.d) / length > 0.05));
     if (lane < 0) lane = c.pos % 3;
     lanes[lane].push(c.d);
@@ -177,11 +182,11 @@ function FieldMap({ s }: { s: Snapshot }) {
     <section className="flex min-h-0 shrink-0 flex-col border border-[#262b33] bg-[#11141a] px-3 py-2" style={{ height: "13em" }}>
       <div className="flex items-baseline justify-between">
         <span className="text-[0.69em] uppercase tracking-wider text-neutral-400">Field map</span>
-        <span className="text-[0.69em] tabular-nums text-neutral-400">{(length / 1000).toFixed(2)} km · {cars.length} positions</span>
+        <span className="text-[0.69em] tabular-nums text-neutral-400">{(length / 1000).toFixed(2)} km · {shown.length} positions</span>
       </div>
       <div className="relative mt-[0.7em] min-h-0 flex-1 rounded-sm border border-[#2a303a] bg-[#0d1015]">
         {[0.25, 0.5, 0.75].map((f) => <span key={f} className="absolute top-0 h-full w-px bg-[#1b2028]" style={{ left: f * 100 + "%" }} />)}
-        {cars.map((c) => {
+        {shown.map((c) => {
           const me = c.i === player;
           const team = teamOf(s, c.i);
           return (
@@ -191,12 +196,12 @@ function FieldMap({ s }: { s: Snapshot }) {
             </span>
           );
         })}
-        {cars.length === 0 ? <span className="absolute inset-0 flex items-center justify-center text-[0.75em] text-neutral-400">Waiting for car positions</span> : null}
+        {shown.length === 0 ? <span className="absolute inset-0 flex items-center justify-center text-[0.75em] text-neutral-400">Waiting for car positions</span> : null}
       </div>
       <div className="mt-1 flex justify-between text-[0.62em] text-neutral-500"><span>Start</span><span>Half distance</span><span>Line</span></div>
       <div className="mt-[0.3em] flex flex-wrap gap-x-2 gap-y-[0.2em] text-[0.58em] text-neutral-400">
-        {[...new Set(cars.map((c) => teamOf(s, c.i).code).filter(Boolean))].map((code) => {
-          const sample = cars.find((c) => teamOf(s, c.i).code === code) as { i: number };
+        {[...new Set(shown.map((c) => teamOf(s, c.i).code).filter(Boolean))].map((code) => {
+          const sample = shown.find((c) => teamOf(s, c.i).code === code) as { i: number };
           return <span key={code} className="flex items-center gap-1"><span className="inline-block h-[0.55em] w-[0.55em] rounded-full" style={{ background: teamOf(s, sample.i).colour }} />{code}</span>;
         })}
       </div>
@@ -283,7 +288,10 @@ export function Drive() {
   const call = s.events.filter((e) => e.severity !== "routine").slice(-1)[0]?.summary ?? s.alerts.find((a) => a.state === "active")?.summary ?? (s.context ? "No current call" : "Waiting for telemetry");
   const rival = rivals(s);
   const gapBehind = rival.behind != null ? value(metric(s, "timing.gap_ahead_s", rival.behind)) : null;
-  const stale = [...s.metrics.values()].some((m) => m.measurement.availability === "stale");
+  // A few representative channels cover the feed; scanning all ~1000 metrics on
+  // every 60Hz render was pure garbage.
+  const stale = [metric(s, "car.speed_mps", p), metric(s, "tyre.fl.surface_c", p), metric(s, "fuel.finish_margin_laps", p)]
+    .some((m) => m?.availability === "stale");
   const remainingLaps = totalLaps != null && currentLap != null ? Math.max(0, totalLaps - currentLap + 1) : null;
 
   // Completed laps come from the catalog so the pace graph shows real lap
@@ -312,7 +320,7 @@ export function Drive() {
   // Local trend ring. Samples are observed values only, one every 500 ms.
   const hist = useRef<{ at: number; gap: number[]; wear: number[]; peak: number }>({ at: 0, gap: [], wear: [], peak: 0 });
   const now = Date.now();
-  if (now - hist.current.at >= 500) {
+  if (now - hist.current.at >= 1000) {
     hist.current.at = now;
     const push = (arr: number[], v: number | null) => { if (v != null) { arr.push(v); if (arr.length > 240) arr.shift(); } };
     push(hist.current.gap, value(gap));
@@ -322,7 +330,7 @@ export function Drive() {
   }
   const series: Series[] = [
     { label: "Lap time", unit: "s", color: "#7fb0ff", values: lapTimes, digits: 3, caption: lapTimes.length ? "Last " + lapTimes.length + " valid laps · best " + Math.min(...lapTimes).toFixed(3) + " s" : "Waiting for a completed valid lap" },
-    { label: "Tyre wear", unit: "% max", color: "#f0a03c", values: hist.current.wear, digits: 1, caption: "Worst corner this stint · rising means degrading" },
+    { label: "Tyre wear", unit: "% max", color: "#f0a03c", values: hist.current.wear, digits: 1, caption: "Worst corner, last 2 minutes" },
     { label: "Gap ahead", unit: "s", color: "#5fd68f", values: hist.current.gap, digits: 1, caption: "Live gap to the car in front" },
   ];
   const ersPeak = hist.current.peak > 0 ? hist.current.peak : energy;
