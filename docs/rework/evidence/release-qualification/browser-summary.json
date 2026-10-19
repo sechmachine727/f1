@@ -1,8 +1,8 @@
 {
  "workload_window": {
-  "started": "2026-10-19T03:14:04.502Z",
-  "ended": "2026-10-19T05:13:45",
-  "base": "http://127.0.0.1:63668",
+  "started": "2026-10-19T05:49:46.555Z",
+  "ended": "2026-10-19T07:49:47",
+  "base": "http://127.0.0.1:51806",
   "flags": [
    "--disable-background-timer-throttling",
    "--disable-renderer-backgrounding",
@@ -12,30 +12,30 @@
    "--js-flags=--max-old-space-size=192"
   ]
  },
- "samples": 103,
+ "samples": 101,
  "peak_mib": {
-  "drive": 461.5,
-  "pit": 404.4,
-  "analysis": 393.8
+  "drive": 467.4,
+  "pit": 365.1,
+  "analysis": 353.2
  },
  "p95_max_ms": {
-  "drive": 19,
-  "pit": 8,
+  "drive": 23,
+  "pit": 18,
   "analysis": 4.5
  },
  "p50_max_ms": {
-  "drive": 9,
-  "pit": 8,
+  "drive": 0,
+  "pit": 18,
   "analysis": 2.5
  },
  "js_heap_max_mb": {
   "drive": 61,
-  "pit": 61,
+  "pit": 54.2,
   "analysis": 57.5
  },
  "analysis_states": [
   "compared",
   "waiting-laps"
  ],
- "post_run_samples_excluded": 3
+ "post_run_samples_excluded": 2
 }

@@ -25,6 +25,9 @@ var migration001 string
 //go:embed migrations/002_setup.sql
 var migration002 string
 
+//go:embed migrations/003_outcomes.sql
+var migration003 string
+
 const seqBlock = 4096
 
 // Catalog is the SQLite session/catalog store. One connection is shared; the
@@ -51,6 +54,10 @@ func OpenCatalog(path string) (*Catalog, error) {
 	if _, err := db.Exec(migration002); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("migrate setup catalog: %w", err)
+	}
+	if _, err := db.Exec(migration003); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("migrate outcome catalog: %w", err)
 	}
 	return &Catalog{db: db}, nil
 }

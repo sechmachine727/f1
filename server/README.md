@@ -75,7 +75,13 @@ Endpoint, model, protocol, or search changes take effect on the next invocation.
 
 ## Race engineer
 
-The server embeds docs/rework/prompts/v1 byte-for-byte and verifies the manifest at runtime. Calls use Eino with the Chat Completions adapter; the Responses adapter is not wired in this build. Tools are read-only and restricted by profile; setup research alone exposes search and fetch.
+The server embeds docs/rework/prompts/v1 byte-for-byte and verifies the manifest at runtime. Calls use Eino with either the Chat Completions or Responses adapter, chosen by the endpoint protocol. Tools are read-only and restricted by profile; setup research alone exposes search and fetch.
+
+Model limits: estimates are deterministic and never wait for the model. A live call has a fixed deadline, a bounded tool-call count and a bounded input (512 metrics; 64 recent plus 64 critical events). A missing endpoint, failed provider, invalid output or expired continuation leaves pending evidence for the next window. Thermal and battery-capacity references are provisional unless the configuration supplies a calibrated capacity profile.
+
+Profile editing: model endpoints, search providers and voice endpoints are configured in `config.json` or with `PATCH /api/v1/config`; secret values go to `secrets.json` and are never returned. Each endpoint names its protocol (`chat_completions` or `responses`) and model. Prompt files are fixed product assets and are not editable at runtime.
+
+Advice and outcomes: accepted advice and its predictions are stored with session and branch identity in the catalog, and an abandoned branch keeps them for review. The next invocation on the surviving branch receives that advice, the evidence cursor, and measured outcomes comparing planned pit laps and compounds with catalogued laps. Outcome rows only move forward in lap coverage, so later evidence never rewrites earlier records, and the original advice is never rewritten. There is no public endpoint for reading outcome rows; the engineer invocation list exposes the stored advice.
 
 Scheduling is software-owned: lap, event, interval, manual and ALL/ANY rules with per-rule cooldowns. Dispatch and evidence cursors are separate, so a failed, cancelled or superseded invocation leaves pending Safety Car and weather evidence for the next window. Rolling 60-minute request and token ceilings block new invocations rather than partially sending them.
 

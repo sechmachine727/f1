@@ -11,7 +11,7 @@ Dependencies: durable-race-history, telemetry-analysis-exports. Read docs/rework
 ## 2. Notifications and outcomes
 
 - [x] 2.1 Create alerts.go/alerts_test.go using a fake monotonic clock. Verify3-second caution,500ms provisional critical, immediate direct failure,5-second clearance,2unit hysteresis,30-second routine gap, grouping, acknowledgment and critical bypass with TestNotificationPolicy.
-- [ ] 2.2 Implement immutable outcome recording and strategy/ack APIs; verify branch changes preserve original advice, current plans reset correctly and predicted/observed discrepancies remain visible. Document model limits and profile editing in server/README.md.
+- [x] 2.2 Implement immutable outcome recording and strategy/ack APIs; verify branch changes preserve original advice, current plans reset correctly and predicted/observed discrepancies remain visible. Document model limits and profile editing in server/README.md.
 
 ## 3. Change gate
 

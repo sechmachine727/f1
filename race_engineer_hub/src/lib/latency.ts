@@ -3,6 +3,7 @@
 export type LatencyStats = { n: number; p50: number; p95: number; max: number };
 const samples: number[] = [];
 let offset = 0;
+let lastObserved = 0;
 
 export async function syncClock() {
   try {
@@ -24,7 +25,10 @@ export function stats(): LatencyStats {
 }
 
 export function recordRender(observedAtMs?: number) {
-  if (!observedAtMs) return;
+  // Only time a frame that carries a new observation. After the feed stops the
+  // last timestamp would otherwise make idle time look like render latency.
+  if (!observedAtMs || observedAtMs === lastObserved) return;
+  lastObserved = observedAtMs;
   requestAnimationFrame(() => {
     // A negative value means the clock handshake over-corrected; clamp it so a
     // render can never be reported as faster than the observation.

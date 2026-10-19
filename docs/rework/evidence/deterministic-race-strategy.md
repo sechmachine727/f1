@@ -6,6 +6,7 @@
     rtk go test ./server/internal/strategy -run TestCandidates
     rtk go test ./server/internal/strategy -run TestReferenceProfiles
     rtk go test ./server/internal/strategy -run TestNotificationPolicy
+    rtk go test ./server/internal/engineer -run 'TestRecordOutcomes|TestPreviousAccepted'
     rtk go test -race ./server/...
 
 All pass on 2026-10-18.
@@ -36,6 +37,14 @@ All pass on 2026-10-18.
 - Non-critical announcements respect the 30-second gap; critical bypasses it.
 - Acknowledgment silences until escalation.
 
+## Advice and outcomes
+
+- Accepted advice is persisted with its session, branch, predictions and plan in the catalog. A branch change stops it being carried forward, while the original row remains for review.
+- `previousAccepted` only reads accepted output from the same session and branch, so a new branch starts with no carried plan and no evidence cursor.
+- Measured outcomes compare the stored plan with catalogued laps completed after the advice: planned versus observed pit lap, planned versus observed compound after the stop, and a closed-window statement when no stop occurred. A missing stop is not claimed while the window is still open.
+- Outcome rows are keyed by invocation and only move forward in lap coverage, so a later observation cannot be rewritten by an older one. The advice itself is never updated.
+- `server/README.md` documents model limits, profile editing, and where advice and outcomes live.
+
 ## Limits
 
-Two units of hysteresis are expressed by the profile bands and a single threshold test, not a separate dead-band knob. Predicted-versus-observed outcome records are not implemented.
+Two units of hysteresis are expressed by the profile bands and a single threshold test, not a separate dead-band knob. Outcome rows are internal evidence: the approved HTTP contract has no read endpoint, so the invocation list is the public view of the stored advice.

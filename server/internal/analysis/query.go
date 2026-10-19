@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"f1tele/server/internal/contract"
@@ -32,6 +33,9 @@ type Engine struct {
 	Catalog *history.Catalog
 	DataDir string
 	Now     func() time.Time
+	
+	summaryMu sync.Mutex
+	summaries map[string]summaryEntry
 }
 
 func Validate(q contract.Query) error {

@@ -44,7 +44,7 @@ func fixture(t *testing.T) (*Engine, string, string) {
 		if i%2 == 1 {
 			pid = 6
 		}
-		cars := map[int]map[string]float64{0: {"m_lapDistance": float64(i) * 20, "m_speed": 200, "m_currentLapNum": 1}}
+		cars := map[int]map[string]float64{0: {"m_lapDistance": float64(i) * 20, "m_totalDistance": float64(i) * 20, "m_speed": 200, "m_currentLapNum": 1, "m_speedTrapFastestSpeed": 300, "m_speedTrapFastestLap": 1}}
 		data := protocol.BuildPacket(2026, pid, protocol.Header{Format: 2026, PacketVersion: 1, SessionUID: 9, SessionTime: float64(i) * 0.1, OverallFrameID: uint32(i)}, nil, cars, nil)
 		rec.Record(uint64(i+1), time.UnixMilli(1_700_000_000_000+int64(i)), data)
 	}
@@ -104,6 +104,63 @@ func TestCompareKeepsInvalidMarkers(t *testing.T) {
 	}
 	if gapped == 0 {
 		t.Fatal("expected gap markers outside the distance range")
+	}
+}
+
+func TestAnalysisSummaries(t *testing.T) {
+	e, _, sid := fixture(t)
+	ctx := context.Background()
+	out, laps, err := e.Summaries(ctx, sid, "b", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.LapCount != 2 || out.Pace.Availability != "available" {
+		t.Fatalf("pace %#v", out)
+	}
+	if out.ObservedTopSpeed.Availability != "available" {
+		t.Fatalf("observed top speed %#v", out.ObservedTopSpeed)
+	}
+	if v, _ := number(out.ObservedTopSpeed.Value); v < 55 || v > 56 {
+		t.Fatalf("top speed = %v m/s", out.ObservedTopSpeed.Value)
+	}
+	if out.TrapBest.Availability != "available" || out.TrapBestLap == nil || *out.TrapBestLap != 1 {
+		t.Fatalf("trap best %#v lap %v", out.TrapBest, out.TrapBestLap)
+	}
+	if v, _ := number(out.TrapBest.Value); v < 83 || v > 84 {
+		t.Fatalf("trap best = %v m/s", out.TrapBest.Value)
+	}
+	if out.LastCleanAverage.Availability != "available" || out.LastCleanAverage.Basis != "derived" {
+		t.Fatalf("last clean average %#v", out.LastCleanAverage)
+	}
+	if out.CornerAverage.Availability != "unsupported" {
+		t.Fatalf("corner average must be unsupported: %#v", out.CornerAverage)
+	}
+	if _, ok := e.cachedSummary(sid, "b", 0, e.summaryCheckpoint(ctx, sid, laps)); !ok {
+		t.Fatal("summary was not cached")
+	}
+	// A new lap changes the raw checkpoint, so the next call must rebuild.
+	l3 := contract.LapSummary{ID: "l3", SessionID: sid, BranchID: "b", CarIndex: 0, Lap: 3, StartSeq: "241", EndSeq: "300",
+		LapTimeMs: contract.Available(91000, "ms", "t"), DistanceM: contract.Unavailable("not_received", "m", "t", "x"),
+		Compound: contract.Available("C3", "compound", "t"), Valid: true, Complete: true, Conditions: "dry", Gaps: []string{}}
+	if err := e.Catalog.InsertLap(ctx, l3); err != nil {
+		t.Fatal(err)
+	}
+	fresh, err := e.Catalog.Laps(ctx, sid, "b", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := e.cachedSummary(sid, "b", 0, e.summaryCheckpoint(ctx, sid, fresh)); ok {
+		t.Fatal("new checkpoint was already cached")
+	}
+	again, _, err := e.Summaries(ctx, sid, "b", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if again.LapCount != 3 {
+		t.Fatalf("cache not invalidated: lap count %d", again.LapCount)
+	}
+	if _, ok := e.cachedSummary(sid, "b", 0, e.summaryCheckpoint(ctx, sid, fresh)); !ok {
+		t.Fatal("rebuilt summary was not cached")
 	}
 }
 

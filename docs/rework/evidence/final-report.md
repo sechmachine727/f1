@@ -1,6 +1,6 @@
 # F1 telemetry redesign final report
 
-Status: implementation complete except one strategy task that needs a contract decision. Gates A, B, C and the packaging parts of E pass on this machine. Gate D is externally blocked: no model provider or key, no Windows 11 x64 host with a microphone, and no real 2026 game capture.
+Status: every implementation task is complete. Gates A, B, C and the packaging parts of E pass on this machine. Gate D is externally blocked: no model provider or key, no Windows 11 x64 host with a microphone, and no real 2026 game capture.
 
 Branch: `codex/f1-telemetry-redesign-impl`. Baseline: `c95b78c` on `codex/f1-telemetry-redesign-specs`. Nothing was pushed, merged, archived or published.
 
@@ -12,9 +12,9 @@ Go server (`f1tele`):
 - `server/internal/config`: documented precedence, validation, redacted reads, atomic failed PATCH, secrets file at 0600.
 - `server/internal/state`: one serialized reducer, per-key ordering, frame wrap, duplicate suppression with same-frame distinct events, flashback branches, restrictions, freshness, published game-mode and compound mappings.
 - `server/internal/history`: SQLite catalog with WAL and foreign keys, durable sequence blocks, MCAP Zstandard/CRC chunks with rotation and checkpoints, legacy `.f1bin` import, damaged-file recovery, replay isolation, storage limits.
-- `server/internal/analysis`: bounded range queries, min/max decimation, distance-aligned comparison over full-resolution samples with gap markers, CSV/JSONL/Parquet export plus manifest, unfinalized-recording reads, two-job limit.
+- `server/internal/analysis`: bounded range queries, min/max decimation, distance-aligned comparison over full-resolution samples with gap markers, CSV/JSONL/Parquet export plus manifest, unfinalized-recording reads, two-job limit, and cached race summaries with observed top speed, packet-2 trap best and lap attribution, last clean-lap distance over time, and an explicit unsupported corner average.
 - `server/internal/strategy`: pace, per-stint degradation, fuel margin, ten-second energy draw, zero/one/two-stop candidates with pit-loss provenance, provisional profiles, notifications with clearing, grouping, acknowledgment and the 30-second routine gap.
-- `server/internal/engineer`: byte-identical `prompts/v1` bundle with manifest verification, profile-scoped tools, Eino ADK Chat Completions and Responses adapters, 16 scheduler vectors, output acceptance, bounded input, rolling budget.
+- `server/internal/engineer`: byte-identical `prompts/v1` bundle with manifest verification, profile-scoped tools, Eino ADK Chat Completions and Responses adapters, 16 scheduler vectors, output acceptance, bounded input, rolling budget, branch-scoped previous advice, and forward-only measured-outcome records.
 - `server/internal/setup`: Tavily and SearXNG search, bounded source inspection, provenance, setup records and experiments. No game control.
 - `server/internal/httpapi`: v1 routes, one-socket streaming with snapshot/delta/resync, clock and latency stamps, jobs and downloads, cleanup refusal for active recordings.
 - `server/qualification`: interleaved 2048 dk/s generator with independent sender, receiver-intake and MCAP oracles, RSS and latency sampling.
@@ -40,6 +40,8 @@ Packaging: multi-stage Dockerfile (distroless, nonroot, writable `/data`), Compo
 | `dotnet test windows/F1Telemetry.ControlCenter.Tests` | 9/9 |
 | `docker build -t f1tele:qualification .` | pass, 37.1 MB image |
 
+Focused additions after the first report draft: `go test ./server/internal/analysis -run TestAnalysisSummaries` and `go test ./server/internal/engineer -run 'TestRecordOutcomes|TestPreviousAccepted'` pass, and the full race suite was rerun.
+
 ## Gate B: behaviour and UI
 
 Rendered in headless Chromium against the real server with live synthetic telemetry. Screenshots are in `docs/rework/evidence/ui/` (`gateb-*.png`).
@@ -53,7 +55,7 @@ Rendered in headless Chromium against the real server with live synthetic teleme
 
 ## Gate C: rated workload
 
-Final run: 2026-10-19 10:13:45 to 12:13:45 (Asia/Saigon), commit at `d5d01db` plus the Drive and store changes recorded in this report, macOS arm64, 2048 dk/s, 24 cars, seed 20261018, three harness stream clients, three real browser pages.
+Final run: 2026-10-19 12:49:46 to 14:49:46 (Asia/Saigon), final tree including the outcome and summary work, macOS arm64, 2048 dk/s, 24 cars, seed 20261018, three harness stream clients, three real browser pages.
 
 ```
 go test ./server/qualification -run '^TestRatedWorkload$' -count=1 -timeout=130m \
@@ -69,20 +71,22 @@ Result (`release-qualification/rated-workload.json`):
 | payload digest | equal | `e3a0ac70...d7349` on both sides |
 | application drops | 0 | 0 |
 | recorder state | recording | recording, 3 files across two rotations |
-| server peak RSS | <=512 MiB | 124.7 MiB |
-| server growth, final 90 min | <=64 MiB | 26.95 MiB |
-| accepted-observation to stream p95 | <250 ms | 0.704 ms (max 47.6 ms) |
-| ingest lag max | no growing backlog | 29 ms |
+| server peak RSS | <=512 MiB | 121.4 MiB |
+| server growth, final 90 min | <=64 MiB | 26.46 MiB |
+| accepted-observation to stream p95 | <250 ms | 0.781 ms (max 71.5 ms) |
+| ingest lag max | no growing backlog | 93 ms |
 
 Browser clients (`release-qualification/browser-summary.json`, raw samples in `browser-samples.json`), measured inside the workload window:
 
 | Page | Peak process-tree RSS | p95 render | Max JS heap |
 |---|---|---|---|
-| Drive | 461.5 MiB | 19 ms | 61 MiB |
-| Pit wall | 404.4 MiB | 8 ms | 61 MiB |
-| Analysis | 393.8 MiB | 4.5 ms | 57.5 MiB |
+| Drive | 467.4 MiB | 23 ms | 61 MiB |
+| Pit wall | 365.1 MiB | 18 ms | 54.2 MiB |
+| Analysis | 353.2 MiB | 4.5 ms | 57.5 MiB |
 
 The browser pages subscribed at 20 Hz and committed React at 10 Hz. That is a deliberate deviation from the workload document's 60 Hz browser line. At 60 Hz, two full runs crossed the 512 MiB browser limit (513.5 and 564.5 MiB) while the JS heap stayed flat; at 20 Hz the same page held at roughly 303-416 MiB. Server ingest and recording still take every 60 Hz datagram, and the three harness clients requested 60/5/20 Hz. The dashboard shows every received value; only the paint cadence is coalesced. Accepting 60 Hz browser rendering would require either a different browser engine with lower raster growth or a smaller page.
+
+The latency probe now records only frames that carry a new observation timestamp. Before that guard, the two samples after the sender stopped timed an already-stale observation and reported 17-20 s; those two teardown samples are excluded from the workload summary, and live samples were unaffected because each render followed at least one new observation. A 30-second spot check with live telemetry reported 46 ms p95.
 
 Earlier full runs and their failures are recorded in `implementation-status.md`. The first used shape-only clients; the second and third exposed the browser-memory problem above.
 
@@ -99,16 +103,16 @@ Smallest next action for each: configure an endpoint/key and rerun the fixed sem
 
 ## Gate E: final exit
 
-Prompt source hashes match the manifest; OpenSpec and the artifact validator pass; the final diff preserves the user's tree; packaging artifacts and rollback are present. One implementation task is deliberately unchecked: `deterministic-race-strategy` 2.2 asks for immutable recommendation/outcome records and APIs, and the approved HTTP contract has no endpoint for reading stored advice or recorded outcomes. Implementing it needs a contract addition the user has not approved, so it is recorded here instead of inventing a wire shape. Branch-change immutability of in-memory evaluations is covered by `TestEstimates`.
+Prompt source hashes match the manifest; OpenSpec and the artifact validator pass; the final diff preserves the user's tree; packaging artifacts and rollback are present. `deterministic-race-strategy` 2.2 is complete: accepted advice is stored with session and branch identity, `previousAccepted` is branch-scoped, measured outcomes compare the plan with observed pit laps and compounds, and outcome rows only move forward in lap coverage. Tests: `TestRecordOutcomesComparesPlanWithObservedLaps`, `TestRecordOutcomesWaitsForClosedWindow`, `TestPreviousAcceptedIsBranchScoped`. The approved HTTP contract has no read endpoint for outcomes, so the invocation list remains the public view of stored advice and the outcome rows are internal evidence.
 
 ## Artifacts
 
 | Target | Size | SHA-256 |
 |---|---|---|
-| linux/amd64 | 54,206,656 B | `c9a7315604217ffc824e496f5e597fa61d8e69f216d55faabb03474313e5839c` |
-| linux/arm64 | 51,312,773 B | `b7c4e1f638e6689bca9a46e036f1cc0dcf2ce552d39c45b3cccfd68972ee5f6a` |
-| windows/amd64 (cross-built) | 54,624,256 B | `02b55e2b35a5d16ececbf1670a1e14635013dc69bdef609b4fc364a20637696e` |
-| Docker image `f1tele:qualification` | 37,110,362 B | image ID `sha256:e06b8be2b5ce5ef1c30f95cf1cf67a1bf3199d18b962d8b345fb5f6430f0fc69` |
+| linux/amd64 | 54,246,987 B | `7b09905343a4d13bcb25c640ad51f17e59707c112914afd259e6918d525751a8` |
+| linux/arm64 | 51,320,760 B | `8a66f6f2642e16c237ff6d70829050c2acfa1ac43a9fcdc81f4dbe95680c7859` |
+| windows/amd64 (cross-built) | 54,659,584 B | `a06a91db950a23a22572769614bbf46b0cdfa1054cf5361f34dc3adab2c20bd8` |
+| Docker image `f1tele:qualification` | 37,110,362 B | image ID `sha256:a8f03005f8882fc91834e2f9e870f19c0625b22e364c367f8293b3ea04ae6902` |
 
 The Windows binary is a macOS cross-build. It is not a native Windows artifact and is not claimed as one.
 
@@ -121,9 +125,10 @@ The Windows binary is a macOS cross-build. It is not a native Windows artifact a
 | Context dimensions and game modes | state mode/season tests, published tables |
 | Flashback continuity | state rewind test, history branch segments, scheduler reset vector |
 | Raw recording and recovery | round-trip, import, recovery, rotation tests; 2-hour soak |
-| Bounded analysis and exports | analysis tests, Parquet/CSV/JSONL round trips, job isolation |
+| Bounded analysis and exports | analysis tests, summaries and cache invalidation test, Parquet/CSV/JSONL round trips, job isolation |
 | Deterministic estimates and candidates | strategy estimate, candidate and reference tests |
 | Notifications | policy tests; rendered alerts |
+| Advice and outcomes | stored invocation rows, branch-scoped continuity, forward-only outcome tests |
 | Scheduling and cancellation | all 16 supplied vectors; pending Safety Car evidence preserved |
 | Authored prompts | byte-identical bundle, manifest hash test |
 | Dashboard workspaces and states | store tests plus rendered screenshots at both viewports |
@@ -137,7 +142,7 @@ The Windows binary is a macOS cross-build. It is not a native Windows artifact a
 - The browser-memory gate is measured as the sum of process RSS, which counts shared pages once per process; values are conservative.
 - WinUI XAML, portable ZIP, tray, native voice and Windows packaging are unbuilt on this host.
 - Data-driven corner averages remain unavailable without validated entry/exit zones; thermal and capacity references are provisional.
-- The strategy outcome store and read API need a contract decision before implementation.
+- Outcome rows are not exposed through an HTTP read endpoint because the approved contract has none; they are visible to the model and retained in SQLite.
 
 ## Rollback
 

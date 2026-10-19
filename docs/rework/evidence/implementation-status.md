@@ -1,12 +1,14 @@
 # Implementation status
 
-Updated: 2026-10-19 12:40 (Asia/Saigon). Branch: codex/f1-telemetry-redesign-impl. Baseline: c95b78c.
+Updated: 2026-10-19 12:50 (Asia/Saigon). Branch: codex/f1-telemetry-redesign-impl. Baseline: c95b78c.
 
-State: independent implementation and local qualification are done. Gate D remains externally blocked and one strategy task needs a contract decision.
+State: all implementation tasks are complete. Gate D remains externally blocked.
 
 ## Current step
 
-Definitive 2-hour rated workload passed at 12:13:45. Results and browser samples are in docs/rework/evidence/release-qualification/. Nothing is running.
+Final-tree 2-hour rated workload passed: 14,745,600 transmitted, received and recorded, equal digests, zero drops, recording across three files, server RSS peak 121.4 MiB and 26.46 MiB growth. Browser peaks were 467.4 / 365.1 / 353.2 MiB with in-window render p95 of 23 / 18 / 4.5 ms. Nothing is running.
+
+Completed since the last checkpoint: branch-scoped previous advice is loaded from the catalog, measured outcomes compare planned pit laps and compounds with observed laps, outcome rows are forward-only in SQLite (migration 003), and `server/README.md` documents model limits, profile editing and where advice lives. `analysis.Summaries` now reports observed top speed, packet-2 trap best with lap, last clean-lap distance over time, an explicitly unsupported corner average, and a cache keyed by the lap checkpoint.
 
 Prior full runs: the first two-hour run (server limits passed) used shape-only clients. The second and third runs passed every server gate but one Drive browser peaked at 513.5 and 564.5 MiB against the 512 MiB browser limit; neither is claimed as passing. Measurements isolated the cause: at a 60 Hz subscription the renderer grew steadily (about 2-4 MiB/min) with a flat 30 MiB JS heap; at 20 Hz the same page stayed flat at 303-304 MiB for ten minutes. Deltas now update the live map in place, the stale check reads three channels, only rendered channels are subscribed, React commits coalesce at 10 Hz, and the UI socket subscribes at 20 Hz. That is a deliberate deviation from the workload document's 60 Hz browser line, recorded in the final report.
 
@@ -57,11 +59,11 @@ Rendered and inspected at 1920x1080, 2560x1440 and 200% reflow. No page scroll a
 
 ## Final soak checks
 
-The run must reach 14,745,600 transmitted, received and recorded datagrams, equal digests, zero application drops, a recording state of recording across two rotated files, peak RSS <=512 MiB, growth <=64 MiB over the final 90 minutes, and observation-to-render p95 <250 ms. The first soak passed the server limits but used stream-analogue clients; this run adds three real browser clients.
+The run must reach 14,745,600 transmitted, received and recorded datagrams, equal digests, zero application drops, a recording state of recording across rotated files, peak RSS <=512 MiB, growth <=64 MiB over the final 90 minutes, browser peaks <=512 MiB each, and observation-to-render p95 <250 ms.
 
 ## Next step
 
-Read docs/rework/evidence/release-qualification/rated-workload.json and /tmp/browser-evidence.json, update final-report.md, re-check the final diff, and stop. Gate D stays externally blocked: no configured model provider or key, no Windows 11 x64 host with microphone, no real 2026 game capture.
+Read the new rated-workload.json and /tmp/browser-evidence.json, update final-report.md and artifact hashes, re-check the final diff, and stop. Gate D stays externally blocked: no configured model provider or key, no Windows 11 x64 host with microphone, no real 2026 game capture.
 
 ## Blocker audit
 

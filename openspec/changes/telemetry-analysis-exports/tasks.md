@@ -6,7 +6,7 @@ Dependencies: durable-race-history. Read docs/rework/{master-design,contracts,qu
 
 - [x] 1.1 Create server/internal/analysis/query.go and query_test.go over a recorded fixture with gaps and nested branches; enforce limits/cancellation and min/max decimation. Verify: rtk go test ./server/internal/analysis -run TestRangeQuery.
 - [x] 1.2 Create compare.go and compare_test.go covering two-to-four laps, distance alignment,250ms gap boundary, invalid/pit/neutralization markers and unequal conditions. Verify: rtk go test ./server/internal/analysis -run TestLapComparison.
-- [ ] 1.3 Implement summaries.go plus speed/outcome tests; verify last clean-lap distance/time, trap-best attribution, unsupported corner zones, stale cache invalidation and original advice preservation with TestAnalysisSummaries.
+- [x] 1.3 Implement summaries.go plus speed/outcome tests; verify last clean-lap distance/time, trap-best attribution, unsupported corner zones, stale cache invalidation and original advice preservation with TestAnalysisSummaries.
 
 ## 2. Portable exports
 

@@ -88,11 +88,30 @@ func (m *Manager) execute(ctx context.Context, inv contract.Invocation, cfg cont
 		return
 	}
 	key := m.Store.Secret(deref(endpoint.APIKeyEnv))
+	continuity := contract.Continuity{MeasuredOutcomes: []string{}, BranchReset: window.Scope.BranchReset}
+	if window.Scope.LastAttempt != nil {
+		continuity.LastAttempt = window.Scope.LastAttempt
+	}
+	if prev, err := m.previousAccepted(ctx, inv.SessionID, inv.BranchID, inv.ID); err == nil && prev != nil {
+		continuity.PreviousAccepted = prev
+		seq := prev.ObservationSeq
+		continuity.EvidenceCursor = &seq
+		car := m.Reducer.PlayerCar()
+		if laps, err := m.Catalog.Laps(ctx, inv.SessionID, inv.BranchID, &car); err == nil {
+			current := 0
+			if v, ok := m.Reducer.Value("timing.current_lap_num", car); ok {
+				current = int(v)
+			}
+			if outcomes, err := RecordOutcomes(ctx, m.Catalog, *prev, laps, current); err == nil {
+				continuity.MeasuredOutcomes = outcomes
+			}
+		}
+	}
 	input := contract.AgentInput{
 		SchemaVersion: contract.SchemaVersion, InvocationID: inv.ID, ConversationID: m.convID,
 		Profile: inv.Profile, EndpointID: endpoint.ID, Model: endpoint.Model,
 		Observation: BoundObservation(m.Reducer.Observation(nil, nil, nil, nil), m.Reducer.PlayerCar()),
-		Continuity:  contract.Continuity{MeasuredOutcomes: []string{}, BranchReset: false},
+		Continuity:  continuity,
 		RequestText: text,
 		Limits: contract.Limits{MaxSteps: cfg.Agent.MaxSteps, MaxToolCalls: cfg.Agent.MaxToolCalls,
 			DeadlineMs: cfg.Agent.LiveDeadlineMs, MaxOutputTokens: cfg.Agent.MaxOutputTokens, MaxContextTokens: cfg.Agent.ContextTokens},
