@@ -103,6 +103,8 @@ Download ZIP contains exactly one requested data.<format> file plus manifest.jso
 
 ## Defaults and change ownership
 
+Configuration ownership follows the deployment: Docker and server installs use environment variables or `config.json`; the Windows portable shipment is configured in the native control-center Settings page. The web Settings workspace is a read-only report of effective values, sources and restart state for every deployment.
+
 Configuration rejects duplicate IDs, invalid rule depth/node counts, nonpositive capacities, mismatched units, invalid profile target ordering and critical_min below caution_min. Null bands are allowed and mean unclassified, not zero. Reference state evaluation checks critical then caution then target/cold; equal target/caution boundary belongs to caution. data_dir/bind changes require restart; other valid changes apply atomically. Endpoint/model/protocol changes cancel the affected run and invalidate old-scope results before switching. Time Trial race-candidate evaluation returns422 unsupported_mode; lap comparisons and execution analysis remain available.
 
 [defaults.json](defaults.json) is the exact first-run configuration; model/search/voice are disabled until endpoints are configured. Timed strategy calls and continuous mode are off. After a model endpoint is enabled, lap/significant-event rules are active. UI exposes a simple cadence summary and an advanced rule editor.

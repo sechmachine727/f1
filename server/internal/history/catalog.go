@@ -28,6 +28,9 @@ var migration002 string
 //go:embed migrations/003_outcomes.sql
 var migration003 string
 
+//go:embed migrations/004_analytics.sql
+var migration004 string
+
 const seqBlock = 4096
 
 // Catalog is the SQLite session/catalog store. One connection is shared; the
@@ -58,6 +61,10 @@ func OpenCatalog(path string) (*Catalog, error) {
 	if _, err := db.Exec(migration003); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("migrate outcome catalog: %w", err)
+	}
+	if _, err := db.Exec(migration004); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("migrate analytics catalog: %w", err)
 	}
 	return &Catalog{db: db}, nil
 }
@@ -336,7 +343,12 @@ func (c *Catalog) ListSessions(ctx context.Context, f SessionFilter) ([]contract
 	}
 	q := "SELECT s.id, s.source_context_id, s.regulation_season, s.mode_family, s.career_id, s.display_name, s.track_id, s.started_at_ms, s.ended_at_ms, " +
 		"(SELECT COUNT(DISTINCT lap) FROM laps l WHERE l.session_id=s.id), " +
-		"COALESCE((SELECT r.state FROM recordings r JOIN fragments f ON f.id=r.fragment_id WHERE f.session_id=s.id ORDER BY r.created_at_ms DESC LIMIT 1), 'idle') " +
+		"COALESCE((SELECT r.state FROM recordings r JOIN fragments f ON f.id=r.fragment_id WHERE f.session_id=s.id ORDER BY r.created_at_ms DESC LIMIT 1), 'idle'), " +
+		"json_extract(s.context_json, '$.session_type_code'), " +
+		"COALESCE((SELECT best_lap_ms FROM session_analytics a WHERE a.session_id=s.id), " +
+		"(SELECT MIN(lap_ms) FROM lap_analytics x WHERE x.session_id=s.id AND x.valid=1 AND x.lap_ms>0)), " +
+		"(SELECT theoretical_best_ms FROM session_analytics a WHERE a.session_id=s.id), " +
+		"json_extract(s.context_json, '$.weekend_link_id') " +
 		"FROM sessions s WHERE 1=1"
 	args := []any{}
 	if f.Season != nil {
@@ -373,7 +385,9 @@ func (c *Catalog) ListSessions(ctx context.Context, f SessionFilter) ([]contract
 		var careerID sql.NullString
 		var ended sql.NullInt64
 		var recState string
-		if err := rows.Scan(&s.ID, &s.SourceContextID, &season, &s.ModeFamily, &careerID, &s.DisplayName, &track, &s.StartedAtMs, &ended, &s.CompletedLaps, &recState); err != nil {
+		var typeCode, bestLap, theo sql.NullInt64
+		var weekend sql.NullString
+		if err := rows.Scan(&s.ID, &s.SourceContextID, &season, &s.ModeFamily, &careerID, &s.DisplayName, &track, &s.StartedAtMs, &ended, &s.CompletedLaps, &recState, &typeCode, &bestLap, &theo, &weekend); err != nil {
 			return nil, "", err
 		}
 		if season.Valid {
@@ -394,6 +408,23 @@ func (c *Catalog) ListSessions(ctx context.Context, f SessionFilter) ([]contract
 			s.EndedAtMs = &ended.Int64
 		}
 		s.RecordingState = recState
+		if typeCode.Valid {
+			v := int(typeCode.Int64)
+			s.SessionTypeCode = &v
+			s.SessionType = SessionType(v)
+		} else {
+			s.SessionType = "unknown"
+		}
+		if bestLap.Valid {
+			s.BestLapMs = &bestLap.Int64
+			s.AnalyticsReady = true
+		}
+		if theo.Valid {
+			s.TheoreticalBest = &theo.Int64
+		}
+		if weekend.Valid && weekend.String != "" {
+			s.WeekendLinkID = &weekend.String
+		}
 		s.Completeness = "partial"
 		out = append(out, s)
 	}

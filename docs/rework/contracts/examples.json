@@ -366,7 +366,20 @@
         "track_profiles": []
       },
       "secrets_configured": {},
-      "restart_required": []
+      "restart_required": [],
+      "sources": {
+        "http": "default",
+        "udp": "default",
+        "data_dir": "default",
+        "recording.cap_bytes": "default",
+        "agent.endpoint": "default"
+      },
+      "restart_only": [
+        "http",
+        "udp",
+        "data_dir"
+      ],
+      "udp_advertise_host": "192.0.2.10"
     }
   },
   {

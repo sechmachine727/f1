@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"f1tele/server/internal/analysis"
+	"f1tele/server/internal/analytics"
 	"f1tele/server/internal/config"
 	"f1tele/server/internal/contract"
 	"f1tele/server/internal/engineer"
@@ -52,6 +53,7 @@ type Server struct {
 	lastSession, lastFragment, lastBranch string
 	eventIndex                            int
 	laps                                  map[int]lapState
+	tracker                               *analytics.Tracker
 }
 
 type lapState struct {
@@ -80,6 +82,7 @@ func New(store *config.Store, logger *slog.Logger) (*Server, error) {
 	reducer := state.New(src, time.Now)
 	s := &Server{cfg: store, catalog: cat, recorder: rec, reducer: reducer, laps: map[int]lapState{}, stats: &IntakeStats{}}
 	s.engine = &analysis.Engine{Catalog: cat, DataDir: dir}
+	s.tracker = analytics.NewTracker(cat)
 	s.eval = strategy.NewEvaluator(s.engine, cfg)
 	s.arbiter = strategy.NewArbiter(cfg.Notifications, cfg.ReferenceProfiles, cfg.CapacityProfiles)
 	s.seq = &seqAlloc{cat: cat, ctx: context.Background(), id: src}
@@ -102,6 +105,7 @@ func New(store *config.Store, logger *slog.Logger) (*Server, error) {
 		OnRecordStop:  func() { rec.StopByUser(); reducer.SetRecordingState(history.RecStoppedUser) },
 		Stop:          func() { go s.Shutdown(10 * time.Second) },
 	})
+	go analytics.Backfill(context.Background(), cat, slog.Default(), 8)
 	return s, nil
 }
 
@@ -160,6 +164,9 @@ func (s *Server) Shutdown(timeout time.Duration) {
 		if s.cancel != nil {
 			s.cancel()
 		}
+		if s.tracker != nil {
+			_ = s.tracker.Close(context.Background())
+		}
 		done := make(chan struct{})
 		go func() { s.recorder.Stop(); close(done) }()
 		select {
@@ -200,6 +207,11 @@ func (s *Server) ingest(ctx context.Context, conn net.PacketConn, logger *slog.L
 		}
 		s.stats.Observe(n, data)
 		s.reducer.Apply(seq, at, data, p, reason)
+		if derr == nil {
+			cx := s.reducer.Context()
+			length, _ := s.reducer.Value("session.track_length_m", 0)
+			s.tracker.Observe(ctx, seq, p, cx, map[string]float64{"track_length_m": length})
+		}
 		if s.reducer.SessionID() != "" {
 			cx := s.reducer.Context()
 			s.recorder.SetIdentity(cx.SessionID, cx.FragmentID, cx.SourceContextID)
@@ -223,6 +235,8 @@ func (s *Server) loop(ctx context.Context, logger *slog.Logger) {
 	defer ticker.Stop()
 	alertTicker := time.NewTicker(100 * time.Millisecond)
 	defer alertTicker.Stop()
+	closeCheck := time.NewTicker(time.Second)
+	defer closeCheck.Stop()
 	for {
 		select {
 		case <-ctx.Done():
@@ -240,6 +254,12 @@ func (s *Server) loop(ctx context.Context, logger *slog.Logger) {
 			}
 			recState, _ := s.recorder.State()
 			s.reducer.SetRecordingState(recState)
+		case <-closeCheck.C:
+			// A session that has been quiet for ten minutes is closed once; a new
+			// logical session also closes the previous one in the tracker.
+			if last := s.reducer.LastPacketAt(); !last.IsZero() && time.Since(last) > 10*time.Minute {
+				_ = s.tracker.Close(ctx)
+			}
 		}
 	}
 }

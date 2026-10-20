@@ -2899,7 +2899,8 @@
         "active_config",
         "desired_config",
         "secrets_configured",
-        "restart_required"
+        "restart_required",
+        "sources"
       ],
       "properties": {
         "revision": {
@@ -2923,6 +2924,21 @@
           "items": {
             "type": "string"
           }
+        },
+        "sources": {
+          "type": "object",
+          "additionalProperties": {
+            "enum": ["cli", "env", "file", "default"]
+          }
+        },
+        "restart_only": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "udp_advertise_host": {
+          "type": "string"
         }
       }
     },
@@ -3844,6 +3860,15 @@
             }
           ]
         },
+      "http_addr": {
+        "type": "string"
+      },
+      "udp_addr": {
+        "type": "string"
+      },
+      "udp_advertise_addr": {
+        "type": "string"
+      },
         "features": {
           "type": "object",
           "additionalProperties": false,
@@ -4110,7 +4135,9 @@
         "ended_at_ms",
         "completed_laps",
         "recording_state",
-        "completeness"
+        "completeness",
+        "session_type",
+        "analytics_ready"
       ],
       "properties": {
         "id": {
@@ -4204,6 +4231,52 @@
             "complete",
             "partial",
             "unknown"
+          ]
+        },
+        "session_type_code": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "session_type": {
+          "type": "string"
+        },
+        "best_lap_ms": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "theoretical_best_ms": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "analytics_ready": {
+          "type": "boolean"
+        },
+        "weekend_link_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
           ]
         }
       }

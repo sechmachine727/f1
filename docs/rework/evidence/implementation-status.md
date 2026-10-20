@@ -1,12 +1,28 @@
 # Implementation status
 
-Updated: 2026-10-19 12:50 (Asia/Saigon). Branch: codex/f1-telemetry-redesign-impl. Baseline: c95b78c.
+Updated: 2026-10-20 12:30 (Asia/Saigon). Branch: codex/f1-telemetry-redesign-impl. Baseline: c95b78c.
 
-State: all implementation tasks are complete. Gate D remains externally blocked.
+State: the nine original changes plus deployment-configuration and session-analytics are implemented and locally verified. Gate D remains externally blocked.
 
 ## Current step
 
-Final-tree 2-hour rated workload passed: 14,745,600 transmitted, received and recorded, equal digests, zero drops, recording across three files, server RSS peak 121.4 MiB and 26.46 MiB growth. Browser peaks were 467.4 / 365.1 / 353.2 MiB with in-window render p95 of 23 / 18 / 4.5 ms. Nothing is running.
+Both new changes are complete: 24/24 session-analytics tasks and 12/12 deployment-configuration tasks. A five-minute rated load with analytics enabled recorded 614,400/614,400/614,400 datagrams with equal digests and zero drops. Nothing is running.
+
+## Deployment configuration
+
+- `server/internal/config/env.go` applies the documented `F1TELE_*` variables with CLI > env > file > default precedence, records a source per value, and fails startup on invalid input with the variable name.
+- Environment-owned values reject `PATCH /config` with `409 environment_locked`; secrets stay redacted.
+- `GET /config` reports sources, restart-only keys and the game-facing UDP advertise host; `/health` reports the bound and advertised addresses.
+- The web Settings workspace is a read-only grouped report with source labels and restart badges. Tests cover precedence, invalid values, environment locking, endpoint creation, advertise host and the operator reference table.
+- The portable Windows shipment is configured in the native control-center Settings page, which reads the same effective values, marks environment-locked rows and opens the configuration folder. Tests cover configured, missing-secret, restart and environment-locked rows.
+
+## Session analytics
+
+- Migration 004 adds participants, lap analytics, traces, analytics stints and session summaries.
+- The tracker derives lap and sector times, distance, average/top/trap speed, positions and gaps, compound/age, fuel/ERS, pit and validity flags, provisional corner speeds, stints, practice/qualifying runs and a session summary.
+- Backfill derives existing recordings once without rewriting them; the file hash is checked in a test.
+- Recorded History, Pit wall and Analysis read stored analytics only, with tabs, charts, comparison, theoretical best, export, replay, consistency and the post-race engineer panel.
+- Evidence: `docs/rework/evidence/session-analytics.md`, screenshots `analytics-*.png`, and `release-qualification/analytics-load-5m.json`.
 
 Completed since the last checkpoint: branch-scoped previous advice is loaded from the catalog, measured outcomes compare planned pit laps and compounds with observed laps, outcome rows are forward-only in SQLite (migration 003), and `server/README.md` documents model limits, profile editing and where advice lives. `analysis.Summaries` now reports observed top speed, packet-2 trap best with lap, last clean-lap distance over time, an explicitly unsupported corner average, and a cache keyed by the lap checkpoint.
 

@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"f1tele/server/internal/analysis"
+	"f1tele/server/internal/analytics"
 	"f1tele/server/internal/config"
 	"f1tele/server/internal/contract"
 	"f1tele/server/internal/history"
@@ -110,6 +111,9 @@ func (a *API) Handler(static http.Handler) http.Handler {
 	mux.HandleFunc("PATCH /api/v1/sessions/{id}", a.patchSession)
 	mux.HandleFunc("GET /api/v1/sessions/{id}/branches", a.getBranches)
 	mux.HandleFunc("GET /api/v1/sessions/{id}/laps", a.getLaps)
+	mux.HandleFunc("GET /api/v1/sessions/{id}/analytics", a.sessionAnalytics)
+	mux.HandleFunc("GET /api/v1/sessions/{id}/laps/{lap}", a.lapAnalytics)
+	mux.HandleFunc("GET /api/v1/sessions/{id}/compare", a.compareLaps)
 	mux.HandleFunc("GET /api/v1/careers", a.listCareers)
 	mux.HandleFunc("POST /api/v1/careers", a.createCareer)
 	mux.HandleFunc("POST /api/v1/analysis/query", a.analysisQuery)
@@ -188,10 +192,13 @@ func (a *API) health(w http.ResponseWriter, r *http.Request) {
 	}
 	rec, _ := a.Recorder.State()
 	cfg := a.Config.Config()
+	view := a.Config.View()
 	writeJSON(w, 200, contract.Health{
 		InstanceID: a.InstanceID, ServerVersion: a.Version, SchemaVersion: contract.SchemaVersion,
 		State: a.Reducer.HealthState(), ActiveSessionID: active, RecordingState: rec, LastPacketAtMs: last,
 		Features: map[string]bool{"history": true, "analysis": true, "engineer": cfg.Agent.Enabled && len(cfg.Agent.Endpoints) > 0, "setup_research": cfg.Search.Provider != "disabled", "voice": cfg.Voice.Enabled},
+		HTTPAddr: fmt.Sprintf("%s:%d", cfg.HTTP.Host, cfg.HTTP.Port), UDPAddr: fmt.Sprintf("%s:%d", cfg.UDP.Host, cfg.UDP.Port),
+		UDPAdvertise: fmt.Sprintf("%s:%d", view.UDPAdvertiseHost, cfg.UDP.Port),
 	})
 }
 
@@ -218,6 +225,10 @@ func (a *API) patchConfig(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		if errors.Is(err, config.ErrRevision) {
 			writeErr(w, r, 409, "revision_mismatch", err.Error())
+			return
+		}
+		if errors.Is(err, config.ErrEnvLocked) {
+			writeErr(w, r, 409, "environment_locked", err.Error())
 			return
 		}
 		writeErr(w, r, 422, "unsupported_configuration", err.Error())
@@ -344,6 +355,69 @@ func (a *API) getLaps(w http.ResponseWriter, r *http.Request) {
 		laps = []contract.LapSummary{}
 	}
 	writeJSON(w, 200, map[string]any{"items": laps, "next_cursor": nil})
+}
+
+func (a *API) sessionAnalytics(w http.ResponseWriter, r *http.Request) {
+	out, err := analytics.Summary(r.Context(), a.Catalog, r.PathValue("id"))
+	if err != nil {
+		writeErr(w, r, 404, "not_found", err.Error())
+		return
+	}
+	writeJSON(w, 200, out)
+}
+
+func (a *API) lapAnalytics(w http.ResponseWriter, r *http.Request) {
+	d, err := a.Catalog.Session(r.Context(), r.PathValue("id"))
+	if err != nil {
+		writeErr(w, r, 404, "not_found", err.Error())
+		return
+	}
+	branch := r.URL.Query().Get("branch")
+	if branch == "" {
+		branch = d.SurvivingBranchID
+	}
+	lap, _ := strconv.Atoi(r.PathValue("lap"))
+	car, _ := strconv.Atoi(r.URL.Query().Get("car"))
+	l, trace, err := analytics.LapDetail(r.Context(), a.Catalog, d.Summary.ID, branch, car, lap)
+	if err != nil {
+		writeErr(w, r, 404, "not_found", err.Error())
+		return
+	}
+	points := []any{}
+	if len(trace) > 0 {
+		_ = json.Unmarshal(trace, &points)
+	}
+	writeJSON(w, 200, map[string]any{"lap": l, "trace": points, "decimated": len(trace) > 0})
+}
+
+func (a *API) compareLaps(w http.ResponseWriter, r *http.Request) {
+	d, err := a.Catalog.Session(r.Context(), r.PathValue("id"))
+	if err != nil {
+		writeErr(w, r, 404, "not_found", err.Error())
+		return
+	}
+	branch := r.URL.Query().Get("branch")
+	if branch == "" {
+		branch = d.SurvivingBranchID
+	}
+	var pairs []analytics.CompareLap
+	for _, part := range strings.Split(r.URL.Query().Get("laps"), ",") {
+		items := strings.SplitN(part, ":", 2)
+		if len(items) != 2 {
+			continue
+		}
+		car, err1 := strconv.Atoi(items[0])
+		lap, err2 := strconv.Atoi(items[1])
+		if err1 == nil && err2 == nil {
+			pairs = append(pairs, analytics.CompareLap{Car: car, Lap: lap})
+		}
+	}
+	res, err := analytics.Compare(r.Context(), a.Catalog, d.Summary.ID, branch, pairs)
+	if err != nil {
+		writeErr(w, r, 422, "comparison_error", err.Error())
+		return
+	}
+	writeJSON(w, 200, res)
 }
 
 func (a *API) listCareers(w http.ResponseWriter, r *http.Request) {

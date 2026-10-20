@@ -10,6 +10,19 @@ services:
     environment:
       F1TELE_HTTP_ADDR: 0.0.0.0:8081
       F1TELE_UDP_ADDR: 0.0.0.0:20777
+      # Host a game on another machine should send telemetry to. Set this to
+      # the Docker host's LAN address; Settings shows it as the address to enter.
+      F1TELE_UDP_ADVERTISE_HOST: ${F1TELE_UDP_ADVERTISE_HOST:-}
+      # Recording limits and agent/search/voice settings are optional overrides.
+      F1TELE_RECORDING_CAP_BYTES: ${F1TELE_RECORDING_CAP_BYTES:-}
+      F1TELE_RECORDING_FREE_RESERVE_BYTES: ${F1TELE_RECORDING_FREE_RESERVE_BYTES:-}
+      F1TELE_AGENT_ENABLED: ${F1TELE_AGENT_ENABLED:-}
+      F1TELE_AGENT_BASE_URL: ${F1TELE_AGENT_BASE_URL:-}
+      F1TELE_AGENT_MODEL: ${F1TELE_AGENT_MODEL:-}
+      F1TELE_AGENT_PROTOCOL: ${F1TELE_AGENT_PROTOCOL:-}
+      F1TELE_AGENT_API_KEY: ${F1TELE_AGENT_API_KEY:-}
+      F1TELE_SEARCH_PROVIDER: ${F1TELE_SEARCH_PROVIDER:-}
+      F1TELE_SEARCH_API_KEY: ${F1TELE_SEARCH_API_KEY:-}
     restart: unless-stopped
 volumes:
   f1tele-data:

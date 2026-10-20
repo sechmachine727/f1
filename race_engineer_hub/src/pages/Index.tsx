@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react";
 import { Drive } from "@/components/Drive";
 import { Analysis, History, PitWall, Setups, Settings, nav } from "@/pages/Workspaces";
+import { RecordedPitWall } from "@/components/RecordedPit";
+import { RecordedAnalysis } from "@/components/RecordedAnalysis";
+import { useSelection } from "@/lib/selection";
 
 type Tab = "drive" | "pit" | "history" | "analysis" | "setups" | "settings";
 const tabs: { id: Tab; label: string }[] = [
@@ -13,6 +16,7 @@ const tabs: { id: Tab; label: string }[] = [
 ];
 
 export default function Index() {
+  const selection = useSelection();
   const initial = (): Tab => {
     const q = new URLSearchParams(window.location.search).get("workspace");
     return (tabs.find((t) => t.id === q)?.id ?? "drive") as Tab;
@@ -42,9 +46,9 @@ export default function Index() {
         ))}
       </nav>
       {tab === "drive" ? <Drive /> : null}
-      {tab === "pit" ? <PitWall /> : null}
+      {tab === "pit" ? (selection.sessionId ? <RecordedPitWall /> : <PitWall />) : null}
       {tab === "history" ? <History onOpen={() => setTab("pit")} /> : null}
-      {tab === "analysis" ? <Analysis /> : null}
+      {tab === "analysis" ? (selection.sessionId ? <RecordedAnalysis /> : <Analysis />) : null}
       {tab === "setups" ? <Setups /> : null}
       {tab === "settings" ? <Settings /> : null}
     </div>

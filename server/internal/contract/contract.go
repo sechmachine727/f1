@@ -411,6 +411,9 @@ type Health struct {
 	RecordingState  string          `json:"recording_state"`
 	LastPacketAtMs  *int64          `json:"last_packet_at_ms"`
 	Features        map[string]bool `json:"features"`
+	HTTPAddr        string          `json:"http_addr"`
+	UDPAddr         string          `json:"udp_addr"`
+	UDPAdvertise    string          `json:"udp_advertise_addr"`
 }
 
 type Invocation struct {
@@ -522,6 +525,12 @@ type SessionSummary struct {
 	CompletedLaps    int     `json:"completed_laps"`
 	RecordingState   string  `json:"recording_state"`
 	Completeness     string  `json:"completeness"`
+	SessionTypeCode  *int    `json:"session_type_code"`
+	SessionType      string  `json:"session_type"`
+	BestLapMs        *int64  `json:"best_lap_ms"`
+	TheoreticalBest  *int64  `json:"theoretical_best_ms"`
+	AnalyticsReady   bool    `json:"analytics_ready"`
+	WeekendLinkID    *string `json:"weekend_link_id"`
 }
 
 type SessionDetail struct {

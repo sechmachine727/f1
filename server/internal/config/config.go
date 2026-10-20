@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -58,6 +59,8 @@ type Store struct {
 	active   contract.Config
 	desired  contract.Config
 	secrets  map[string]string
+	sources  map[string]string
+	advertise string
 }
 
 // Load resolves configuration. It never fails on a missing config file.
@@ -70,21 +73,55 @@ func Load(ov Overrides) (*Store, error) {
 	configPath := firstNonEmpty(ov.ConfigPath, os.Getenv("F1TELE_CONFIG"), filepath.Join(dataDir, "config.json"))
 
 	cfg := def
+	fileCfg := def
 	if raw, err := os.ReadFile(configPath); err == nil {
 		if err := json.Unmarshal(raw, &cfg); err != nil {
 			return nil, fmt.Errorf("parse %s: %w", configPath, err)
 		}
+		fileCfg = cfg
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return nil, fmt.Errorf("read %s: %w", configPath, err)
 	}
 	cfg.DataDir = &dataDir
 
-	applyAddr(&cfg.HTTP, firstNonEmpty(ov.HTTPAddress, os.Getenv("F1TELE_HTTP_ADDR")))
-	applyAddr(&cfg.UDP, firstNonEmpty(ov.UDPAddress, os.Getenv("F1TELE_UDP_ADDR")))
+	sources := map[string]string{"data_dir": "default"}
+	if ov.DataDir != "" {
+		sources["data_dir"] = "cli"
+	} else if os.Getenv("F1TELE_DATA_DIR") != "" {
+		sources["data_dir"] = "env"
+	} else if valueOr(def.DataDir, "") != "" {
+		sources["data_dir"] = "default"
+	}
+	if err := ApplyEnv(&cfg, os.Getenv, sources); err != nil {
+		return nil, err
+	}
+	for _, spec := range envSpecs {
+		if sources[spec.key] != "" {
+			continue
+		}
+		if configValue(fileCfg, spec.key) != configValue(def, spec.key) {
+			sources[spec.key] = "file"
+		} else {
+			sources[spec.key] = "default"
+		}
+	}
+	if ov.HTTPAddress != "" {
+		if err := setAddr(&cfg.HTTP, ov.HTTPAddress); err != nil {
+			return nil, fmt.Errorf("--http: %v", err)
+		}
+		sources["http"] = "cli"
+	}
+	if ov.UDPAddress != "" {
+		if err := setAddr(&cfg.UDP, ov.UDPAddress); err != nil {
+			return nil, fmt.Errorf("--udp: %v", err)
+		}
+		sources["udp"] = "cli"
+	}
 	if err := Validate(cfg); err != nil {
 		return nil, err
 	}
-	s := &Store{path: configPath, active: cfg, desired: cfg, secrets: map[string]string{}}
+	s := &Store{path: configPath, active: cfg, desired: cfg, secrets: map[string]string{}, sources: sources,
+		advertise: AdvertiseHost(os.Getenv("F1TELE_UDP_ADVERTISE_HOST"))}
 	if raw, err := os.ReadFile(filepath.Join(dataDir, "secrets.json")); err == nil {
 		if err := json.Unmarshal(raw, &s.secrets); err != nil {
 			return nil, fmt.Errorf("parse secrets: %w", err)
@@ -161,7 +198,18 @@ func (s *Store) View() contract.ConfigView {
 		DesiredConfig:     s.desired,
 		SecretsConfigured: configured,
 		RestartRequired:   restartFields(s.active, s.desired),
+		Sources:           s.sourcesViewLocked(),
+		RestartOnly:       append([]string(nil), RestartOnlyKeys...),
+		UDPAdvertiseHost:  s.advertise,
 	}
+}
+
+func (s *Store) sourcesViewLocked() map[string]string {
+	out := map[string]string{}
+	for k, v := range s.sources {
+		out[k] = v
+	}
+	return out
 }
 
 func secretIDs(c contract.Config) []string {
@@ -229,6 +277,9 @@ func (s *Store) ApplyPatch(p contract.ConfigPatch, ifMatch *int) (contract.Confi
 	if err := Validate(p.Config); err != nil {
 		return contract.ConfigView{}, err
 	}
+	if err := envLockedDiff(s.sources, s.desired, p.Config); err != nil {
+		return contract.ConfigView{}, err
+	}
 	secrets := make(map[string]string, len(s.secrets)+len(p.Secrets))
 	for k, v := range s.secrets {
 		secrets[k] = v
@@ -266,6 +317,11 @@ func (s *Store) ApplyPatch(p contract.ConfigPatch, ifMatch *int) (contract.Confi
 	s.desired = p.Config
 	s.secrets = secrets
 	s.revision++
+	for _, spec := range envSpecs {
+		if s.sources[spec.key] != "env" && configValue(s.desired, spec.key) != configValue(s.active, spec.key) {
+			s.sources[spec.key] = "file"
+		}
+	}
 	configured := map[string]bool{}
 	for _, id := range secretIDs(s.desired) {
 		configured[id] = s.resolveSecretLocked(id) != ""
@@ -276,7 +332,84 @@ func (s *Store) ApplyPatch(p contract.ConfigPatch, ifMatch *int) (contract.Confi
 		DesiredConfig:     s.desired,
 		SecretsConfigured: configured,
 		RestartRequired:   restartFields(s.active, s.desired),
+		Sources:           s.sourcesViewLocked(),
+		RestartOnly:       append([]string(nil), RestartOnlyKeys...),
+		UDPAdvertiseHost:  s.advertise,
 	}, nil
+}
+
+// ErrEnvLocked reports a change to a value owned by the environment.
+var ErrEnvLocked = errors.New("configuration is set by the environment")
+
+func envLockedDiff(sources map[string]string, old, next contract.Config) error {
+	for _, spec := range envSpecs {
+		if sources[spec.key] != "env" {
+			continue
+		}
+		if configValue(old, spec.key) != configValue(next, spec.key) {
+			return fmt.Errorf("%w: %s cannot be changed while %s is set", ErrEnvLocked, spec.key, spec.name)
+		}
+	}
+	return nil
+}
+
+func configValue(c contract.Config, key string) string {
+	switch key {
+	case "http":
+		return c.HTTP.Host + ":" + strconv.Itoa(c.HTTP.Port)
+	case "udp":
+		return c.UDP.Host + ":" + strconv.Itoa(c.UDP.Port)
+	case "udp_advertise_host":
+		return ""
+	case "recording.enabled":
+		return strconv.FormatBool(c.Recording.Enabled)
+	case "recording.cap_bytes":
+		return strconv.FormatInt(c.Recording.CapBytes, 10)
+	case "recording.free_reserve_bytes":
+		return strconv.FormatInt(c.Recording.FreeReserveBytes, 10)
+	case "recording.chunk_bytes":
+		return strconv.FormatInt(c.Recording.ChunkBytes, 10)
+	case "recording.rotate_bytes":
+		return strconv.FormatInt(c.Recording.RotateBytes, 10)
+	case "recording.chunk_flush_ms":
+		return strconv.Itoa(c.Recording.ChunkFlushMs)
+	case "agent.enabled":
+		return strconv.FormatBool(c.Agent.Enabled)
+	case "agent.endpoint_id":
+		return valueOr(c.Agent.EndpointID, "")
+	case "agent.endpoint.base_url", "agent.endpoint.model", "agent.endpoint.protocol", "agent.endpoint.api_key", "agent.endpoint":
+		return endpointValues(c.Agent)
+	case "search.provider":
+		return c.Search.Provider
+	case "search.base_url":
+		return valueOr(c.Search.BaseURL, "")
+	case "search.api_key":
+		return valueOr(c.Search.APIKeyEnv, "")
+	case "voice.enabled":
+		return strconv.FormatBool(c.Voice.Enabled)
+	case "voice.base_url":
+		return valueOr(c.Voice.TranscriptionEndpoint, "") + "|" + valueOr(c.Voice.SpeechEndpoint, "")
+	case "voice.transcription_model":
+		return valueOr(c.Voice.TranscriptionModel, "")
+	case "voice.transcription_api_key":
+		return valueOr(c.Voice.TranscriptionAPIKeyEnv, "")
+	case "voice.speech_model":
+		return valueOr(c.Voice.SpeechModel, "")
+	case "voice.speech_api_key":
+		return valueOr(c.Voice.SpeechAPIKeyEnv, "")
+	}
+	return ""
+}
+
+func endpointValues(a contract.AgentConfig) string {
+	id := valueOr(a.EndpointID, "")
+	out := id
+	for _, e := range a.Endpoints {
+		if e.ID == id {
+			out += "|" + e.BaseURL + "|" + e.Model + "|" + e.Protocol + "|" + valueOr(e.APIKeyEnv, "")
+		}
+	}
+	return out
 }
 
 func writeAtomic(path string, data []byte, perm os.FileMode) error {

@@ -171,6 +171,9 @@ type ConfigView struct {
 	DesiredConfig     Config          `json:"desired_config"`
 	SecretsConfigured map[string]bool `json:"secrets_configured"`
 	RestartRequired   []string        `json:"restart_required"`
+	Sources           map[string]string `json:"sources"`
+	RestartOnly       []string          `json:"restart_only"`
+	UDPAdvertiseHost  string            `json:"udp_advertise_host"`
 }
 
 type ConfigPatch struct {

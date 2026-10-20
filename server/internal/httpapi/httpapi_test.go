@@ -99,6 +99,90 @@ func TestConfigPreconditionAndRedaction(t *testing.T) {
 	if len(view.SecretsConfigured) != 0 {
 		t.Fatalf("unexpected secrets %#v", view.SecretsConfigured)
 	}
+	for _, key := range []string{"http", "udp", "data_dir", "recording.cap_bytes"} {
+		if view.Sources[key] == "" {
+			t.Fatalf("config view has no source for %s: %#v", key, view.Sources)
+		}
+	}
+	if view.UDPAdvertiseHost == "" {
+		t.Fatal("config view has no game-facing UDP host")
+	}
+}
+
+func TestEnvControlledConfigPatchConflicts(t *testing.T) {
+	t.Setenv("F1TELE_UDP_ADDR", "0.0.0.0:30777")
+	d, _ := deps(t)
+	srv := httptest.NewServer(New(d).Handler(nil))
+	defer srv.Close()
+	cfg := d.Config.Config()
+	cfg.UDP.Port = 30778
+	body, _ := json.Marshal(contract.ConfigPatch{Config: cfg})
+	req, _ := http.NewRequest("PATCH", srv.URL+"/api/v1/config", strings.NewReader(string(body)))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("If-Match", strconv.Itoa(d.Config.Revision()))
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 409 {
+		t.Fatalf("env-controlled patch status %d", resp.StatusCode)
+	}
+	var e contract.ErrorBody
+	if err := json.NewDecoder(resp.Body).Decode(&e); err != nil {
+		t.Fatal(err)
+	}
+	if e.Code != "environment_locked" || !strings.Contains(e.Message, "F1TELE_UDP_ADDR") {
+		t.Fatalf("error %#v", e)
+	}
+	if got := d.Config.Config().UDP.Port; got != 30777 {
+		t.Fatalf("effective udp changed to %d", got)
+	}
+}
+
+func TestRecordedAnalyticsRoutes(t *testing.T) {
+	d, _ := deps(t)
+	ctx := context.Background()
+	if err := d.Catalog.EnsureSourceContext(ctx, "src", "ip"); err != nil {
+		t.Fatal(err)
+	}
+	if err := d.Catalog.CreateSession(ctx, "s", contract.Context{SourceContextID: "src", SessionID: "s", BranchID: "b", ModeFamily: "race"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := d.Catalog.CreateBranch(ctx, contract.Branch{ID: "b", SessionID: "s", IsSurviving: true}); err != nil {
+		t.Fatal(err)
+	}
+	if err := d.Catalog.UpsertParticipant(ctx, "s", 0, "LECLERC", 1, 16, false, 1); err != nil {
+		t.Fatal(err)
+	}
+	for _, l := range []history.LapAnalytics{
+		{SessionID: "s", BranchID: "b", CarIndex: 0, Lap: 1, LapMs: 90000, Sector1Ms: 28000, Sector2Ms: 31000, Sector3Ms: 31000, Valid: true, Complete: true},
+		{SessionID: "s", BranchID: "b", CarIndex: 0, Lap: 2, LapMs: 90200, Sector1Ms: 28100, Sector2Ms: 31000, Sector3Ms: 31100, Valid: true, Complete: true},
+	} {
+		if err := d.Catalog.UpsertLapAnalytics(ctx, l); err != nil {
+			t.Fatal(err)
+		}
+	}
+	srv := httptest.NewServer(New(d).Handler(nil))
+	defer srv.Close()
+	for _, path := range []string{"/api/v1/sessions/s/analytics", "/api/v1/sessions/s/laps/1?car=0", "/api/v1/sessions/s/compare?laps=0:1,0:2"} {
+		resp, err := http.Get(srv.URL + path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode != 200 {
+			t.Fatalf("%s status %d", path, resp.StatusCode)
+		}
+	}
+	resp, err := http.Get(srv.URL + "/api/v1/sessions/s/compare?laps=0:1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 422 {
+		t.Fatalf("single lap comparison status %d", resp.StatusCode)
+	}
 }
 
 func TestStreamSnapshotThenDeltaContinuity(t *testing.T) {

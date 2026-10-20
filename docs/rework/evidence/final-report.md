@@ -25,6 +25,10 @@ Windows (`windows/`): control-center core with supervisor identity and adoption,
 
 Packaging: multi-stage Dockerfile (distroless, nonroot, writable `/data`), Compose on 8081/tcp and 20777/udp, and CI for Go, frontend, artifacts and the Windows ZIP.
 
+Deployment configuration: a documented `F1TELE_*` environment schema now covers listeners, LAN advertise host, data directory, recording limits, agent URL/model/protocol/key, search and voice. Precedence stays CLI > environment > `config.json` > defaults, invalid values fail startup by name, environment-owned values reject `PATCH /config` with 409, and secrets never enter the config view. The web Settings workspace is a read-only report of effective values with source labels and restart badges; the portable Windows shipment is configured in its native control-center Settings page. See `docs/rework/operator-configuration.md`.
+
+Session analytics: a derived analytics layer beside raw MCAP stores participants, per-car lap records (lap and sector times, distance, average/top/trap speed, positions and gaps, compound and age, fuel/ERS, pit and validity flags, provisional corner speeds), stints and practice/qualifying runs, decimated traces and a session summary. A resumable backfill derives existing recordings without rewriting them. History is a session library; selecting a recorded session opens a recorded analytics Pit wall and Analysis with lap, sector, speed, tyre, fuel, stint and corner views, comparison and theoretical best, export, replay and the existing post-race engineer profile.
+
 ## Gate A: implementation checks
 
 | Command | Result |
@@ -40,6 +44,8 @@ Packaging: multi-stage Dockerfile (distroless, nonroot, writable `/data`), Compo
 | `dotnet test windows/F1Telemetry.ControlCenter.Tests` | 9/9 |
 | `docker build -t f1tele:qualification .` | pass, 37.1 MB image |
 | final image health, UDP session, restart persistence | pass: `awaiting_telemetry` to catalogued session, same session after restart |
+
+Additional checks for the later changes: `go test ./server/internal/analytics`, `go test ./server/internal/history`, `go test ./server/internal/httpapi -run TestRecordedAnalyticsRoutes`, and a five-minute rated run with analytics enabled (614,400/614,400/614,400 transmitted/received/recorded, equal digests, 0 drops). See `docs/rework/evidence/session-analytics.md` and `release-qualification/analytics-load-5m.json`.
 
 Focused additions after the first report draft: `go test ./server/internal/analysis -run TestAnalysisSummaries` and `go test ./server/internal/engineer -run 'TestRecordOutcomes|TestPreviousAccepted'` pass, and the full race suite was rerun.
 
@@ -110,10 +116,10 @@ Prompt source hashes match the manifest; OpenSpec and the artifact validator pas
 
 | Target | Size | SHA-256 |
 |---|---|---|
-| linux/amd64 | 54,246,987 B | `7b09905343a4d13bcb25c640ad51f17e59707c112914afd259e6918d525751a8` |
-| linux/arm64 | 51,320,760 B | `8a66f6f2642e16c237ff6d70829050c2acfa1ac43a9fcdc81f4dbe95680c7859` |
-| windows/amd64 (cross-built) | 54,659,584 B | `a06a91db950a23a22572769614bbf46b0cdfa1054cf5361f34dc3adab2c20bd8` |
-| Docker image `f1tele:qualification` | 37,110,362 B | image ID `sha256:a8f03005f8882fc91834e2f9e870f19c0625b22e364c367f8293b3ea04ae6902` |
+| linux/amd64 | 54,451,922 B | `484e565d443ef7bf6f2a786a8c620c544ac1ec17c1a5350faf679e5568fee6ad` |
+| linux/arm64 | 51,563,269 B | `88e8414a7442ed743d96b3a212e94c61c629b8c409042808622530ed7810531c` |
+| windows/amd64 (cross-built) | 54,859,264 B | `a349391b2dfe4e4da4cd83c5beb24644161ab84cad8bb4356de1dffcbb52b0f5` |
+| Docker image `f1tele:qualification` | 37,306,970 B | image ID `sha256:3f4248833ce3d6cb1cb7945ab5d7a06ef03bb4b82182d41536ad6c60892e0d55` |
 
 The Windows binary is a macOS cross-build. It is not a native Windows artifact and is not claimed as one.
 
@@ -135,6 +141,8 @@ The Windows binary is a macOS cross-build. It is not a native Windows artifact a
 | Dashboard workspaces and states | store tests plus rendered screenshots at both viewports |
 | Windows control center core | nine unit tests on macOS |
 | Packaging | cross-builds and Docker image |
+| Environment configuration | loader, precedence, validation and secret tests; rendered Settings at 1080p, 1440p and 200% |
+| Session analytics | participant, lap, sector, stint, trace and backfill tests; rendered History, recorded Pit wall, Analysis, practice and qualifying |
 
 ## Remaining limitations
 
@@ -144,6 +152,10 @@ The Windows binary is a macOS cross-build. It is not a native Windows artifact a
 - WinUI XAML, portable ZIP, tray, native voice and Windows packaging are unbuilt on this host.
 - Data-driven corner averages remain unavailable without validated entry/exit zones; thermal and capacity references are provisional.
 - Outcome rows are not exposed through an HTTP read endpoint because the approved contract has none; they are visible to the model and retained in SQLite.
+- The demo corpus reports no trap speed, so the UI shows that field only for real captures.
+- Provisional corner zones are geometry-derived with a 50 m window, not calibrated; they are labeled provisional.
+- The post-race engineer panel shows the missing-provider state on this machine; no real provider was available.
+- Qualifying segment tabs appear when sessions share a weekend link; only single-segment data was captured locally.
 
 ## Rollback
 

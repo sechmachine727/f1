@@ -188,10 +188,17 @@ func (c *Corpus) build(second, slot int, pid uint8, ord int) []byte {
 			cars[car]["m_ersFault"] = 0
 		}
 	case 11:
-		idx := ord % 24
-		scalar["m_carIdx"] = float64(idx)
-		scalar["m_numLaps"] = float64(lap)
-		cars[idx] = map[string]float64{"m_lapTimeInMS": 90000, "m_lapNumber": float64(lap)}
+		completed := lap - 1
+		idx := (completed - 1 + 100) % 100
+		scalar["m_carIdx"] = float64(ord % 24)
+		scalar["m_numLaps"] = float64(completed)
+		if completed < 1 {
+			break
+		}
+		s1 := 28000.0 + float64(ord%24)*5
+		s2 := 31000.0 + float64(lap%3)*90
+		s3 := 30000.0 + float64(lap%5)*70
+		cars[idx] = map[string]float64{"m_lapTimeInMS": 90000 + float64(lap%6)*140, "m_sector1TimeMSPart": s1, "m_sector2TimeMSPart": s2, "m_sector3TimeMSPart": s3, "m_lapValidBitFlags": 1}
 	case 12:
 		idx := ord % 24
 		scalar["m_carIdx"] = float64(idx)
