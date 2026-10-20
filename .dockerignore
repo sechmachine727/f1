@@ -23,6 +23,20 @@ logs/
 
 # Docs / images
 *.png
+docs/
+openspec/
+windows/
+telemetry_server/
+common/
+tests/
+registries/
+scripts/
+artifacts/
+
+# Local build output
+f1tele
+qualification.test
+*.zip
 
 # Local-only lockfile
 race_engineer_hub/bun.lockb
