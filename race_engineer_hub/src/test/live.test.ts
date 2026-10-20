@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyMessage, availabilityLabel, connect, metric, text, type Metric, type Snapshot } from "@/lib/live";
+import { activeCars, applyMessage, availabilityLabel, connect, frozenSnapshot, metric, text, type Metric, type Snapshot } from "@/lib/live";
 
 const m = (id: string, channel: string, value: number | string | null, availability = "available"): Metric => ({
   id, channel, car_index: 0,
@@ -90,5 +90,38 @@ describe("stream store", () => {
     expect(availabilityLabel(stale)).toBe("No update");
     expect(text(m("a", "car.speed_mps", 0).measurement)).toBe("0");
     expect(metric(base, "car.speed_mps")).toBeNull();
+  });
+
+  it("lists only cars that reported an identity, plus the player", () => {
+    const snap: Snapshot = {
+      ...base,
+      context: { session_id: "s", branch_id: "b", track_id: 3, regulation_season: 2026, mode_family: "time_trial", player_car_index: 0 },
+      metrics: new Map([
+        ["car.team_id@0", m("car.team_id@0", "car.team_id", 1)],
+        ["car.team_id@1", m("car.team_id@1", "car.team_id", null, "not_received")],
+        ["car.driver_name@1", m("car.driver_name@1", "car.driver_name", null, "not_received")],
+        ["car.driver_name@2", m("car.driver_name@2", "car.driver_name", "HAMILTON")],
+      ]),
+    };
+    expect(activeCars(snap)).toEqual([0, 2]);
+  });
+
+  it("freezes the last available value when the feed stops", () => {
+    const ctx = { session_id: "freeze", branch_id: "b", track_id: 3, regulation_season: 2026, mode_family: "time_trial", player_car_index: 0 };
+    const { next: live } = applyMessage(base, {
+      type: "snapshot", seq: "5", base_seq: null, context: ctx,
+      metrics: [m("car.speed_mps@0", "car.speed_mps", 55)], removed_metric_ids: [], events: [], alerts: [], status: null,
+    });
+    const { next: stopped } = applyMessage(live, {
+      type: "delta", seq: "6", base_seq: "5", context: ctx,
+      metrics: [m("car.speed_mps@0", "car.speed_mps", null, "stale")], removed_metric_ids: [], events: [], alerts: [], status: null,
+    });
+    expect(frozenSnapshot(stopped).metrics.get("car.speed_mps@0")?.measurement.value).toBe(55);
+    // A new session must not inherit the previous freeze.
+    const { next: other } = applyMessage(stopped, {
+      type: "snapshot", seq: "7", base_seq: null, context: { ...ctx, session_id: "other" },
+      metrics: [m("car.speed_mps@0", "car.speed_mps", null, "stale")], removed_metric_ids: [], events: [], alerts: [], status: null,
+    });
+    expect(frozenSnapshot(other).metrics.get("car.speed_mps@0")?.measurement.availability).toBe("stale");
   });
 });

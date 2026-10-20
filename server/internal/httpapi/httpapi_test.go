@@ -71,6 +71,20 @@ func TestHealthNeedsNoOriginOrCredential(t *testing.T) {
 	}
 }
 
+func TestStreamFingerprintIgnoresObservationTime(t *testing.T) {
+	first := contract.Available(42.0, "m/s", "t")
+	second := contract.Available(42.0, "m/s", "t")
+	a, b := int64(1000), int64(2000)
+	first.AsOfMs, second.AsOfMs = &a, &b
+	if printOf(first) != printOf(second) {
+		t.Fatal("unchanged value must not produce a delta just because it was re-observed")
+	}
+	second.Value = 43.0
+	if printOf(first) == printOf(second) {
+		t.Fatal("value change must produce a delta")
+	}
+}
+
 func TestConfigPreconditionAndRedaction(t *testing.T) {
 	d, _ := deps(t)
 	srv := httptest.NewServer(New(d).Handler(nil))

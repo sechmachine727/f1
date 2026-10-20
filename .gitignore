@@ -223,3 +223,8 @@ logs/
 
 # Local databases
 *.db
+
+# Local build and packaging artifacts
+artifacts/
+*.zip
+qualification.test

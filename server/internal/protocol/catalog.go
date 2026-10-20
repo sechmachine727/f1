@@ -82,6 +82,7 @@ var canonical = func() []ChannelSpec {
 	add("session.track_length_m", "m", "number", 1, "m_trackLength", false, -1, 1, false, "session")
 	add("session.total_laps", "laps", "integer", 1, "m_totalLaps", false, -1, 1, false, "session")
 	add("session.safety_car_status", "code", "integer", 1, "m_safetyCarStatus", false, -1, 1, false, "session")
+	add("session.paused", "flag", "boolean", 1, "m_gamePaused", false, -1, 1, false, "session")
 	add("car.team_id", "team", "integer", 4, "m_teamId", true, -1, 1, false, "session")
 	add("car.race_number", "number", "integer", 4, "m_raceNumber", true, -1, 1, false, "session")
 	add("car.driver_name", "", "string", 4, "m_name", true, -1, 1, false, "session")

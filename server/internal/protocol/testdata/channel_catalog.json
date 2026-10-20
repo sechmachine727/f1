@@ -840,16 +840,6 @@
   "frequency_class": "status"
  },
  {
-  "name": "raw.1.m_gamePaused",
-  "unit": "",
-  "value_type": "number",
-  "source_fields": [
-   "packet1.m_gamePaused"
-  ],
-  "availability_rule": "raw official field; availability follows the packet and restriction rules",
-  "frequency_class": "status"
- },
- {
   "name": "raw.1.m_gearboxAssist",
   "unit": "",
   "value_type": "number",
@@ -3125,6 +3115,16 @@
   "value_type": "number",
   "source_fields": [
    "packet1.m_airTemperature"
+  ],
+  "availability_rule": "available when received and fresh",
+  "frequency_class": "session"
+ },
+ {
+  "name": "session.paused",
+  "unit": "flag",
+  "value_type": "boolean",
+  "source_fields": [
+   "packet1.m_gamePaused"
   ],
   "availability_rule": "available when received and fresh",
   "frequency_class": "session"

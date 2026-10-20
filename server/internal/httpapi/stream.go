@@ -30,7 +30,6 @@ type Hub struct {
 type fingerprint struct {
 	value any
 	avail string
-	asOf  int64
 	unit  string
 }
 
@@ -44,11 +43,7 @@ type streamClient struct {
 }
 
 func printOf(m contract.Measurement) fingerprint {
-	var asOf int64
-	if m.AsOfMs != nil {
-		asOf = *m.AsOfMs
-	}
-	return fingerprint{value: m.Value, avail: m.Availability, asOf: asOf, unit: m.Unit}
+	return fingerprint{value: m.Value, avail: m.Availability, unit: m.Unit}
 }
 
 func NewHub() *Hub { return &Hub{clients: map[*streamClient]bool{}} }

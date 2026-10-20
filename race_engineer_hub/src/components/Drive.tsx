@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from "react";
-import { api, availabilityLabel, metric, text, useLive, value, type Snapshot } from "@/lib/live";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { activeCars, api, availabilityLabel, frozenSnapshot, metric, text, useLive, value, type Snapshot } from "@/lib/live";
+import { stats } from "@/lib/latency";
 
 const wheel = ["fl", "fr", "rl", "rr"] as const;
 const corners: Record<string, string> = { fl: "Front left", fr: "Front right", rl: "Rear left", rr: "Rear right" };
@@ -122,7 +123,7 @@ function rivals(s: Snapshot) {
   const me = value(metric(s, "timing.car_position"));
   if (me == null) return { me: null, ahead: null, behind: null };
   let ahead: number | null = null, behind: number | null = null;
-  for (let i = 0; i < 24; i++) {
+  for (const i of activeCars(s)) {
     const pos = value(metric(s, "timing.car_position", i));
     if (pos === me - 1) ahead = i;
     if (pos === me + 1) behind = i;
@@ -160,7 +161,7 @@ function FieldMap({ s }: { s: Snapshot }) {
   // was the largest continuously invalidated area on the page.
   const cache = useRef<{ at: number; cars: { i: number; d: number; pos: number }[] }>({ at: 0, cars: [] });
   const cars: { i: number; d: number; pos: number }[] = [];
-  for (let i = 0; i < 24; i++) {
+  for (const i of activeCars(s)) {
     const d = value(metric(s, "timing.lap_distance_m", i));
     const pos = value(metric(s, "timing.car_position", i));
     if (d != null && pos != null) cars.push({ i, d, pos });
@@ -266,8 +267,11 @@ function Issues({ s }: { s: Snapshot }) {
 }
 
 export function Drive() {
-  const s = useLive();
-  const p = s.context?.player_car_index ?? 0;
+  const live = useLive();
+  const p = live.context?.player_car_index ?? 0;
+  const stale = [metric(live, "car.speed_mps", p), metric(live, "tyre.fl.surface_c", p), metric(live, "fuel.finish_margin_laps", p)]
+    .some((m) => m?.availability === "stale");
+  const s = useMemo(() => (!live.connected || stale ? frozenSnapshot(live) : live), [live, stale]);
   const speed = value(metric(s, "car.speed_mps", p));
   const gear = value(metric(s, "car.gear", p));
   const lapMs = value(metric(s, "timing.current_lap_ms", p));
@@ -285,18 +289,25 @@ export function Drive() {
   const leaderGap = value(metric(s, "timing.gap_leader_s", p));
   const safety = text(metric(s, "session.safety_car_status"));
   const weather = text(metric(s, "session.weather"));
+  const paused = text(metric(s, "session.paused")) === "true";
   const call = s.events.filter((e) => e.severity !== "routine").slice(-1)[0]?.summary ?? s.alerts.find((a) => a.state === "active")?.summary ?? (s.context ? "No current call" : "Waiting for telemetry");
   const rival = rivals(s);
   const gapBehind = rival.behind != null ? value(metric(s, "timing.gap_ahead_s", rival.behind)) : null;
   // A few representative channels cover the feed; scanning all ~1000 metrics on
   // every 60Hz render was pure garbage.
-  const stale = [metric(s, "car.speed_mps", p), metric(s, "tyre.fl.surface_c", p), metric(s, "fuel.finish_margin_laps", p)]
-    .some((m) => m?.availability === "stale");
   const remainingLaps = totalLaps != null && currentLap != null ? Math.max(0, totalLaps - currentLap + 1) : null;
 
   // Completed laps come from the catalog so the pace graph shows real lap
   // times rather than a running clock that resets every lap.
   const [lapTimes, setLapTimes] = useState<number[]>([]);
+  const [lagMs, setLagMs] = useState<number | null>(null);
+  useEffect(() => {
+    const id = setInterval(() => {
+      const l = stats();
+      setLagMs(l.n > 0 ? Math.round(l.p95) : null);
+    }, 2000);
+    return () => clearInterval(id);
+  }, []);
   useEffect(() => {
     const id = s.context?.session_id;
     if (!id) return;
@@ -339,7 +350,7 @@ export function Drive() {
     <div style={{ fontSize: "clamp(16px, 1.48vh, 22px)" }} className="flex min-h-[calc(100vh-49px)] flex-col gap-2 bg-[#0b0d11] px-4 pb-2 pt-2 text-neutral-100 [@media(min-width:1024px)]:h-[calc(100vh-49px)] [@media(min-width:1024px)]:overflow-hidden">
       <header className="flex shrink-0 items-center justify-between border border-[#262b33] bg-[#11141a] px-4 py-1.5">
         <div className="flex items-baseline gap-4"><span className="text-[1.15em] font-bold tracking-wide">{s.context?.track_id != null ? "Track " + s.context.track_id : "Track unknown"}</span><span className="text-[0.85em] text-neutral-400">{String(s.context?.regulation_season ?? "season unknown")} · {s.context?.mode_family ?? "unknown"}</span></div>
-        <div className="flex gap-6 text-[0.85em]"><span className="text-neutral-200">{pos === "—" ? "Pos —" : "P" + pos}</span><span className="text-neutral-400">{lapNo === "—" ? "Lap —" : "Lap " + lapNo + (totalLaps != null ? "/" + Math.round(totalLaps) : "")}</span><span className={s.connected && !stale ? "text-[#5fd68f]" : "text-neutral-400"}>{s.connected ? (stale ? "Stale" : "Live") : "Disconnected"}</span><span className="text-neutral-400">{recordingLabel[s.recording] ?? "Recording state unknown"}</span></div>
+        <div className="flex gap-6 text-[0.85em]"><span className="text-neutral-200">{pos === "—" ? "Pos —" : "P" + pos}</span><span className="text-neutral-400">{lapNo === "—" ? "Lap —" : "Lap " + lapNo + (totalLaps != null ? "/" + Math.round(totalLaps) : "")}</span><span className={s.connected && !stale && !paused ? "text-[#5fd68f]" : "text-neutral-400"}>{s.connected ? (paused ? "Paused" : stale ? "Stale · frozen" : lagMs == null ? "Live" : "Live · " + lagMs + " ms") : "Disconnected"}</span><span className="text-neutral-400">{recordingLabel[s.recording] ?? "Recording state unknown"}</span></div>
       </header>
 
       <section className="flex h-[4.6em] shrink-0 items-center border border-[#262b33] bg-[#10201a] px-5">

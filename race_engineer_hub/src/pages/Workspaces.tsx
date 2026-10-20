@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { LineChart, Line, ResponsiveContainer, XAxis, YAxis, Tooltip, ReferenceLine } from "recharts";
-import { api, metric, text, useLive, value, type Snapshot } from "@/lib/live";
+import { activeCars, api, metric, text, useLive, value, type Snapshot } from "@/lib/live";
 import { sessionMeta } from "@/lib/recorded";
 import { clearSelection, select, toggleCarSelection, useSelection, type Selection } from "@/lib/selection";
 import { EngineerCard } from "@/components/EngineerCard";
@@ -76,6 +76,7 @@ export function PitWall() {
   const [candidates, setCandidates] = useState<Candidate[] | null>(null);
   const [strategyError, setStrategyError] = useState("");
   const player = s.context?.player_car_index ?? 0;
+  const paused = text(metric(s, "session.paused")) === "true";
   const selected = picked ?? [player];
   const selectedCar = selected[0] ?? player;
 
@@ -83,11 +84,7 @@ export function PitWall() {
   const live = useLiveSamples(s.context?.session_id ?? null, s.context?.branch_id ?? null, selected, !sel.sessionId && !!s.context);
 
   const cars = useMemo(() => {
-    const seen: number[] = [];
-    for (let i = 0; i < 24; i++) {
-      if (metric(s, "car.speed_mps", i) || metric(s, "car.team_id", i) || i === player) seen.push(i);
-    }
-    return seen;
+    return activeCars(s);
   }, [s.seq, player]);
 
   // Team totals only sum cars that actually reported a value; coverage is shown.
@@ -160,7 +157,7 @@ export function PitWall() {
           </div>
         </div>
         <span className="text-sm text-neutral-400">
-          {sel.sessionId ? "Recorded session" : s.context ? "Live" : "Waiting for telemetry"}
+          {sel.sessionId ? "Recorded session" : paused ? "Paused" : s.context ? "Live" : "Waiting for telemetry"}
         </span>
       </div>
 

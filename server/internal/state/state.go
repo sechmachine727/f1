@@ -90,6 +90,7 @@ type Reducer struct {
 	lastSessionTime float64
 	maxFrame        uint32
 	revision        int
+	paused          bool
 
 	format                               int
 	gameYear                             int
@@ -163,7 +164,8 @@ func (r *Reducer) Apply(seq uint64, at time.Time, data []byte, p *protocol.Packe
 	r.major = int(h.MajorVersion)
 	r.minor = int(h.MinorVersion)
 	r.playerCar = int(h.PlayerCarIndex)
-	if r.carCount == 0 || p.CarCount() > r.carCount {
+	// Packet 4 reports the active field; later packets only widen the wire slots.
+	if r.carCount == 0 {
 		r.carCount = p.CarCount()
 	}
 	r.observeSession(h, p)
@@ -205,6 +207,9 @@ func (r *Reducer) observeSession(h protocol.Header, p *protocol.Packet) {
 	}
 	if v, ok := p.Field("m_formula"); ok {
 		r.formula = int(v.F)
+	}
+	if v, ok := p.Field("m_gamePaused"); ok {
+		r.paused = v.F != 0
 	}
 	if v, ok := p.Field("m_seasonLinkIdentifier"); ok {
 		r.linkSeason = uint64(v.F)
@@ -740,6 +745,10 @@ func (r *Reducer) metricLocked(ch protocol.ChannelSpec, car int, now time.Time) 
 		m.CarIndex = intp(car)
 	}
 	s, ok := r.fields[key{ch.PacketID, ch.Name, car}]
+	if car >= 0 && r.carCount > 0 && car >= r.carCount {
+		m.Measurement = contract.Unavailable("not_received", ch.Unit, "f1tele.state", "car is not active in this session")
+		return m
+	}
 	if !ok {
 		m.Measurement = contract.Unavailable("not_received", ch.Unit, "f1tele.state", "no packet received")
 		return m
@@ -756,7 +765,7 @@ func (r *Reducer) metricLocked(ch protocol.ChannelSpec, car int, now time.Time) 
 		}
 	}
 	ttl := freshness(ch.FrequencyClass)
-	if ttl > 0 && now.Sub(s.observed) > ttl {
+	if ttl > 0 && !r.paused && now.Sub(s.observed) > ttl {
 		m.Measurement = contract.Unavailable("stale", ch.Unit, s.source, "no update within freshness window")
 		m.Measurement.AsOfMs = int64p(s.observed.UnixMilli())
 		return m

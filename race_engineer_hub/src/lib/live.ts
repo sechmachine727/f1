@@ -21,6 +21,7 @@ export const UI_CHANNELS = [
   "timing.gap_ahead_s", "timing.gap_leader_s",
   "session.weather", "session.air_temp_c", "session.track_temp_c", "session.track_length_m",
   "session.total_laps", "session.safety_car_status",
+  "session.paused",
   ...["fl", "fr", "rl", "rr"].flatMap((w) => [
     "tyre." + w + ".surface_c", "tyre." + w + ".core_c", "tyre." + w + ".pressure_pa",
     "tyre." + w + ".wear_pct", "tyre." + w + ".damage_pct", "tyre." + w + ".blisters_pct",
@@ -29,6 +30,9 @@ export const UI_CHANNELS = [
 ];
 let state = initial;
 let pending = state;
+// Last values seen as available. Drive uses these when the feed stops so a
+// pause freezes the display instead of blanking it; other views stay strict.
+const lastGood = new Map<string, Metric>();
 let flushTimer: ReturnType<typeof setTimeout> | null = null;
 let pendingObserved = 0;
 const listeners = new Set<() => void>();
@@ -63,9 +67,14 @@ export function applyMessage(prev: Snapshot, msg: StreamMsg): { next: Snapshot; 
   }
   // Deltas update the live map in place: the store keeps no old snapshots, and
   // copying ~1000 entries per message was the largest allocation in the browser.
+  const sessionChanged = msg.context?.session_id && prev.context?.session_id && msg.context.session_id !== prev.context.session_id;
+  if (sessionChanged || msg.type === "snapshot") lastGood.clear();
   const metrics = msg.type === "snapshot" ? new Map<string, Metric>() : prev.metrics;
-  for (const m of msg.metrics ?? []) metrics.set(m.id, m);
-  for (const id of msg.removed_metric_ids ?? []) metrics.delete(id);
+  for (const m of msg.metrics ?? []) {
+    metrics.set(m.id, m);
+    if (m.measurement.availability === "available") lastGood.set(m.id, m);
+  }
+  for (const id of msg.removed_metric_ids ?? []) { metrics.delete(id); lastGood.delete(id); }
   const events = [...prev.events, ...(msg.events ?? [])].slice(-40);
   return {
     next: {
@@ -79,6 +88,21 @@ export function applyMessage(prev: Snapshot, msg: StreamMsg): { next: Snapshot; 
     },
     resync: false,
   };
+}
+
+/** Overlay the last available values so a stopped feed freezes Drive at its
+ * final live state. Unavailable channels with no history stay unavailable. */
+export function frozenSnapshot(s: Snapshot): Snapshot {
+  if (lastGood.size === 0) return s;
+  let changed = false;
+  const metrics = new Map(s.metrics);
+  for (const [id, good] of lastGood) {
+    const current = metrics.get(id);
+    if (!current || current.measurement.availability === "available") continue;
+    metrics.set(id, good);
+    changed = true;
+  }
+  return changed ? { ...s, metrics } : s;
 }
 function set(patch: Partial<Snapshot>) { state = { ...state, ...patch }; pending = state; emit(); }
 export function connect() {
@@ -129,6 +153,18 @@ export function availabilityLabel(m: Measurement | null): string {
     case "unsupported": return "Unsupported";
     default: return "Invalid";
   }
+}
+
+/** Cars with a reported identity, plus the player. Empty slots are excluded. */
+export function activeCars(s: Snapshot): number[] {
+  const player = s.context?.player_car_index ?? 0;
+  const seen: number[] = [];
+  for (let i = 0; i < 24; i++) {
+    const team = value(metric(s, "car.team_id", i));
+    const name = text(metric(s, "car.driver_name", i));
+    if (team != null || (name !== "—" && name !== "") || i === player) seen.push(i);
+  }
+  return seen;
 }
 export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   let res: Response;

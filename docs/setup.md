@@ -111,6 +111,7 @@ Recording limits default to a 100 GiB cap with 5 GiB kept free, and no automatic
 ## Troubleshooting
 
 - **Health stays `awaiting_telemetry`:** check the game's IP and port, and confirm broadcast mode is off.
+- **The dashboard trails the game by seconds:** check that UDP Broadcast Mode is off and the game targets this machine's IP directly. Frames sent to `255.255.255.255` can sit in an access point's multicast buffer; a measured Wi-Fi capture delivered them about 5 seconds late.
 - **`bind udp ... address already in use`:** another process owns 20777. Stop it or pass a different `--udp` value.
 - **Recording state `stopped_limit`:** the cap or free-disk reserve was reached. Delete recordings you no longer need, then start a new recording.
 - **Port 8081 already in use:** stop the other service or set `F1TELE_HTTP_ADDR` and the Compose port mapping together.
