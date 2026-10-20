@@ -1,16 +1,31 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { LineChart, Line, ResponsiveContainer, XAxis, YAxis, Tooltip, ReferenceLine } from "recharts";
-import { api, availabilityLabel, metric, text, useLive, value, type Snapshot } from "@/lib/live";
-import { clearSelection, select, useSelection } from "@/lib/selection";
+import { api, metric, text, useLive, value, type Snapshot } from "@/lib/live";
+import { sessionMeta } from "@/lib/recorded";
+import { clearSelection, select, toggleCarSelection, useSelection, type Selection } from "@/lib/selection";
 import { EngineerCard } from "@/components/EngineerCard";
+import { CompareGrid } from "@/components/CompareGrid";
+import { TraceStack, type TraceSeries } from "@/components/TraceStack";
+import { useLiveSamples } from "@/lib/liveSamples";
+import { teamInk } from "@/lib/teams";
 
 export const nav =
   "px-3 py-1.5 text-sm rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#4fd48a]";
 const panel = "border border-[#232830] bg-[#11141a]";
 const label = "text-[11px] uppercase tracking-wider text-neutral-400";
-const wheel = ["fl", "fr", "rl", "rr"] as const;
-const wheelLabel: Record<string, string> = { fl: "FL", fr: "FR", rl: "RL", rr: "RR" };
+function LiveTraces({ s, selected, points }: { s: Snapshot; selected: number[]; points: Map<number, TraceSeries["points"]> }) {
+  const series: TraceSeries[] = selected.map((car) => ({
+    key: "c" + car,
+    name: seat(s, car),
+    color: teamInk(value(metric(s, "car.team_id", car))),
+    points: points.get(car) ?? [],
+  }));
+  const empty = !s.context
+    ? "Waiting for telemetry. The first completed lap starts the traces."
+    : "The first completed lap will populate the traces.";
+  return <TraceStack series={series} season={s.context?.regulation_season ?? null} live empty={empty} />;
+}
 
 function seat(s: Snapshot, i: number): string {
   const name = text(metric(s, "car.driver_name", i));
@@ -56,12 +71,16 @@ export function PitWall() {
   const s = useLive();
   const sel = useSelection();
   const [view, setView] = useState<"drivers" | "teams">("drivers");
-  const [detail, setDetail] = useState<number | null>(null);
+  const [picked, setPicked] = useState<number[] | null>(null);
   const [laps, setLaps] = useState<any[]>([]);
   const [candidates, setCandidates] = useState<Candidate[] | null>(null);
   const [strategyError, setStrategyError] = useState("");
   const player = s.context?.player_car_index ?? 0;
-  const selectedCar = detail ?? player;
+  const selected = picked ?? [player];
+  const selectedCar = selected[0] ?? player;
+
+  const toggleCar = (car: number) => setPicked(toggleCarSelection(selected, car));
+  const live = useLiveSamples(s.context?.session_id ?? null, s.context?.branch_id ?? null, selected, !sel.sessionId && !!s.context);
 
   const cars = useMemo(() => {
     const seen: number[] = [];
@@ -157,12 +176,15 @@ export function PitWall() {
               <tbody>
                 {cars.length === 0 ? <tr><td colSpan={7}><Empty>No cars reported yet. Start the game with UDP enabled.</Empty></td></tr> : null}
                 {cars.map((i) => {
-                  const active = i === selectedCar;
+                  const active = selected.includes(i);
+                  const color = teamInk(value(metric(s, "car.team_id", i)));
                   return (
-                    <tr key={i} onClick={() => setDetail(i)} aria-selected={active}
-                      className={"cursor-pointer border-t border-[#232830] " + (active ? "bg-[#18211b]" : "hover:bg-[#151920]")}>
+                    <tr key={i} onClick={() => toggleCar(i)} aria-selected={active} tabIndex={0} role="button"
+                      aria-label={(active ? "Deselect " : "Compare ") + seat(s, i)}
+                      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleCar(i); } }}
+                      className={"cursor-pointer border-t border-[#232830] focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[#4fd48a] " + (active ? "bg-[#18211b]" : "hover:bg-[#151920]")}>
                       <td className="p-2 tabular-nums">{text(metric(s, "timing.car_position", i))}</td>
-                      <td className="p-2">{seat(s, i)}{i === player ? <span className="ml-2 rounded-sm bg-[#24362a] px-1 text-[10px] text-[#8ef0b4]">You</span> : null}</td>
+                      <td className="p-2" style={{ boxShadow: active ? "inset 3px 0 0 " + color : undefined }}><span style={{ color: active ? color : undefined }}>{seat(s, i)}</span>{i === player ? <span className="ml-2 rounded-sm bg-[#24362a] px-1 text-[10px] text-[#8ef0b4]">You</span> : null}</td>
                       <td className="p-2 text-right tabular-nums">{text(metric(s, "car.gap_ahead_s", i))}</td>
                       <td className="p-2 text-right tabular-nums">{kmh(metric(s, "car.speed_mps", i))}</td>
                       <td className="p-2 text-right tabular-nums">{pct(metric(s, "tyre.fl.wear_pct", i))}</td>
@@ -194,11 +216,8 @@ export function PitWall() {
 
         <section className={panel + " p-4 space-y-3"}>
           <div>
-            <div className={label}>Selected driver</div>
-            <div className="text-xl font-semibold">{seat(s, selectedCar)}</div>
-            <div className="text-[12px] text-neutral-400">
-              {availabilityLabel(metric(s, "car.speed_mps", selectedCar))} · compound {text(metric(s, "tyre.compound", selectedCar))}
-            </div>
+            <div className={label}>Selected cars</div>
+            <CompareGrid s={s} cars={selected} live={live.points} />
           </div>
           <div>
             <div className={label}>Stint</div>
@@ -216,16 +235,10 @@ export function PitWall() {
             )}
           </div>
           <EngineerCard />
-          <div>
-            <div className={label}>Wear by corner</div>
-            <div className="grid grid-cols-4 gap-2 mt-1">
-              {wheel.map((w) => (
-                <div key={w} className="tabular-nums"><div className="text-[10px] text-neutral-400">{wheelLabel[w]}</div>{text(metric(s, `tyre.${w}.wear_pct`, selectedCar))}</div>
-              ))}
-            </div>
-          </div>
         </section>
       </div>
+
+      <LiveTraces s={s} selected={selected} points={live.points} />
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
         <section className={panel + " p-4 self-start"}>
@@ -349,6 +362,7 @@ export function History({ onOpen }: { onOpen: () => void }) {
         {shown.length === 0 ? <li><Empty>No recorded sessions in this view. Start a session with UDP telemetry enabled.</Empty></li> : null}
         {shown.map((s: any, i: number) => {
           const prev = i > 0 ? shown[i - 1] : null;
+          const meta = sessionMeta(s);
           const qual = String(s.session_type ?? "").startsWith("qualifying");
           const groupStart = qual && s.weekend_link_id && (!prev || prev.weekend_link_id !== s.weekend_link_id);
           return (
@@ -373,7 +387,7 @@ export function History({ onOpen }: { onOpen: () => void }) {
               <span>
                 <span className="block">{s.display_name || "Session " + s.id.slice(0, 8)}</span>
                 <span className="text-[12px] text-neutral-400">
-                  {(s.session_type ?? "unknown").replace("qualifying_", "Q").replace("practice", "Practice").replace("race", "Race")} · track {s.track_id ?? "unknown"} · {s.completed_laps} laps · best {s.best_lap_ms ? (s.best_lap_ms / 1000).toFixed(3) + " s" : "—"}
+                  {(s.session_type ?? "unknown").replace("qualifying_", "Q").replace("practice", "Practice").replace("race", "Race")} · {meta.circuit} · {meta.date} · {meta.duration} · {s.completed_laps} laps · best {s.best_lap_ms ? (s.best_lap_ms / 1000).toFixed(3) + " s" : "—"}
                 </span>
               </span>
               <span className="text-[12px] text-neutral-400">{s.recording_state} · {s.completeness}</span>

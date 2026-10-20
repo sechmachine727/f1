@@ -152,7 +152,7 @@ func TestRecordedAnalyticsRoutes(t *testing.T) {
 	if err := d.Catalog.CreateBranch(ctx, contract.Branch{ID: "b", SessionID: "s", IsSurviving: true}); err != nil {
 		t.Fatal(err)
 	}
-	if err := d.Catalog.UpsertParticipant(ctx, "s", 0, "LECLERC", 1, 16, false, 1); err != nil {
+	if err := d.Catalog.UpsertParticipant(ctx, "s", 0, "LECLERC", 1, 16, false, true, 1); err != nil {
 		t.Fatal(err)
 	}
 	for _, l := range []history.LapAnalytics{

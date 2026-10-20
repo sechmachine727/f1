@@ -181,7 +181,7 @@ func rawType(k kind) string {
 	return "number"
 }
 
-// DeployModeLabel maps the raw ERs deploy mode enum to a label.
+// DeployModeLabel maps the raw ERS deploy mode enum to its 2025 label.
 func DeployModeLabel(v float64) string {
 	switch int(v) {
 	case 0:
@@ -194,6 +194,19 @@ func DeployModeLabel(v float64) string {
 		return "Overtake"
 	}
 	return "Unknown"
+}
+
+// DeployModeLabelForSeason names mode 3 by the session's regulation. The 2025
+// structures call it overtake; the 2026 pack calls it boost. A session without
+// a 2025 or 2026 regulation keeps the raw mode number rather than guessing.
+func DeployModeLabelForSeason(v float64, season *int) string {
+	if int(v) == 3 && (season == nil || (*season != 2025 && *season != 2026)) {
+		return "Mode 3 (season unknown)"
+	}
+	if int(v) == 3 && *season == 2026 {
+		return "Boost"
+	}
+	return DeployModeLabel(v)
 }
 
 // ActiveAeroLabel maps the 2026 active-aero mode enum to a label.

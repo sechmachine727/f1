@@ -2,17 +2,21 @@ import { useEffect, useMemo, useState } from "react";
 import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { api } from "@/lib/live";
 import { clearSelection, select, useSelection } from "@/lib/selection";
-import { driversOf, fmtGap, fmtLap, sessionLabel, useSessionAnalytics, type RecordedLap, type SessionAnalytics } from "@/lib/recorded";
+import { carPoints, type SampleCar } from "@/lib/samples";
+import { driversOf, fmtGap, fmtLap, sessionLabel, useSessionAnalytics, useSessionTelemetry, type RecordedLap, type SessionAnalytics } from "@/lib/recorded";
+import { TraceStack } from "@/components/TraceStack";
+import { teamInk } from "@/lib/teams";
+import { ZoomBox } from "@/components/ZoomBox";
 
 const panel = "border border-[#232830] bg-[#11141a]";
 const label = "text-[11px] uppercase tracking-wider text-neutral-400";
 const tabClass = "px-3 py-1.5 text-sm rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#4fd48a]";
 const colors = ["#5fd68f", "#f0a03c", "#7fb0ff", "#f25a5c"];
 
-type Tab = "overview" | "laps" | "sectors" | "speed" | "tyres" | "fuel" | "stints" | "corners";
+type Tab = "overview" | "laps" | "sectors" | "speed" | "telemetry" | "tyres" | "fuel" | "stints" | "corners";
 const tabs: { id: Tab; label: string }[] = [
   { id: "overview", label: "Overview" }, { id: "laps", label: "Laps" }, { id: "sectors", label: "Sectors" },
-  { id: "speed", label: "Speed" }, { id: "tyres", label: "Tyres" }, { id: "fuel", label: "Fuel / ERS" },
+  { id: "speed", label: "Speed" }, { id: "telemetry", label: "Inputs" }, { id: "tyres", label: "Tyres" }, { id: "fuel", label: "Fuel / ERS" },
   { id: "stints", label: "Stints / runs" }, { id: "corners", label: "Corners" },
 ];
 
@@ -39,9 +43,10 @@ function Chart({ data, unit }: { data: Record<string, number | null>[]; unit: st
   const keys = data.length ? Object.keys(data[0]).filter((k) => k !== "lap") : [];
   if (!data.length) return <p className="px-4 py-6 text-sm text-neutral-400">No recorded laps for this view.</p>;
   return (
-    <div className="h-[340px] px-2 pb-2">
+    <ZoomBox count={data.length} labels={data.map((d) => "L" + d.lap)}>
+      {(from, to) => <div className="h-[340px] px-2 pb-2">
       <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={data}>
+        <LineChart data={data.slice(from, to + 1)}>
           <CartesianGrid stroke="#232830" strokeDasharray="3 3" />
           <XAxis dataKey="lap" stroke="#6b7280" tick={{ fontSize: 11 }} />
           <YAxis stroke="#6b7280" tick={{ fontSize: 11 }} width={64} tickFormatter={(v) => `${v}${unit}`} domain={["auto", "auto"]} />
@@ -50,7 +55,8 @@ function Chart({ data, unit }: { data: Record<string, number | null>[]; unit: st
           {keys.map((k, i) => <Line key={k} dataKey={k} dot={false} strokeWidth={2} stroke={colors[i % 4]} connectNulls={false} />)}
         </LineChart>
       </ResponsiveContainer>
-    </div>
+      </div>}
+    </ZoomBox>
   );
 }
 
@@ -59,9 +65,19 @@ export function RecordedPitWall() {
   const { data, error } = useSessionAnalytics(sel.sessionId);
   const [tab, setTab] = useState<Tab>("overview");
   const [cars, setCars] = useState<number[] | null>(null);
+  const [fromLap, setFromLap] = useState("");
+  const [toLap, setToLap] = useState("");
   const [segments, setSegments] = useState<{ id: string; session_type: string }[]>([]);
   const drivers = useMemo(() => data ? data.participants.map((p) => p.car_index).filter((c) => data.laps.some((l) => l.car_index === c)) : [], [data]);
   const selected = cars ?? (sel.sessionId ? [drivers[0] ?? 0] : []);
+  const traces = useSessionTelemetry(
+    tab === "telemetry" ? sel.sessionId : null, sel.branchId, selected,
+    Number(fromLap) || undefined, Number(toLap) || undefined,
+  );
+  const traceSeries = (traces.data?.cars ?? []).map((c: SampleCar) => ({
+    key: "c" + c.car_index, name: c.name || "Car " + (c.car_index + 1),
+    color: teamInk(c.team_id), points: carPoints(c),
+  }));
   const toggleCar = (car: number) => {
     const next = selected.includes(car) ? selected.filter((c) => c !== car) : selected.length >= 4 ? selected : [...selected, car];
     setCars(next.length ? next : [car]);
@@ -152,6 +168,24 @@ export function RecordedPitWall() {
 
       {tab === "sectors" ? <section className={panel + " p-3"}><div className={label}>Sector 1 / 2 / 3 by lap</div><Chart data={seriesFor(data, selected, (l) => l.sector1_ms ? l.sector1_ms / 1000 : null)} unit="s" /></section> : null}
       {tab === "speed" ? <section className={panel + " p-3"}><div className={label}>Average and top speed by lap</div><Chart data={seriesFor(data, selected, (l) => l.avg_speed_mps * 3.6)} unit="km/h" /></section> : null}
+      {tab === "telemetry" ? <section className={panel + " p-3"}>
+        <div className="flex flex-wrap items-center gap-4">
+          <div className={label}>Throttle, brake, gear and energy over session time</div>
+          <div className="ml-auto flex items-center gap-2 text-[12px] text-neutral-400">
+            <label htmlFor="from-lap">Laps from</label>
+            <input id="from-lap" inputMode="numeric" value={fromLap} onChange={(e) => setFromLap(e.target.value.replace(/\D/g, ""))} className="w-14 border border-[#2a3038] bg-[#151920] px-2 py-1 text-neutral-100" />
+            <label htmlFor="to-lap">to</label>
+            <input id="to-lap" inputMode="numeric" value={toLap} onChange={(e) => setToLap(e.target.value.replace(/\D/g, ""))} className="w-14 border border-[#2a3038] bg-[#151920] px-2 py-1 text-neutral-100" />
+          </div>
+        </div>
+        <div className="mt-2">
+          <TraceStack series={traceSeries} season={data.regulation_season} empty={
+            traces.data && traces.data.laps_available === 0
+              ? "Samples are being derived for this recording. Lap aggregates remain available."
+              : "No stored samples for the selected cars and lap range."
+          } />
+        </div>
+      </section> : null}
       {tab === "tyres" ? <section className={panel + " p-3"}><div className={label}>Tyre age by lap</div><Chart data={seriesFor(data, selected, (l) => l.tyre_age_laps)} unit=" laps" /></section> : null}
       {tab === "fuel" ? <section className={panel + " p-3"}><div className={label}>Fuel at lap end (kg)</div><Chart data={seriesFor(data, selected, (l) => l.fuel_end_kg || null)} unit=" kg" /></section> : null}
       {tab === "stints" ? <section className={panel + " overflow-auto"}>

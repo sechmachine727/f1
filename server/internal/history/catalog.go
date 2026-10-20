@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -30,6 +31,9 @@ var migration003 string
 
 //go:embed migrations/004_analytics.sql
 var migration004 string
+
+//go:embed migrations/005_samples.sql
+var migration005 string
 
 const seqBlock = 4096
 
@@ -65,6 +69,15 @@ func OpenCatalog(path string) (*Catalog, error) {
 	if _, err := db.Exec(migration004); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("migrate analytics catalog: %w", err)
+	}
+	if _, err := db.Exec(migration005); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("migrate sample catalog: %w", err)
+	}
+	// SQLite cannot add a column conditionally, so the rerun tolerance lives here.
+	if _, err := db.Exec(`ALTER TABLE session_participants ADD COLUMN your_telemetry INTEGER NOT NULL DEFAULT 1`); err != nil && !strings.Contains(err.Error(), "duplicate column name") {
+		db.Close()
+		return nil, fmt.Errorf("add participant telemetry column: %w", err)
 	}
 	return &Catalog{db: db}, nil
 }

@@ -119,7 +119,7 @@ func (e *Engine) Export(ctx context.Context, req contract.ExportRequest) (string
 					}
 					switch {
 					case spec.Name == "energy.deploy_mode":
-						s := protocol.DeployModeLabel(v)
+						s := protocol.DeployModeLabelForSeason(v, detail.Summary.RegulationSeason)
 						row.ValueText = &s
 					case spec.Name == "aero.active_mode":
 						s := protocol.ActiveAeroLabel(v)

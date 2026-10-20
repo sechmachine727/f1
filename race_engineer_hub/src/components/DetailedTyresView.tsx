@@ -4,6 +4,7 @@ import type { SessionData, WeatherForecastSample } from "@/hooks/useSessionTelem
 import type { LapWearRecord, TyreTelemetryData, TyreSetsData, TyresReportEntry } from "@/hooks/useTyreTelemetry";
 import type { Alert } from "@/components/AlertBox";
 import { BarGauge } from "./TelemetryCard";
+import { ZoomBox } from "./ZoomBox";
 import ReactMarkdown from "react-markdown";
 import {
   AlertTriangle,
@@ -382,8 +383,9 @@ function HistoricalWearChart({ wearHistory, tyreData }: { wearHistory: LapWearRe
   }
 
   return (
-    <ResponsiveContainer width="100%" height="100%">
-      <LineChart data={wearHistory} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+    <ZoomBox count={wearHistory.length} fill labels={wearHistory.map((w) => "L" + Math.round(w.lap))}>
+      {(from, to) => <ResponsiveContainer width="100%" height="100%">
+      <LineChart data={wearHistory.slice(from, to + 1)} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
         <XAxis
           dataKey="lap"
@@ -432,7 +434,8 @@ function HistoricalWearChart({ wearHistory, tyreData }: { wearHistory: LapWearRe
         <Line type="monotone" dataKey="rl" name="RL" stroke={WHEEL_COLORS.rl} strokeWidth={2} dot={false} isAnimationActive={false} />
         <Line type="monotone" dataKey="rr" name="RR" stroke={WHEEL_COLORS.rr} strokeWidth={2} dot={false} isAnimationActive={false} />
       </LineChart>
-    </ResponsiveContainer>
+    </ResponsiveContainer>}
+    </ZoomBox>
   );
 }
 

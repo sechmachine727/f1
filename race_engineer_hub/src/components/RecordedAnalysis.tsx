@@ -1,8 +1,12 @@
 import { useMemo, useState } from "react";
 import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { api } from "@/lib/live";
-import { driversOf, fmtLap, sessionLabel, useSessionAnalytics, type RecordedLap } from "@/lib/recorded";
+import { fmtLap, sessionLabel, useSessionAnalytics, useSessionTelemetry, type RecordedLap } from "@/lib/recorded";
 import { useSelection } from "@/lib/selection";
+import { lapRelativePoints } from "@/lib/samples";
+import { TraceStack, type TraceSeries } from "@/components/TraceStack";
+import { teamInk } from "@/lib/teams";
+import { ZoomBox } from "@/components/ZoomBox";
 
 const panel = "border border-[#232830] bg-[#11141a]";
 const label = "text-[11px] uppercase tracking-wider text-neutral-400";
@@ -104,6 +108,25 @@ export function RecordedAnalysis() {
     return Math.sqrt(times.reduce((a, b) => a + (b - mean) ** 2, 0) / times.length) / 1000;
   }, [laps, picked]);
 
+  const pickedPairs = picked.map((k) => { const [car, lap] = k.split(":").map(Number); return { car, lap }; });
+  const pickedCars = [...new Set(pickedPairs.map((p) => p.car))];
+  const pickedLaps = pickedPairs.map((p) => p.lap);
+  const traces = useSessionTelemetry(
+    data?.session_id ?? null, sel.branchId, pickedCars,
+    pickedLaps.length ? Math.min(...pickedLaps) : undefined,
+    pickedLaps.length ? Math.max(...pickedLaps) : undefined,
+  );
+  const traceSeries = useMemo<TraceSeries[]>(() => {
+    const out: TraceSeries[] = [];
+    for (const car of traces.data?.cars ?? []) {
+      for (const lap of lapRelativePoints(car, pickedPairs.filter((p) => p.car === car.car_index).map((p) => p.lap))) {
+        out.push({ key: "c" + car.car_index + "l" + lap.lap, name: `${car.name} L${lap.lap}`, color: teamInk(car.team_id), points: lap.points });
+      }
+    }
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [traces.data, picked.join(",")]);
+
   if (!sel.sessionId) return null;
   if (error) return <p className="p-4 text-[#f25a5c]">{error}</p>;
   if (!data) return <p className="p-4 text-sm text-neutral-400">Loading recorded session…</p>;
@@ -134,10 +157,16 @@ export function RecordedAnalysis() {
         <div className="space-y-3">
           <section className={panel + " p-3"}>
             <div className={label}>Lap time comparison</div>
-            {result ? <div className="h-[300px]"><ResponsiveContainer width="100%" height="100%"><LineChart data={chartData}>
+            {result ? <ZoomBox count={chartData.length} labels={chartData.map((d) => d.name)}>{(from, to) => <div className="h-[300px]"><ResponsiveContainer width="100%" height="100%"><LineChart data={chartData.slice(from, to + 1)}>
               <CartesianGrid stroke="#232830" strokeDasharray="3 3" /><XAxis dataKey="name" stroke="#6b7280" tick={{ fontSize: 11 }} /><YAxis hide domain={["dataMin - 200", "dataMax + 200"]} />
               <Tooltip contentStyle={{ background: "#11141a", border: "1px solid #232830" }} /><Line dataKey="time" stroke="#5fd68f" strokeWidth={2} dot={false} />
-            </LineChart></ResponsiveContainer></div> : <p className="py-6 text-sm text-neutral-400">Pick laps and compare to see aligned time, sectors and theoretical best.</p>}
+            </LineChart></ResponsiveContainer></div>}</ZoomBox> : <p className="py-6 text-sm text-neutral-400">Pick laps and compare to see aligned time, sectors and theoretical best.</p>}
+          </section>
+          <section className={panel + " p-3"}>
+            <div className={label}>Time-aligned inputs · each lap from its own start</div>
+            <div className="mt-2">
+              <TraceStack series={traceSeries} season={data.regulation_season} empty="Pick laps to see throttle, brake, gear and energy." />
+            </div>
           </section>
           {result ? <section className={panel + " overflow-auto p-3"}>
             <div className={label}>Sector deltas · theoretical best {fmtLap(result.theoretical_best_ms)}</div>

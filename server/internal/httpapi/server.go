@@ -112,6 +112,7 @@ func (a *API) Handler(static http.Handler) http.Handler {
 	mux.HandleFunc("GET /api/v1/sessions/{id}/branches", a.getBranches)
 	mux.HandleFunc("GET /api/v1/sessions/{id}/laps", a.getLaps)
 	mux.HandleFunc("GET /api/v1/sessions/{id}/analytics", a.sessionAnalytics)
+	mux.HandleFunc("GET /api/v1/sessions/{id}/telemetry", a.sessionTelemetry)
 	mux.HandleFunc("GET /api/v1/sessions/{id}/laps/{lap}", a.lapAnalytics)
 	mux.HandleFunc("GET /api/v1/sessions/{id}/compare", a.compareLaps)
 	mux.HandleFunc("GET /api/v1/careers", a.listCareers)

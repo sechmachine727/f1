@@ -33,3 +33,9 @@ export function useSelection(): Selection {
   }, []);
   return current;
 }
+
+/** At most two cars: a third pick replaces the earliest selection. */
+export function toggleCarSelection(selected: number[], car: number): number[] {
+  if (selected.includes(car)) return selected.length > 1 ? selected.filter((c) => c !== car) : selected;
+  return [...selected.slice(-1), car];
+}

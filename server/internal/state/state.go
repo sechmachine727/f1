@@ -769,7 +769,7 @@ func (r *Reducer) metricLocked(ch protocol.ChannelSpec, car int, now time.Time) 
 	}
 	switch ch.Name {
 	case "energy.deploy_mode":
-		value = protocol.DeployModeLabel(s.value.F)
+		value = protocol.DeployModeLabelForSeason(s.value.F, r.season)
 	case "aero.active_mode":
 		value = protocol.ActiveAeroLabel(s.value.F)
 	case "tyre.compound":

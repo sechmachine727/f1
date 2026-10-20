@@ -12,12 +12,13 @@ import (
 	"github.com/foxglove/mcap/go/mcap"
 )
 
-// Backfill derives analytics for existing recordings. It never rewrites a
-// recording, skips sessions that already have a summary, and is safe to rerun.
+// Backfill derives analytics and lap samples for existing recordings. It never
+// rewrites a recording, skips sessions that already hold samples, and is safe
+// to rerun. Sessions with a summary but no samples are still eligible.
 func Backfill(ctx context.Context, cat *history.Catalog, logger *slog.Logger, limit int) {
 	rows, err := cat.DB().QueryContext(ctx, `SELECT s.id FROM sessions s
-		LEFT JOIN session_analytics a ON a.session_id=s.id
-		WHERE a.session_id IS NULL AND EXISTS (SELECT 1 FROM laps l WHERE l.session_id=s.id)
+		WHERE EXISTS (SELECT 1 FROM laps l WHERE l.session_id=s.id)
+		AND NOT EXISTS (SELECT 1 FROM lap_samples t WHERE t.session_id=s.id)
 		ORDER BY s.started_at_ms DESC LIMIT ?`, limit)
 	if err != nil {
 		return

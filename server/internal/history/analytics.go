@@ -97,14 +97,15 @@ func (c *Catalog) SessionAnalytics(ctx context.Context, sessionID string) (best,
 	return
 }
 
-func (c *Catalog) UpsertParticipant(ctx context.Context, sessionID string, car int, name string, team, number int, ai bool, seq uint64) error {
+func (c *Catalog) UpsertParticipant(ctx context.Context, sessionID string, car int, name string, team, number int, ai, public bool, seq uint64) error {
 	if name == "" {
 		name = "Car " + strconv.Itoa(car+1)
 	}
-	_, err := c.db.ExecContext(ctx, `INSERT INTO session_participants(session_id, car_idx, name, team_id, race_number, ai, first_seq, last_seq)
-		VALUES(?,?,?,?,?,?,?,?)
+	_, err := c.db.ExecContext(ctx, `INSERT INTO session_participants(session_id, car_idx, name, team_id, race_number, ai, your_telemetry, first_seq, last_seq)
+		VALUES(?,?,?,?,?,?,?,?,?)
 		ON CONFLICT(session_id, car_idx) DO UPDATE SET name=excluded.name, team_id=excluded.team_id,
-		race_number=excluded.race_number, ai=excluded.ai, last_seq=excluded.last_seq`, sessionID, car, name, team, number, boolInt(ai), seq, seq)
+		race_number=excluded.race_number, ai=excluded.ai, your_telemetry=excluded.your_telemetry, last_seq=excluded.last_seq`,
+		sessionID, car, name, team, number, boolInt(ai), boolInt(public), seq, seq)
 	return err
 }
 

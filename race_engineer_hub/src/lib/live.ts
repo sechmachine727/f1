@@ -9,7 +9,7 @@ export type Snapshot = { context: Context | null; metrics: Map<string, Metric>; 
 const initial: Snapshot = { context: null, metrics: new Map(), events: [], alerts: [], status: null, connected: false, recording: "idle", seq: 0 };
 // Only channels the workspaces render. Subscribing to every canonical channel
 // pushed throttle/steer/brake samples for all 24 cars into the browser.
-const UI_CHANNELS = [
+export const UI_CHANNELS = [
   "car.speed_mps", "car.gear", "car.rpm", "car.drs", "car.engine_temp_c", "car.team_id", "car.driver_name",
   "car.wing_front_left_damage_pct", "car.wing_front_right_damage_pct", "car.wing_rear_damage_pct",
   "car.floor_damage_pct", "car.diffuser_damage_pct", "car.sidepod_damage_pct", "car.gearbox_damage_pct",

@@ -16,10 +16,10 @@ import (
 func TestSummaryAndCompare(t *testing.T) {
 	cat, _, cx := setup(t)
 	ctx := context.Background()
-	if err := cat.UpsertParticipant(ctx, "s", 0, "LECLERC", 1, 16, false, 1); err != nil {
+	if err := cat.UpsertParticipant(ctx, "s", 0, "LECLERC", 1, 16, false, true, 1); err != nil {
 		t.Fatal(err)
 	}
-	if err := cat.UpsertParticipant(ctx, "s", 1, "HAMILTON", 2, 44, false, 1); err != nil {
+	if err := cat.UpsertParticipant(ctx, "s", 1, "HAMILTON", 2, 44, false, true, 1); err != nil {
 		t.Fatal(err)
 	}
 	rows := []history.LapAnalytics{
@@ -76,7 +76,7 @@ func TestBackfillDerivesWithoutRewritingRecording(t *testing.T) {
 			"m_currentLapNum": 1, "m_totalDistance": float64(i) * 50, "m_lapDistance": float64(i) * 50, "m_carPosition": 1,
 		}}, nil)
 		rec.Record(uint64(i+1), time.UnixMilli(1_700_000_000_000+int64(i)), data)
-		sp := protocol.BuildPacket(2026, 6, protocol.Header{Format: 2026, PacketVersion: 1, SessionUID: 9, FrameID: uint32(i + 1)}, nil, map[int]map[string]float64{0: {"m_speed": 200}}, nil)
+		sp := protocol.BuildPacket(2026, 6, protocol.Header{Format: 2026, PacketVersion: 1, SessionUID: 9, FrameID: uint32(i + 1), SessionTime: float64(i)}, nil, map[int]map[string]float64{0: {"m_speed": 200, "m_throttle": 0.9, "m_brake": 0, "m_gear": 7}}, nil)
 		rec.Record(uint64(100+i), time.UnixMilli(1_700_000_000_000+int64(i)), sp)
 	}
 	boundary := protocol.BuildPacket(2026, 2, protocol.Header{Format: 2026, PacketVersion: 1, SessionUID: 9, FrameID: 100}, nil, map[int]map[string]float64{0: {
@@ -98,11 +98,19 @@ func TestBackfillDerivesWithoutRewritingRecording(t *testing.T) {
 	if err != nil || len(paths) == 0 {
 		t.Fatalf("recordings %v %d", err, len(paths))
 	}
+	// A session that already carries a summary still gains samples.
+	if err := cat.UpsertSessionAnalytics(ctx, "s", "b", MethodVersion); err != nil {
+		t.Fatal(err)
+	}
 	before := hashFile(t, paths[0])
 	Backfill(ctx, cat, nil, 10)
 	var n int
 	if err := cat.DB().QueryRow("SELECT COUNT(*) FROM lap_analytics WHERE session_id='s'").Scan(&n); err != nil || n == 0 {
 		t.Fatalf("backfilled laps %d err %v", n, err)
+	}
+	var samples int
+	if err := cat.DB().QueryRow("SELECT COUNT(*) FROM lap_samples WHERE session_id='s'").Scan(&samples); err != nil || samples == 0 {
+		t.Fatalf("backfilled samples %d err %v", samples, err)
 	}
 	if after := hashFile(t, paths[0]); after != before {
 		t.Fatal("backfill rewrote the recording")
@@ -111,6 +119,10 @@ func TestBackfillDerivesWithoutRewritingRecording(t *testing.T) {
 	var again int
 	if err := cat.DB().QueryRow("SELECT COUNT(*) FROM lap_analytics WHERE session_id='s'").Scan(&again); err != nil || again != n {
 		t.Fatalf("repeat backfill duplicated rows: %d vs %d", again, n)
+	}
+	var againSamples int
+	if err := cat.DB().QueryRow("SELECT COUNT(*) FROM lap_samples WHERE session_id='s'").Scan(&againSamples); err != nil || againSamples != samples {
+		t.Fatalf("repeat backfill duplicated samples: %d vs %d", againSamples, samples)
 	}
 	_ = cx
 }

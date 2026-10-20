@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/live";
+import { getCircuitInfo } from "@/data/circuitData";
+import type { SessionTelemetry } from "@/lib/samples";
 
 export type RecordedLap = {
   car_index: number; lap: number; lap_ms: number; sector1_ms: number; sector2_ms: number; sector3_ms: number;
@@ -44,3 +46,41 @@ export const sessionLabel: Record<string, string> = {
 
 export const fmtLap = (ms: number | null | undefined) => ms && ms > 0 ? (ms / 1000).toFixed(3) + " s" : "—";
 export const fmtGap = (ms: number) => ms === 0 ? "—" : (ms > 0 ? "+" : "") + (ms / 1000).toFixed(3);
+
+/** Circuit name, date and duration for a History row. */
+export function sessionMeta(s: { track_id: number | null; started_at_ms: number; ended_at_ms?: number | null }): {
+  circuit: string;
+  date: string;
+  duration: string;
+} {
+  const circuit = s.track_id == null
+    ? "Track unknown"
+    : getCircuitInfo(s.track_id)?.name ?? "Track " + s.track_id + " (name unknown)";
+  const date = s.started_at_ms > 0
+    ? new Date(s.started_at_ms).toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" })
+    : "date unknown";
+  const duration = s.ended_at_ms && s.ended_at_ms > s.started_at_ms
+    ? Math.max(1, Math.round((s.ended_at_ms - s.started_at_ms) / 60000)) + " min"
+    : "in progress";
+  return { circuit, date, duration };
+}
+
+/** Stored per-lap input samples for the selected cars and lap range. */
+export function useSessionTelemetry(sessionId: string | null, branchId: string | null, cars: number[], fromLap?: number, toLap?: number) {
+  const [data, setData] = useState<SessionTelemetry | null>(null);
+  const [error, setError] = useState("");
+  const key = cars.join(",");
+  useEffect(() => {
+    if (!sessionId || cars.length === 0) { setData(null); setError(""); return; }
+    let alive = true;
+    const q = new URLSearchParams({ branch: branchId ?? "", cars: key });
+    if (fromLap) q.set("from_lap", String(fromLap));
+    if (toLap) q.set("to_lap", String(toLap));
+    api<SessionTelemetry>("/sessions/" + sessionId + "/telemetry?" + q)
+      .then((d) => { if (alive) { setData(d); setError(""); } })
+      .catch((e) => { if (alive) { setData(null); setError(String(e)); } });
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionId, branchId, key, fromLap, toLap]);
+  return { data, error };
+}

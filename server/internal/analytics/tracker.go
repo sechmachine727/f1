@@ -19,7 +19,11 @@ import (
 	"f1tele/server/internal/protocol"
 )
 
-const MethodVersion = "lap-analytics-v1"
+const MethodVersion = "lap-analytics-v2"
+
+// MaxSamplesPerLap bounds one stored input trace. A 90-second lap sampled at
+// 60 Hz stores roughly one point per 100 ms after this reduction.
+const MaxSamplesPerLap = 900
 
 type carState struct {
 	lap          int
@@ -31,6 +35,13 @@ type carState struct {
 	lastLapDist  float64
 	haveLapDist  bool
 	topSpeed     float64
+	lapStartMs   int64
+	ersMode      float64
+	haveErs      bool
+	overtakeOK   bool
+	overtakeOn   bool
+	haveOvertake bool
+	restricted   bool
 	position     int
 	gapAheadMs   int64
 	gapLeaderMs  int64
@@ -53,8 +64,19 @@ type carState struct {
 }
 
 type sample struct {
-	distance float64
-	speed    float64
+	timeMs       int64
+	distance     float64
+	speed        float64
+	throttle     float64
+	brake        float64
+	gear         int
+	ersJ         float64
+	deployMode   int
+	overtakeOK   bool
+	overtakeOn   bool
+	haveErs      bool
+	haveOvertake bool
+	restricted   bool
 }
 
 type participant struct {
@@ -62,6 +84,7 @@ type participant struct {
 	team   int
 	number int
 	ai     bool
+	public bool
 }
 
 // Tracker consumes packets for one live session and writes derived rows.
@@ -123,26 +146,46 @@ func (t *Tracker) Observe(ctx context.Context, seq uint64, p *protocol.Packet, c
 			team, _ := p.CarField("m_teamId", car)
 			number, _ := p.CarField("m_raceNumber", car)
 			ai, _ := p.CarField("m_aiControlled", car)
+			public := true
+			if v, ok := p.CarField("m_yourTelemetry", car); ok {
+				public = v.F != 0
+			}
 			if name.S == "" && team.F == 0 && number.F == 0 {
 				continue
 			}
-			t.people[car] = participant{name: name.S, team: int(team.F), number: int(number.F), ai: ai.F != 0}
-			_ = t.Catalog.UpsertParticipant(ctx, cx.SessionID, car, name.S, int(team.F), int(number.F), ai.F != 0, seq)
+			t.people[car] = participant{name: name.S, team: int(team.F), number: int(number.F), ai: ai.F != 0, public: public}
+			t.car(car).restricted = car != t.player && !public
+			_ = t.Catalog.UpsertParticipant(ctx, cx.SessionID, car, name.S, int(team.F), int(number.F), ai.F != 0, public, seq)
 		}
 	case 6:
+		sessionMs := int64(math.Round(p.Header.SessionTime * 1000))
 		for car := 0; car < p.CarCount(); car++ {
 			st := t.car(car)
+			var speed float64
 			if v, ok := p.CarField("m_speed", car); ok {
-				speed := v.F / 3.6
+				speed = v.F / 3.6
 				if speed > st.topSpeed {
 					st.topSpeed = speed
 				}
-				if st.lap > 0 && st.lapDistance > 0 {
-					st.samples = append(st.samples, sample{distance: st.lapDistance, speed: speed})
-					if len(st.samples) > 4000 {
-						st.samples = st.samples[:4000]
-					}
-				}
+			}
+			throttle, okThrottle := p.CarField("m_throttle", car)
+			brake, okBrake := p.CarField("m_brake", car)
+			gear, okGear := p.CarField("m_gear", car)
+			if !okThrottle || !okBrake || !okGear || st.lap <= 0 || st.lapDistance <= 0 {
+				continue
+			}
+			st.samples = append(st.samples, sample{
+				timeMs: sessionMs, distance: st.lapDistance, speed: speed,
+				throttle: throttle.F, brake: brake.F, gear: int(gear.F),
+				ersJ: st.ersJ, deployMode: int(st.ersMode), haveErs: st.haveErs,
+				overtakeOK: st.overtakeOK, overtakeOn: st.overtakeOn, haveOvertake: st.haveOvertake,
+				restricted: st.restricted,
+			})
+			// A long lap can exceed the live buffer. Halving keeps the whole lap
+			// shape, both ends and every shift or brake change; truncation used to
+			// drop the newest samples and leave the chart short.
+			if len(st.samples) > 4000 {
+				st.samples = compactSamples(st.samples)
 			}
 		}
 	case 7:
@@ -153,6 +196,10 @@ func (t *Tracker) Observe(ctx context.Context, seq uint64, p *protocol.Packet, c
 			}
 			if v, ok := p.CarField("m_ersStoreEnergy", car); ok {
 				st.ersJ = v.F
+				st.haveErs = true
+			}
+			if v, ok := p.CarField("m_ersDeployMode", car); ok {
+				st.ersMode = v.F
 			}
 			if v, ok := p.CarField("m_actualTyreCompound", car); ok {
 				st.compound = protocol.CompoundLabel(int(v.F))
@@ -177,6 +224,17 @@ func (t *Tracker) Observe(ctx context.Context, seq uint64, p *protocol.Packet, c
 			}
 			st.wear = maxWear
 		}
+	case 16:
+		for car := 0; car < p.CarCount(); car++ {
+			st := t.car(car)
+			if v, ok := p.CarField("m_overtakeAvailable", car); ok {
+				st.overtakeOK = v.F != 0
+				st.haveOvertake = true
+			}
+			if v, ok := p.CarField("m_overtakeActive", car); ok {
+				st.overtakeOn = v.F != 0
+			}
+		}
 	case 11:
 		t.observeHistory(ctx, seq, p)
 	case 2:
@@ -194,6 +252,7 @@ func (t *Tracker) car(i int) *carState {
 }
 
 func (t *Tracker) observeLap(ctx context.Context, seq uint64, p *protocol.Packet) {
+	sessionMs := int64(math.Round(p.Header.SessionTime * 1000))
 	for car := 0; car < p.CarCount(); car++ {
 		st := t.car(car)
 		lapV, ok := p.CarField("m_currentLapNum", car)
@@ -203,6 +262,7 @@ func (t *Tracker) observeLap(ctx context.Context, seq uint64, p *protocol.Packet
 		lap := int(lapV.F)
 		if st.lap == 0 {
 			st.lap, st.startSeq = lap, seq
+			st.lapStartMs = sessionMs
 			st.startFuel, st.startErs, st.startWear = st.fuelKg, st.ersJ, st.wear
 			st.startPos = st.position
 		}
@@ -210,6 +270,7 @@ func (t *Tracker) observeLap(ctx context.Context, seq uint64, p *protocol.Packet
 			t.finishLap(ctx, seq, car, p, st.lap)
 			st.startSeq = seq
 			st.lap = lap
+			st.lapStartMs = sessionMs
 			st.lapDistance = 0
 			st.trackLimits = false
 			st.startFuel, st.startErs, st.startWear = st.fuelKg, st.ersJ, st.wear
@@ -289,6 +350,11 @@ func (t *Tracker) finishLap(ctx context.Context, seq uint64, car int, p *protoco
 	}
 	if err := t.Catalog.UpsertLapAnalytics(ctx, row); err == nil && len(st.samples) > 1 {
 		_ = t.Catalog.UpsertTrace(ctx, t.session, t.branch, car, lap, "car.speed_mps", decimate(st.samples, 300), MethodVersion)
+	}
+	if points := decimateSamples(st.samples, MaxSamplesPerLap); len(points) > 0 {
+		_ = t.Catalog.UpsertLapSamples(ctx, t.session, t.branch, history.LapSamples{
+			CarIndex: car, Lap: lap, StartMs: st.lapStartMs, LapMs: lapMs, Points: points,
+		})
 	}
 	st.invalid, st.pit, st.trackLimits = false, false, false
 	st.topSpeed = 0

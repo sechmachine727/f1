@@ -34,6 +34,7 @@ All routes below are relative to /api/v1; JSON errors use {code,message,request_
 | GET/POST /careers | list/create optional local named group; no game-save file access |
 | GET /sessions/{id}/branches | ancestry, anchor, surviving branch, completeness |
 | GET /sessions/{id}/laps | branch and car filters; timing, validity, neutralization, gaps |
+| GET /sessions/{id}/telemetry | stored per-lap input samples; branch and `cars` (<=4) and optional `from_lap`/`to_lap`; completed laps only, `laps_available` counts stored laps, and an empty list is a success |
 | POST /analysis/query | session_id, branch_id, car_indices<=24, channels<=16, from/to session milliseconds, max_points<=20000 per series, alignment=time or distance; range response includes measurement availability and gap intervals |
 | POST /analysis/compare | two-to-four explicit lap IDs, channels and max_points; distance-aligned series, context differences, comparable flag |
 | POST /strategy/evaluate | explicit session/branch/observation scope and candidate pit windows; versioned estimates with evidence/assumptions |
