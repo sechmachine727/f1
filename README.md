@@ -2,6 +2,7 @@
 
 <!-- TOC -->
 * [Formula 1 racing team](#formula-1-racing-team)
+  * [Documentation](#documentation)
   * [Setup](#setup)
   * [Tests](#tests)
   * [Docker](#docker)
@@ -14,6 +15,12 @@
     * [Replaying telemetry](#replaying-telemetry)
   * [Reinforcement Learning](#reinforcement-learning)
 <!-- TOC -->
+
+## Documentation
+
+- [Setup](docs/setup.md) covers Docker, native and Windows installs, connecting the game, and first-run checks.
+- [Usage](docs/usage.md) covers the workspaces, live comparison, recorded review, chart controls and keyboard shortcuts.
+- [Settings](docs/settings.md) lists the environment variables, configuration precedence, secrets and Windows-native settings.
 
 ## Current runtime (Go)
 
