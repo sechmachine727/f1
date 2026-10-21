@@ -27,7 +27,13 @@ Prerequisites: Docker Engine or Docker Desktop with the Compose plugin.
    docker compose up -d --build
    ```
 
-3. Open [http://localhost:8081](http://localhost:8081).
+3. Find the generated dashboard password in the service log. It is printed once.
+
+   ```bash
+   docker compose logs f1tele | grep "web password"
+   ```
+
+4. Open [http://localhost:8081](http://localhost:8081) and sign in.
 
 The Compose file binds `8081/tcp` and `20777/udp`, and keeps data in the `f1tele-data` volume. The process runs as a non-root user on a distroless image.
 
@@ -37,6 +43,14 @@ To check the service:
 docker compose ps
 curl -fsS http://localhost:8081/api/v1/health
 ```
+
+To set a known password instead, export `F1TELE_AUTH_PASSWORD` before the first start. To replace an existing password later:
+
+```bash
+docker compose exec f1tele /f1tele auth reset
+```
+
+The reset asks for the new password twice. Piping it to `auth reset --stdin` reads it once and skips confirmation.
 
 When the game runs on another machine, set the address the dashboard should show for the game:
 
@@ -56,6 +70,12 @@ go build -o f1tele ./server/cmd/f1tele
 ./f1tele serve --data-dir ./data
 ```
 
+The first start prints `F1Telemetry web password (shown once): ...`. Sign in with it, or start with `F1TELE_AUTH_PASSWORD` set. Reset a stored password with:
+
+```bash
+./f1tele auth reset --data-dir ./data
+```
+
 `build_web.sh` builds the dashboard into the server's embedded copy. A plain `go build` without it serves the previously embedded bundle. Run it after frontend changes.
 
 Without `--data-dir`, data goes under the platform data directory. The server defaults to `0.0.0.0:8081` for HTTP and `0.0.0.0:20777` for UDP. Override with `--http`, `--udp`, `--data-dir` or `--config`, or with the `F1TELE_*` variables in [Settings](settings.md).
@@ -68,9 +88,9 @@ On Windows 11 x64 with .NET, Go and Node installed:
 pwsh ./windows/package.ps1
 ```
 
-The script writes `artifacts/F1Telemetry-1.0.0-win-x64.zip`. Extract it and run the control center. The control center starts and supervises the bundled server and keeps it in the tray.
+The script writes `artifacts/F1Telemetry-1.0.0-win-x64.zip`. Extract it and run the control center. The first launch opens Settings before the server starts. Set the dashboard password and connection fields there; a generated password is shown once with a copy button. The control center then starts and supervises the bundled server and keeps it in the tray.
 
-Configure this build in the control center's **Settings** page. It shows the values the bundled server resolved and writes the app's local configuration. The web Settings workspace only reports what the running server resolved; use the control center to change the Windows package.
+Later **Settings** saves stop the owned server, write `config.json` and `secrets.json`, and restart it. The reset password button accepts a new password and confirmation without the old password. Agent and harness settings, prompt revisions and activity logs are in the web Settings after login.
 
 ## Connect the game
 

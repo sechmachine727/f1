@@ -60,7 +60,7 @@ function Chart({ data, unit }: { data: Record<string, number | null>[]; unit: st
   );
 }
 
-export function RecordedPitWall() {
+export function RecordedPitWall({ onOpenLogs }: { onOpenLogs?: (session?: string, branch?: string) => void } = {}) {
   const sel = useSelection();
   const { data, error } = useSessionAnalytics(sel.sessionId);
   const [tab, setTab] = useState<Tab>("overview");
@@ -116,7 +116,8 @@ export function RecordedPitWall() {
               }}>{seg.session_type.replace("qualifying_", "Q").toUpperCase()}</button>
           ))}
         </div> : null}
-        <button className="ml-auto text-sm text-neutral-300 underline" onClick={clearSelection}>Back to live</button>
+        <button className="ml-auto text-sm text-neutral-300 underline" onClick={() => onOpenLogs?.(sel.sessionId ?? "", sel.branchId ?? "")}>Agent activity</button>
+        <button className="text-sm text-neutral-300 underline" onClick={clearSelection}>Back to live</button>
       </div>
 
       <div className={panel + " flex flex-wrap items-center gap-3 px-4 py-2"}>

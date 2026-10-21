@@ -9,6 +9,7 @@ public sealed class SettingsStore
     private string _path = string.Empty;
     public string PushToTalk { get; set; } = "Ctrl+Alt+Space";
     public bool VoiceEnabled { get; set; } = true;
+    public bool FirstRunComplete { get; set; }
 
     public SettingsStore(string dataDir) => _path = Path.Combine(dataDir, "control-center.json");
 

@@ -9,23 +9,26 @@ public sealed partial class MainWindow : Window
     private readonly ServerSupervisor _supervisor;
     private readonly TrayController _tray;
     private readonly string _ownerPath;
+    private readonly string _dataDir;
+    private readonly string _exe;
+    private SettingsWindow? _settingsWindow;
     private bool _closing;
 
     public MainWindow()
     {
         InitializeComponent();
-        var dataDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "F1Telemetry");
-        Directory.CreateDirectory(dataDir);
-        _ownerPath = Path.Combine(dataDir, "supervisor-owner.json");
-        var exe = Path.Combine(AppContext.BaseDirectory, "f1tele.exe");
+        _dataDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "F1Telemetry");
+        Directory.CreateDirectory(_dataDir);
+        _ownerPath = Path.Combine(_dataDir, "supervisor-owner.json");
+        _exe = Path.Combine(AppContext.BaseDirectory, "f1tele.exe");
         _supervisor = new ServerSupervisor(
             new SystemLauncher(),
             new HttpHealthProbe(new HttpClient { Timeout = TimeSpan.FromSeconds(5) }),
-            dataDir,
-            Path.Combine(dataDir, "config.json"));
-        _tray = new TrayController(this, _supervisor, exe, dataDir);
+            _dataDir,
+            Path.Combine(_dataDir, "config.json"));
+        _tray = new TrayController(this, _supervisor, _exe, _dataDir);
         Closed += OnClosed;
-        _ = StartAsync(exe);
+        _ = StartAsync(_exe);
     }
 
     private async Task StartAsync(string exe)
@@ -71,6 +74,35 @@ public sealed partial class MainWindow : Window
         {
             Process.Start(new ProcessStartInfo(_supervisor.Status.DashboardUrl ?? "http://127.0.0.1:8081") { UseShellExecute = true });
         }
+    }
+
+    private void Logs_Click(object sender, RoutedEventArgs e)
+    {
+        var baseUrl = _supervisor.Status.DashboardUrl ?? "http://127.0.0.1:8081";
+        Process.Start(new ProcessStartInfo(baseUrl.TrimEnd('/') + "/?workspace=logs") { UseShellExecute = true });
+    }
+
+    private void Settings_Click(object sender, RoutedEventArgs e)
+    {
+        if (_settingsWindow is not null)
+        {
+            _settingsWindow.Activate();
+            return;
+        }
+        _settingsWindow = new SettingsWindow(
+            _dataDir,
+            _exe,
+            firstRun: false,
+            onSaved: async () =>
+            {
+                Apply(await _supervisor.StartAsync(_exe, _ownerPath));
+            },
+            beforeSave: async () =>
+            {
+                await _supervisor.StopAsync(TimeSpan.FromSeconds(10));
+            });
+        _settingsWindow.Closed += (_, _) => _settingsWindow = null;
+        _settingsWindow.Activate();
     }
 
     private async void Stop_Click(object sender, RoutedEventArgs e)

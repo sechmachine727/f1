@@ -173,6 +173,10 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   } catch {
     throw new Error("Cannot reach the server.");
   }
+  if (res.status === 401) {
+    window.dispatchEvent(new Event("f1tele:auth-required"));
+    throw new Error("Authentication required.");
+  }
   if (!res.ok) throw new Error((await res.json().catch(() => ({ message: res.statusText }))).message);
   return res.json();
 }

@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"net"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -68,6 +69,7 @@ func TestLiveFixtureStream(t *testing.T) {
 	dir := t.TempDir()
 	httpPort, udpPort := freePort(t), freePort(t)
 	t.Setenv("F1TELE_DATA_DIR", dir)
+	t.Setenv("F1TELE_AUTH_PASSWORD", "integration-password")
 	store, err := config.Load(config.Overrides{DataDir: dir, HTTPAddress: "127.0.0.1:" + strconv.Itoa(httpPort), UDPAddress: "127.0.0.1:" + strconv.Itoa(udpPort)})
 	if err != nil {
 		t.Fatal(err)
@@ -86,6 +88,20 @@ func TestLiveFixtureStream(t *testing.T) {
 		<-done
 	}()
 
+	login, err := http.Post("http://127.0.0.1:"+strconv.Itoa(httpPort)+"/api/v1/auth/login", "application/json", strings.NewReader("{\"password\":\"integration-password\"}"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer login.Body.Close()
+	if login.StatusCode != http.StatusOK {
+		raw, _ := io.ReadAll(login.Body)
+		t.Fatalf("login status %d: %s", login.StatusCode, raw)
+	}
+	cookies := login.Cookies()
+	if len(cookies) == 0 {
+		t.Fatal("login set no cookie")
+	}
+
 	conn, err := net.Dial("udp", fmt.Sprintf("127.0.0.1:%d", udpPort))
 	if err != nil {
 		t.Fatal(err)
@@ -101,7 +117,9 @@ func TestLiveFixtureStream(t *testing.T) {
 
 	dialCtx, dcancel := context.WithTimeout(ctx, 10*time.Second)
 	defer dcancel()
-	ws, _, err := websocket.Dial(dialCtx, fmt.Sprintf("ws://127.0.0.1:%d/api/v1/stream", httpPort), nil)
+	ws, _, err := websocket.Dial(dialCtx, fmt.Sprintf("ws://127.0.0.1:%d/api/v1/stream", httpPort), &websocket.DialOptions{
+		HTTPHeader: http.Header{"Cookie": []string{cookies[0].Name + "=" + cookies[0].Value}},
+	})
 	if err != nil {
 		t.Fatal(err)
 	}

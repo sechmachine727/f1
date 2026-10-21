@@ -25,5 +25,6 @@
   </ItemGroup>
   <ItemGroup>
     <Content Include="Assets/**" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../../server/internal/config/defaults.json" Link="defaults.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

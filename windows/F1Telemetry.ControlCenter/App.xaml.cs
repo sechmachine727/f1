@@ -22,6 +22,24 @@ public partial class App : Application
 
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
+        var dataDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "F1Telemetry");
+        var settings = SettingsStore.Load(dataDir);
+        if (!settings.FirstRunComplete)
+        {
+            var first = new SettingsWindow(
+                dataDir,
+                Path.Combine(AppContext.BaseDirectory, "f1tele.exe"),
+                firstRun: true,
+                onSaved: () =>
+                {
+                    Window = new MainWindow();
+                    Window.Activate();
+                    return Task.CompletedTask;
+                });
+            Window = first;
+            first.Activate();
+            return;
+        }
         Window = new MainWindow();
         Window.Activate();
     }

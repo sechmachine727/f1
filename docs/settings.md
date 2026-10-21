@@ -23,6 +23,8 @@ Set `F1TELE_CONFIG` to point at a different config file. Secret values are writt
 | `F1TELE_HTTP_ADDR` | `0.0.0.0:8081` | yes | Dashboard and API listener |
 | `F1TELE_UDP_ADDR` | `0.0.0.0:20777` | yes | Telemetry listener |
 | `F1TELE_UDP_ADVERTISE_HOST` | first non-loopback IPv4 | live | Host the dashboard tells you to enter in the game |
+| `F1TELE_SECURITY_ORIGIN_CHECK` | `true` | live | Reject cross-origin browser requests |
+| `F1TELE_AUTH_PASSWORD` | generated on first start | live | Dashboard password; never returned by the API |
 | `F1TELE_RECORDING_ENABLED` | `true` | live | Record received datagrams |
 | `F1TELE_RECORDING_CAP_BYTES` | `107374182400` | live | Total recording cap (100 GB) |
 | `F1TELE_RECORDING_FREE_RESERVE_BYTES` | `5368709120` | live | Free disk kept unused (5 GB) |
@@ -46,6 +48,30 @@ Set `F1TELE_CONFIG` to point at a different config file. Secret values are writt
 | `F1TELE_VOICE_SPEECH_API_KEY` | none | live | Speech key; never returned |
 
 For the exhaustive operator view with the same values, see [operator-configuration.md](rework/operator-configuration.md).
+
+## Dashboard password
+
+The dashboard, API and streams require a password. On the first start with a fresh data directory, the server generates a 20-character password, writes only its hash to `auth.json`, and prints the plaintext once to the process log. Later starts print nothing.
+
+Set `F1TELE_AUTH_PASSWORD` instead when the deployment should not generate one. An environment password owns authentication and a reset command refuses to override it.
+
+To replace the password without the old one:
+
+```bash
+docker compose exec f1tele /f1tele auth reset
+```
+
+The interactive command asks twice. A pipeline reads once and skips confirmation:
+
+```bash
+printf '%s\n' "$NEW_PASSWORD" | docker compose exec -T f1tele /f1tele auth reset --stdin
+```
+
+Reset rotates the session-signing key, so every browser is signed out. Passwords are 8 to 256 characters. There is no username or token-pairing flow.
+
+Origin validation is enabled by default. It compares the Origin host to the request Host and rejects a mismatch. Set `F1TELE_SECURITY_ORIGIN_CHECK=false` only for a trusted proxy or client that cannot preserve the dashboard host. Requests without an Origin header remain usable by CLI clients.
+
+The server still speaks HTTP. A password and session cookie are not protected on the wire; put a TLS reverse proxy in front of the service when it is reachable beyond a trusted LAN.
 
 ## Docker
 
@@ -73,11 +99,28 @@ The engineer, search and voice features stay disabled until you configure a prov
 
 An OpenAI-compatible URL does not guarantee both protocols. Choose `chat_completions` or `responses` to match the provider. Missing endpoints leave the affected feature off; the dashboard states that instead of pretending it is live.
 
+## Agent settings and activity
+
+The Settings workspace is the web editing surface for race-engineer behavior:
+
+- Agent: enablement, trigger rules and cadence, continuous mode, hourly budgets, deadlines, context and output limits, steps, tool calls, temperature and top-p.
+- Prompt: per-profile revision editor with a side-by-side diff before saving, revision selection, inline deletion confirmation and reset to the authored prompt.
+- Compaction: enablement, trigger percentage, recent-tail percentage, current usage and a manual Compact now action with optional focus.
+- Connections and Security: read-only endpoint, recording, server, Origin and password state.
+
+Endpoint URL, model, protocol and API key stay outside the web editor. Configure them through the environment, `config.json`, or the Windows control center.
+
+The Logs workspace lists every invocation with status, trigger, model, prompt revision, tokens, estimated cost, latency, event count and decision. Open a row for the exact system-prompt snapshot, model-visible input, output, tool timeline, compaction history and raw JSON. The live Pit wall exposes the same activity in a drawer, and History links the recorded race to the session-filtered view.
+
+Logs are append-only. They survive recording-file cleanup and are removed only with the catalogued session. Payloads are capped at 1 MiB per event; over-cap events store a truncation marker and hash. API keys, authorization headers, opaque provider continuation and hidden reasoning are never stored in activity payloads.
+
 ## Windows portable build
 
-Configure the Windows package in the control center's own Settings page. That page reads the running server's effective values and writes the app's local configuration. A value set in the user environment still overrides the local file, and the native page labels it as environment-owned instead of offering an edit that would have no effect.
+On first launch the control center opens its Settings window before starting the server. The dashboard password is at the top; a generated password appears once in a copyable dialog. Set the listeners, recording cap, model endpoint, search and voice here. Saving writes `config.json` and `secrets.json`, then starts the server.
 
-The web Settings workspace remains read-only for every install.
+Later Settings saves stop the owned server, write the files and restart it. A value set in the process environment overrides the local file and is shown read-only. The reset button accepts a new password and confirmation without the old password and signs out every browser session.
+
+Agent and harness settings, prompt revisions and activity logs remain in the password-protected web dashboard.
 
 ## Invalid values and locking
 

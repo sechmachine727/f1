@@ -5,6 +5,7 @@ type Config struct {
 	HTTP              Addr               `json:"http"`
 	UDP               Addr               `json:"udp"`
 	Recording         RecordingConfig    `json:"recording"`
+	Security          SecurityConfig     `json:"security"`
 	Agent             AgentConfig        `json:"agent"`
 	Notifications     NotificationConfig `json:"notifications"`
 	Search            SearchConfig       `json:"search"`
@@ -32,6 +33,10 @@ type RecordingConfig struct {
 	AutomaticCleanup bool    `json:"automatic_cleanup"`
 }
 
+type SecurityConfig struct {
+	OriginCheck bool `json:"origin_check"`
+}
+
 type AgentConfig struct {
 	Enabled                bool             `json:"enabled"`
 	EndpointID             *string          `json:"endpoint_id"`
@@ -48,6 +53,20 @@ type AgentConfig struct {
 	MaxSteps               int              `json:"max_steps"`
 	MaxToolCalls           int              `json:"max_tool_calls"`
 	Continuous             ContinuousConfig `json:"continuous"`
+	Compaction             CompactionConfig `json:"compaction"`
+	Generation             GenerationConfig `json:"generation"`
+}
+
+type CompactionConfig struct {
+	Enabled           bool `json:"enabled"`
+	TriggerPercent    int  `json:"trigger_percent"`
+	RecentTailPercent int  `json:"recent_tail_percent"`
+}
+
+type GenerationConfig struct {
+	Temperature       *float64 `json:"temperature"`
+	TopP              *float64 `json:"top_p"`
+	ParallelToolCalls *bool    `json:"parallel_tool_calls"`
 }
 
 type ContinuousConfig struct {
@@ -166,11 +185,11 @@ type CornerProfile struct {
 }
 
 type ConfigView struct {
-	Revision          int             `json:"revision"`
-	ActiveConfig      Config          `json:"active_config"`
-	DesiredConfig     Config          `json:"desired_config"`
-	SecretsConfigured map[string]bool `json:"secrets_configured"`
-	RestartRequired   []string        `json:"restart_required"`
+	Revision          int               `json:"revision"`
+	ActiveConfig      Config            `json:"active_config"`
+	DesiredConfig     Config            `json:"desired_config"`
+	SecretsConfigured map[string]bool   `json:"secrets_configured"`
+	RestartRequired   []string          `json:"restart_required"`
 	Sources           map[string]string `json:"sources"`
 	RestartOnly       []string          `json:"restart_only"`
 	UDPAdvertiseHost  string            `json:"udp_advertise_host"`

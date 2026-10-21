@@ -18,6 +18,8 @@ services:
       # Host a game on another machine should send telemetry to. Set this to
       # the Docker host's LAN address; Settings shows it as the address to enter.
       F1TELE_UDP_ADVERTISE_HOST: ${F1TELE_UDP_ADVERTISE_HOST:-}
+      F1TELE_SECURITY_ORIGIN_CHECK: ${F1TELE_SECURITY_ORIGIN_CHECK:-}
+      F1TELE_AUTH_PASSWORD: ${F1TELE_AUTH_PASSWORD:-}
       F1TELE_RECORDING_ENABLED: ${F1TELE_RECORDING_ENABLED:-}
       F1TELE_RECORDING_CAP_BYTES: ${F1TELE_RECORDING_CAP_BYTES:-}
       F1TELE_RECORDING_FREE_RESERVE_BYTES: ${F1TELE_RECORDING_FREE_RESERVE_BYTES:-}

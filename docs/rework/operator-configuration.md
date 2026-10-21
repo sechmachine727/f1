@@ -17,6 +17,8 @@ Restart means the running process must restart for the change to take effect. Va
 | `F1TELE_RECORDING_CHUNK_BYTES` | `1048576` | live | MCAP chunk size in bytes |
 | `F1TELE_RECORDING_ROTATE_BYTES` | `268435456` | live | Recording rotation size in bytes |
 | `F1TELE_RECORDING_CHUNK_FLUSH_MS` | `1000` | live | Checkpoint cadence in milliseconds |
+| `F1TELE_SECURITY_ORIGIN_CHECK` | `true` | live | Reject cross-origin browser requests |
+| `F1TELE_AUTH_PASSWORD` | generated once | live | Dashboard password; never returned by the API |
 | `F1TELE_AGENT_ENABLED` | `false` | live | Enable model-backed engineer calls |
 | `F1TELE_AGENT_ENDPOINT_ID` | `env` | live | Identifier of the endpoint to use |
 | `F1TELE_AGENT_BASE_URL` | none | live | OpenAI-compatible base URL |

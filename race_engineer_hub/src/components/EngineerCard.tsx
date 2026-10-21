@@ -2,35 +2,17 @@
 import { useEffect, useState } from "react";
 import { api, metric, text, useLive } from "@/lib/live";
 
-type Invocation = {
-  id: string; profile: string; status: string; notification_disposition: string;
-  output: { driver_message: string | null; decision: string; urgency: string } | null;
-  error: { code: string; message: string } | null;
-};
-
 /** Live engineer requests, recent invocations and alert acknowledgment. */
-export function EngineerCard() {
+export function EngineerCard({ onOpenLogs }: { onOpenLogs?: (session?: string, branch?: string) => void } = {}) {
   const s = useLive();
   const [enabled, setEnabled] = useState<boolean | null>(null);
   const [draft, setDraft] = useState("");
-  const [items, setItems] = useState<Invocation[]>([]);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     api<any>("/health").then((h) => setEnabled(h.features?.engineer !== false)).catch(() => setEnabled(false));
   }, []);
-
-  useEffect(() => {
-    if (!s.context) return;
-    const load = () =>
-      api<any>("/engineer/invocations?limit=5")
-        .then((d) => setItems(d.items ?? []))
-        .catch(() => null);
-    load();
-    const id = setInterval(load, 5000);
-    return () => clearInterval(id);
-  }, [s.context?.session_id]);
 
   async function ask() {
     if (!s.context || !draft.trim()) return;
@@ -114,16 +96,10 @@ export function EngineerCard() {
         </ul>
       ) : null}
 
-      {items.length ? (
-        <ul className="divide-y divide-[#232830] text-[12px]">
-          {items.map((i) => (
-            <li key={i.id} className="py-1.5">
-              <span className="text-neutral-400">{i.profile.replace("_", " ")} · {i.status}</span>
-              {i.output?.driver_message ? <div className="text-neutral-200">{i.output.driver_message}</div> : null}
-              {i.error ? <div className="text-[#f25a5c]">{i.error.code}: {i.error.message}</div> : null}
-            </li>
-          ))}
-        </ul>
+      {s.context ? (
+        <button onClick={() => onOpenLogs?.(s.context.session_id, s.context.branch_id)} className="text-[12px] text-neutral-300 underline">
+          View agent activity
+        </button>
       ) : null}
     </section>
   );

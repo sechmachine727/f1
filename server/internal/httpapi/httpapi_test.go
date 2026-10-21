@@ -1,8 +1,10 @@
 package httpapi
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -13,6 +15,7 @@ import (
 	"time"
 
 	"f1tele/server/internal/analysis"
+	"f1tele/server/internal/auth"
 	"f1tele/server/internal/config"
 	"f1tele/server/internal/contract"
 	"f1tele/server/internal/history"
@@ -48,7 +51,7 @@ func deps(t *testing.T) (Deps, *state.Reducer) {
 	}, red
 }
 
-func TestHealthNeedsNoOriginOrCredential(t *testing.T) {
+func TestHealthNeedsNoCredentialButRejectsCrossOrigin(t *testing.T) {
 	d, _ := deps(t)
 	srv := httptest.NewServer(New(d).Handler(nil))
 	defer srv.Close()
@@ -59,8 +62,18 @@ func TestHealthNeedsNoOriginOrCredential(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != 200 {
-		t.Fatalf("status %d", resp.StatusCode)
+	if resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("cross-origin status %d", resp.StatusCode)
+	}
+	resp.Body.Close()
+	req, _ = http.NewRequest("GET", srv.URL+"/api/v1/health", nil)
+	resp, err = http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("same-origin status %d", resp.StatusCode)
 	}
 	var h contract.Health
 	if err := json.NewDecoder(resp.Body).Decode(&h); err != nil {
@@ -120,6 +133,125 @@ func TestConfigPreconditionAndRedaction(t *testing.T) {
 	}
 	if view.UDPAdvertiseHost == "" {
 		t.Fatal("config view has no game-facing UDP host")
+	}
+}
+
+func TestAuthenticationGateAndOrigin(t *testing.T) {
+	d, _ := deps(t)
+	t.Setenv("F1TELE_AUTH_PASSWORD", "test-password")
+	d.Auth = auth.New(d.Config.DataDir())
+	if _, err := d.Auth.Ensure(); err != nil {
+		t.Fatal(err)
+	}
+	srv := httptest.NewServer(New(d).Handler(nil))
+	defer srv.Close()
+	req, _ := http.NewRequest("GET", srv.URL+"/api/v1/config", nil)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("unauthenticated config status %d", resp.StatusCode)
+	}
+	resp.Body.Close()
+
+	login, err := http.Post(srv.URL+"/api/v1/auth/login", "application/json", strings.NewReader("{\"password\":\"test-password\"}"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer login.Body.Close()
+	if login.StatusCode != http.StatusOK || len(login.Cookies()) == 0 {
+		t.Fatalf("login status %d cookies %d", login.StatusCode, len(login.Cookies()))
+	}
+	cookie := login.Cookies()[0]
+	req, _ = http.NewRequest("GET", srv.URL+"/api/v1/config", nil)
+	req.AddCookie(cookie)
+	resp, err = http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("authenticated config status %d", resp.StatusCode)
+	}
+	resp.Body.Close()
+
+	req, _ = http.NewRequest("GET", srv.URL+"/api/v1/config", nil)
+	req.AddCookie(cookie)
+	req.Header.Set("Origin", "http://evil.example")
+	resp, err = http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("cross-origin authenticated status %d", resp.StatusCode)
+	}
+	resp.Body.Close()
+}
+
+func TestPromptRevisionRoutes(t *testing.T) {
+	d, _ := deps(t)
+	t.Setenv("F1TELE_AUTH_PASSWORD", "test-password")
+	d.Auth = auth.New(d.Config.DataDir())
+	if _, err := d.Auth.Ensure(); err != nil {
+		t.Fatal(err)
+	}
+	srv := httptest.NewServer(New(d).Handler(nil))
+	defer srv.Close()
+	login, err := http.Post(srv.URL+"/api/v1/auth/login", "application/json", strings.NewReader("{\"password\":\"test-password\"}"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer login.Body.Close()
+	cookie := login.Cookies()[0]
+	body := "custom race engineer prompt"
+	req, _ := http.NewRequest("POST", srv.URL+"/api/v1/agent/prompts/live_question/revisions", strings.NewReader("{\"body\":\""+body+"\"}"))
+	req.AddCookie(cookie)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != http.StatusCreated {
+		raw, _ := io.ReadAll(resp.Body)
+		t.Fatalf("create prompt status %d: %s", resp.StatusCode, raw)
+	}
+	var rev history.PromptRevision
+	if err := json.NewDecoder(resp.Body).Decode(&rev); err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	req, _ = http.NewRequest("DELETE", srv.URL+"/api/v1/agent/prompts/live_question/revisions/"+rev.ID, nil)
+	req.AddCookie(cookie)
+	resp, err = http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != http.StatusConflict {
+		t.Fatalf("delete current prompt status %d", resp.StatusCode)
+	}
+	resp.Body.Close()
+}
+
+func TestActivityStreamWritesSSEFrames(t *testing.T) {
+	d, _ := deps(t)
+	srv := httptest.NewServer(New(d).Handler(nil))
+	defer srv.Close()
+	resp, err := http.Get(srv.URL + "/api/v1/engineer/activity/stream")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if ct := resp.Header.Get("Content-Type"); ct != "text/event-stream" {
+		t.Fatalf("content type %q", ct)
+	}
+	reader := bufio.NewReader(resp.Body)
+	line, err := reader.ReadString('\n')
+	if err != nil || line != "retry: 3000\n" {
+		t.Fatalf("first SSE line %q err %v", line, err)
+	}
+	line, err = reader.ReadString('\n')
+	if err != nil || line != "\n" {
+		t.Fatalf("SSE separator %q err %v", line, err)
 	}
 }
 

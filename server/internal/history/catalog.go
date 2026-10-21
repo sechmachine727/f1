@@ -35,6 +35,9 @@ var migration004 string
 //go:embed migrations/005_samples.sql
 var migration005 string
 
+//go:embed migrations/006_agent_activity.sql
+var migration006 string
+
 const seqBlock = 4096
 
 // Catalog is the SQLite session/catalog store. One connection is shared; the
@@ -73,6 +76,24 @@ func OpenCatalog(path string) (*Catalog, error) {
 	if _, err := db.Exec(migration005); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("migrate sample catalog: %w", err)
+	}
+	if _, err := db.Exec(migration006); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("migrate agent activity catalog: %w", err)
+	}
+	for _, col := range []string{
+		"conversation_id TEXT",
+		"endpoint_id TEXT",
+		"model TEXT",
+		"prompt_revision_id TEXT",
+		"prompt_sha256 TEXT",
+		"latency_ms INTEGER",
+		"compaction_count INTEGER NOT NULL DEFAULT 0",
+	} {
+		if _, err := db.Exec("ALTER TABLE invocations ADD COLUMN " + col); err != nil && !strings.Contains(err.Error(), "duplicate column name") {
+			db.Close()
+			return nil, fmt.Errorf("add invocation metadata %s: %w", col, err)
+		}
 	}
 	// SQLite cannot add a column conditionally, so the rerun tolerance lives here.
 	if _, err := db.Exec(`ALTER TABLE session_participants ADD COLUMN your_telemetry INTEGER NOT NULL DEFAULT 1`); err != nil && !strings.Contains(err.Error(), "duplicate column name") {

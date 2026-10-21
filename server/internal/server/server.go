@@ -18,6 +18,7 @@ import (
 
 	"f1tele/server/internal/analysis"
 	"f1tele/server/internal/analytics"
+	"f1tele/server/internal/auth"
 	"f1tele/server/internal/config"
 	"f1tele/server/internal/contract"
 	"f1tele/server/internal/engineer"
@@ -87,6 +88,10 @@ func New(store *config.Store, logger *slog.Logger) (*Server, error) {
 	s.arbiter = strategy.NewArbiter(cfg.Notifications, cfg.ReferenceProfiles, cfg.CapacityProfiles)
 	s.seq = &seqAlloc{cat: cat, ctx: context.Background(), id: src}
 	setupSvc := setup.New(store, cat)
+	authStore := auth.New(store.DataDir())
+	if _, err := authStore.Ensure(); err != nil {
+		return nil, err
+	}
 	inv := &engineer.Invoker{Backend: engineer.ToolBackend{Engine: s.engine, Eval: s.eval, Snapshot: func() state.Snapshot { return reducer.Snapshot(nil, nil) },
 		Search: func(ctx context.Context, q map[string]any) (contract.SearchResult, error) {
 			return setupSvc.Search(ctx, httpapi.SetupQuery{Query: fmt.Sprint(q["query"]), Conditions: fmt.Sprint(q["conditions"]), Assists: fmt.Sprint(q["assists"]), UseCase: fmt.Sprint(q["use_case"]), MaxResults: 5})
@@ -98,13 +103,15 @@ func New(store *config.Store, logger *slog.Logger) (*Server, error) {
 	voiceSvc.AcceptedText = mgr.AcceptedText
 	s.engineerMgr = mgr
 	s.api = httpapi.New(httpapi.Deps{
-		Config: store, Catalog: cat, Reducer: reducer, Recorder: rec, Engine: s.engine,
+		Config: store, Auth: authStore, Catalog: cat, Reducer: reducer, Recorder: rec, Engine: s.engine,
 		Evaluator: s.eval, Arbiter: s.arbiter, Engineer: mgr, Setup: setupSvc, Voice: voiceSvc, InstanceID: "inst-" + installID(dir),
 		Version: Version, StartedAt: time.Now(), Hub: httpapi.NewHub(),
 		OnRecordStart: func() error { return rec.Resume() },
 		OnRecordStop:  func() { rec.StopByUser(); reducer.SetRecordingState(history.RecStoppedUser) },
 		Stop:          func() { go s.Shutdown(10 * time.Second) },
 	})
+	mgr.Activity = &engineer.Activity{Catalog: cat, Broadcast: s.api.AgentActivity.Publish}
+	mgr.Activity.Reconcile(context.Background())
 	go analytics.Backfill(context.Background(), cat, slog.Default(), 8)
 	return s, nil
 }

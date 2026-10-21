@@ -193,6 +193,17 @@ func (r *Reducer) observeSession(h protocol.Header, p *protocol.Packet) {
 	if p.Header.PacketID != 1 {
 		return
 	}
+	if next, ok := p.Field("m_sessionType"); ok {
+		if r.sessionType != 0 && int(next.F) != r.sessionType {
+			r.newFragment(r.uid)
+		}
+	}
+	if next, ok := p.Field("m_sessionLinkIdentifier"); ok {
+		link := uint64(next.F)
+		if r.linkSession != 0 && link != 0 && link != r.linkSession {
+			r.newFragment(r.uid)
+		}
+	}
 	if v, ok := p.Field("m_trackId"); ok {
 		r.trackID = int(v.F)
 	}
@@ -271,11 +282,30 @@ func (r *Reducer) newFragment(uid uint64) {
 	r.sessionID = newID("ses")
 	r.branchID = newID("br")
 	r.branches = []contract.Branch{{ID: r.branchID, SessionID: r.sessionID, IsSurviving: true}}
+	r.paused = false
+	r.fields = map[key]sample{}
+	r.carCount = 0
+	r.participants = nil
 	r.events = nil
+	r.eventSeen = map[string]uint32{}
+	r.laps = map[int]int{}
+	r.lastLapMs = map[int]int64{}
+	r.maxFrame = 0
+	r.lastOverall = 0
 	r.season = nil
 	r.seasonEvidence = nil
 	r.reg2026 = nil
 	r.lastSessionTime = 0
+	r.trackID = 0
+	r.sessionType = 0
+	r.gameMode = 0
+	r.online = 0
+	r.formula = 0
+	r.linkSeason = 0
+	r.linkWeekend = 0
+	r.linkSession = 0
+	r.curveFrame = 0
+	r.gaps = nil
 }
 
 func (r *Reducer) observeParticipants(p *protocol.Packet) {
@@ -525,8 +555,14 @@ func detailInt(m map[string]any, key string) int {
 
 func (r *Reducer) checkRewind(seq uint64, h protocol.Header, prevOverall uint32) {
 	st := h.SessionTime
-	if r.lastSessionTime > 0 && st+1.0 < r.lastSessionTime && int32(h.OverallFrameID-prevOverall) > 0 {
-		r.newBranch(seq, int64(math.Round(st*1000)))
+	if r.lastSessionTime > 0 && st+1.0 < r.lastSessionTime {
+		if st < 5 && r.lastSessionTime > 30 {
+			// A restart from the session clock's origin is a new logical session,
+			// not a flashback within the current one.
+			r.newFragment(r.uid)
+		} else if int32(h.OverallFrameID-prevOverall) > 0 {
+			r.newBranch(seq, int64(math.Round(st*1000)))
+		}
 	}
 	if st >= r.lastSessionTime {
 		r.lastSessionTime = st

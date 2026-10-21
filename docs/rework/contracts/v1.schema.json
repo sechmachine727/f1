@@ -1594,7 +1594,8 @@
         "data_dir",
         "reference_profiles",
         "capacity_profiles",
-        "track_profiles"
+        "track_profiles",
+        "security"
       ],
       "properties": {
         "schema_version": {
@@ -1706,7 +1707,9 @@
             "max_output_tokens",
             "max_steps",
             "max_tool_calls",
-            "continuous"
+            "continuous",
+            "compaction",
+            "generation"
           ],
           "properties": {
             "enabled": {
@@ -1803,6 +1806,75 @@
                 "max_minutes": {
                   "type": "integer",
                   "minimum": 1
+                }
+              }
+            },
+            "compaction": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "enabled",
+                "trigger_percent",
+                "recent_tail_percent"
+              ],
+              "properties": {
+                "enabled": {
+                  "type": "boolean"
+                },
+                "trigger_percent": {
+                  "type": "integer",
+                  "minimum": 10,
+                  "maximum": 99
+                },
+                "recent_tail_percent": {
+                  "type": "integer",
+                  "minimum": 5,
+                  "maximum": 50
+                }
+              }
+            },
+            "generation": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "temperature",
+                "top_p",
+                "parallel_tool_calls"
+              ],
+              "properties": {
+                "temperature": {
+                  "anyOf": [
+                    {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 2
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "top_p": {
+                  "anyOf": [
+                    {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "parallel_tool_calls": {
+                  "anyOf": [
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
                 }
               }
             }
@@ -2003,6 +2075,18 @@
           "type": "array",
           "items": {
             "$ref": "#/$defs/TrackProfile"
+          }
+        },
+        "security": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "origin_check"
+          ],
+          "properties": {
+            "origin_check": {
+              "type": "boolean"
+            }
           }
         }
       }
@@ -2928,7 +3012,12 @@
         "sources": {
           "type": "object",
           "additionalProperties": {
-            "enum": ["cli", "env", "file", "default"]
+            "enum": [
+              "cli",
+              "env",
+              "file",
+              "default"
+            ]
           }
         },
         "restart_only": {
@@ -3860,15 +3949,15 @@
             }
           ]
         },
-      "http_addr": {
-        "type": "string"
-      },
-      "udp_addr": {
-        "type": "string"
-      },
-      "udp_advertise_addr": {
-        "type": "string"
-      },
+        "http_addr": {
+          "type": "string"
+        },
+        "udp_addr": {
+          "type": "string"
+        },
+        "udp_advertise_addr": {
+          "type": "string"
+        },
         "features": {
           "type": "object",
           "additionalProperties": false,

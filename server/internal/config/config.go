@@ -44,6 +44,13 @@ func DefaultDataDir() string {
 	return filepath.Join(home, ".local", "share", "f1tele")
 }
 
+// ResolveDataDir applies the documented CLI, environment and default order
+// without requiring the rest of the configuration to be valid.
+func ResolveDataDir(explicit string) string {
+	def, _ := Defaults()
+	return firstNonEmpty(explicit, os.Getenv("F1TELE_DATA_DIR"), valueOr(def.DataDir, ""), DefaultDataDir())
+}
+
 // Overrides are the explicit CLI values; zero values fall through.
 type Overrides struct {
 	HTTPAddress string
@@ -53,13 +60,13 @@ type Overrides struct {
 }
 
 type Store struct {
-	mu       sync.Mutex
-	path     string
-	revision int
-	active   contract.Config
-	desired  contract.Config
-	secrets  map[string]string
-	sources  map[string]string
+	mu        sync.Mutex
+	path      string
+	revision  int
+	active    contract.Config
+	desired   contract.Config
+	secrets   map[string]string
+	sources   map[string]string
 	advertise string
 }
 
@@ -69,7 +76,7 @@ func Load(ov Overrides) (*Store, error) {
 	if err != nil {
 		return nil, err
 	}
-	dataDir := firstNonEmpty(ov.DataDir, os.Getenv("F1TELE_DATA_DIR"), valueOr(def.DataDir, ""), DefaultDataDir())
+	dataDir := ResolveDataDir(ov.DataDir)
 	configPath := firstNonEmpty(ov.ConfigPath, os.Getenv("F1TELE_CONFIG"), filepath.Join(dataDir, "config.json"))
 
 	cfg := def
@@ -373,6 +380,8 @@ func configValue(c contract.Config, key string) string {
 		return strconv.FormatInt(c.Recording.RotateBytes, 10)
 	case "recording.chunk_flush_ms":
 		return strconv.Itoa(c.Recording.ChunkFlushMs)
+	case "security.origin_check":
+		return strconv.FormatBool(c.Security.OriginCheck)
 	case "agent.enabled":
 		return strconv.FormatBool(c.Agent.Enabled)
 	case "agent.endpoint_id":
@@ -475,6 +484,21 @@ func Validate(c contract.Config) error {
 	}
 	if c.Agent.Continuous.CadenceSeconds <= 0 || c.Agent.Continuous.MaxMinutes <= 0 {
 		return errors.New("continuous cadence and duration must be positive")
+	}
+	if c.Agent.Compaction.TriggerPercent < 10 || c.Agent.Compaction.TriggerPercent > 99 {
+		return errors.New("compaction trigger_percent must be between 10 and 99")
+	}
+	if c.Agent.Compaction.RecentTailPercent < 5 || c.Agent.Compaction.RecentTailPercent > 50 {
+		return errors.New("compaction recent_tail_percent must be between 5 and 50")
+	}
+	if c.Agent.Compaction.RecentTailPercent >= c.Agent.Compaction.TriggerPercent {
+		return errors.New("compaction recent tail must be smaller than the trigger")
+	}
+	if c.Agent.Generation.Temperature != nil && (*c.Agent.Generation.Temperature < 0 || *c.Agent.Generation.Temperature > 2) {
+		return errors.New("agent temperature must be between 0 and 2")
+	}
+	if c.Agent.Generation.TopP != nil && (*c.Agent.Generation.TopP < 0 || *c.Agent.Generation.TopP > 1) {
+		return errors.New("agent top_p must be between 0 and 1")
 	}
 	if c.Notifications.RoutineGapSeconds < 0 {
 		return errors.New("routine gap must not be negative")

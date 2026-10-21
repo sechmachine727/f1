@@ -1,10 +1,11 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { LineChart, Line, ResponsiveContainer, XAxis, YAxis, Tooltip, ReferenceLine } from "recharts";
 import { activeCars, api, metric, text, useLive, value, type Snapshot } from "@/lib/live";
 import { sessionMeta } from "@/lib/recorded";
 import { clearSelection, select, toggleCarSelection, useSelection, type Selection } from "@/lib/selection";
 import { EngineerCard } from "@/components/EngineerCard";
+import { AgentActivityDrawer } from "@/components/AgentActivityDrawer";
 import { CompareGrid } from "@/components/CompareGrid";
 import { TraceStack, type TraceSeries } from "@/components/TraceStack";
 import { useLiveSamples } from "@/lib/liveSamples";
@@ -68,7 +69,7 @@ type Candidate = {
   total_time_ms: { availability: string; value: number | null }; pit_loss_ms: { availability: string; value: number | null };
 };
 
-export function PitWall() {
+export function PitWall({ onOpenLogs }: { onOpenLogs?: (session?: string, branch?: string) => void } = {}) {
   const s = useLive();
   const sel = useSelection();
   const [view, setView] = useState<"drivers" | "teams">("drivers");
@@ -161,9 +162,12 @@ export function PitWall() {
             ))}
           </div>
         </div>
-        <span className="text-sm text-neutral-400">
-          {sel.sessionId ? "Recorded session" : paused ? "Paused" : s.context ? "Live" : "Waiting for telemetry"}
-        </span>
+        <div className="flex items-center gap-2">
+          {!sel.sessionId ? <AgentActivityDrawer session={s.context?.session_id ?? ""} branch={s.context?.branch_id ?? ""} onOpenLogs={onOpenLogs} /> : null}
+          <span className="text-sm text-neutral-400">
+            {sel.sessionId ? "Recorded session" : paused ? "Paused" : s.context ? "Live" : "Waiting for telemetry"}
+          </span>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] gap-3">
@@ -236,7 +240,7 @@ export function PitWall() {
               </div>
             )}
           </div>
-          <EngineerCard />
+          <EngineerCard onOpenLogs={onOpenLogs} />
         </section>
       </div>
 
@@ -298,7 +302,7 @@ function useSessions(season: string) {
   return { items, error };
 }
 
-export function History({ onOpen }: { onOpen: () => void }) {
+export function History({ onOpen, onOpenLogs }: { onOpen: () => void; onOpenLogs?: (session?: string, branch?: string) => void }) {
   const [season, setSeason] = useState("2026");
   const { items, error } = useSessions(season);
   const [kind, setKind] = useState<"all" | "race" | "qualifying" | "practice">("all");
@@ -396,6 +400,12 @@ export function History({ onOpen }: { onOpen: () => void }) {
                 </span>
               </span>
               <span className="text-[12px] text-neutral-400">{s.recording_state} · {s.completeness}</span>
+            </button>
+            <button
+              className={nav + " px-3 text-[12px] text-neutral-400 hover:bg-[#151920]"}
+              onClick={() => onOpenLogs?.(s.id, "")}
+            >
+              Activity
             </button>
             {confirming === s.id ? (
               <span className="flex items-center gap-2 px-3 text-[12px]">
@@ -703,100 +713,8 @@ export function Setups() {
   );
 }
 
-const sourceText: Record<string, string> = { cli: "Command line", env: "Environment", file: "Config file", default: "Default" };
-const gb = (n: number) => (n / 1e9).toFixed(n % 1e9 === 0 ? 0 : 1) + " GB";
-
-function ConfigRow({ name, value, source, restartOnly, restart }: { name: string; value: string; source?: string; restartOnly?: boolean; restart?: boolean }) {
-  return (
-    <div className="flex items-baseline gap-3 border-b border-[#1c2128] py-1.5 last:border-b-0">
-      <dt className="w-44 shrink-0 text-neutral-400">{name}</dt>
-      <dd className="min-w-0 flex-1 text-neutral-200 [overflow-wrap:anywhere]">{value}</dd>
-      {source ? <span className="shrink-0 rounded-sm border border-[#2a3038] px-1.5 text-[11px] text-neutral-400">{sourceText[source] ?? source}</span> : null}
-      {restartOnly ? <span className={restart ? "shrink-0 rounded-sm bg-[#3a2a1a] px-1.5 text-[11px] text-[#f0a03c]" : "shrink-0 text-[11px] text-neutral-500"}>{restart ? "Restart to apply" : "Changes need restart"}</span> : null}
-    </div>
-  );
-}
-
-function ConfigSection({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <section className={panel + " min-w-0 flex-1 basis-[32rem]"}>
-      <h3 className="border-b border-[#232830] px-4 py-2 text-[11px] uppercase tracking-wider text-neutral-400">{title}</h3>
-      <dl className="p-4 pt-1 text-sm">{children}</dl>
-    </section>
-  );
-}
+const AgentSettingsLazy = lazy(() => import("@/components/AgentSettings").then((m) => ({ default: m.AgentSettings })));
 
 export function Settings() {
-  const [cfg, setCfg] = useState<any>(null);
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(true);
-  useEffect(() => {
-    setLoading(true);
-    api<any>("/config")
-      .then((c) => { setCfg(c); setError(""); })
-      .catch((e) => setError(String(e)))
-      .finally(() => setLoading(false));
-  }, []);
-  const c = cfg?.active_config;
-  const sources: Record<string, string> = cfg?.sources ?? {};
-  const restart: string[] = cfg?.restart_required ?? [];
-  const agent = c?.agent;
-  const endpoint = agent?.endpoints?.find((e: any) => e.id === agent.endpoint_id);
-  const secretName = endpoint?.api_key_env ?? null;
-  return (
-    <div className="min-h-[calc(100vh-49px)] bg-[#0b0d11] p-4 text-neutral-100">
-      <div className="mb-3 flex items-baseline justify-between">
-        <h2 className="text-lg">Settings</h2>
-        {cfg ? <span className="text-[12px] text-neutral-400">Revision {cfg.revision} · effective values</span> : null}
-      </div>
-      {error ? (
-        <div role="alert" className={panel + " p-4 text-sm"}>
-          <p className="text-[#f25a5c]">{error}</p>
-          <p className="mt-1 text-neutral-400">Settings could not be read. Check that the server is running and reload.</p>
-        </div>
-      ) : null}
-      {loading && !cfg ? <p className="text-sm text-neutral-400">Loading configuration…</p> : null}
-      {c ? (
-        <div className="flex flex-wrap gap-3">
-          <ConfigSection title="Server">
-            <ConfigRow name="Dashboard" value={`${c.http.host}:${c.http.port}`} source={sources.http} restartOnly restart={restart.includes("http")} />
-            <ConfigRow name="Telemetry (UDP)" value={`${c.udp.host}:${c.udp.port}`} source={sources.udp} restartOnly restart={restart.includes("udp")} />
-            <ConfigRow name="Game address" value={cfg.udp_advertise_host ? `${cfg.udp_advertise_host}:${c.udp.port}` : "unknown"} source={sources.udp_advertise_host} />
-            <ConfigRow name="Data directory" value={c.data_dir ?? "default"} source={sources.data_dir} restartOnly restart={restart.includes("data_dir")} />
-          </ConfigSection>
-
-          <ConfigSection title="Recording">
-            <ConfigRow name="Recording" value={c.recording.enabled ? "Enabled" : "Disabled"} source={sources["recording.enabled"]} />
-            <ConfigRow name="Storage cap" value={gb(c.recording.cap_bytes)} source={sources["recording.cap_bytes"]} />
-            <ConfigRow name="Free reserve" value={gb(c.recording.free_reserve_bytes)} source={sources["recording.free_reserve_bytes"]} />
-            <ConfigRow name="Chunk size" value={`${(c.recording.chunk_bytes / 1048576).toFixed(0)} MiB`} source={sources["recording.chunk_bytes"]} />
-            <ConfigRow name="Rotation size" value={`${(c.recording.rotate_bytes / 1048576).toFixed(0)} MiB`} source={sources["recording.rotate_bytes"]} />
-            <ConfigRow name="Checkpoint cadence" value={`${c.recording.chunk_flush_ms} ms`} source={sources["recording.chunk_flush_ms"]} />
-          </ConfigSection>
-
-          <ConfigSection title="Race engineer">
-            <ConfigRow name="Enabled" value={agent?.enabled ? "Yes" : "No"} source={sources["agent.enabled"]} />
-            <ConfigRow name="Endpoint" value={agent?.endpoint_id ?? "not configured"} source={sources["agent.endpoint_id"]} />
-            <ConfigRow name="URL" value={endpoint?.base_url || "not configured"} source={endpoint ? sources["agent.endpoint"] : undefined} />
-            <ConfigRow name="Model" value={endpoint?.model || "not configured"} />
-            <ConfigRow name="Protocol" value={endpoint?.protocol || "not configured"} />
-            <ConfigRow name="API key" value={secretName ? (cfg.secrets_configured?.[secretName] ? `Configured (${secretName})` : `Missing: ${secretName}`) : "not configured"} />
-          </ConfigSection>
-
-          <ConfigSection title="Search and voice">
-            <ConfigRow name="Search provider" value={c.search.provider} source={sources["search.provider"]} />
-            <ConfigRow name="Search URL" value={c.search.base_url || "provider default"} source={sources["search.base_url"]} />
-            <ConfigRow name="Voice" value={c.voice.enabled ? "Enabled" : "Disabled"} source={sources["voice.enabled"]} />
-            <ConfigRow name="Voice URL" value={c.voice.transcription_endpoint || "not configured"} source={sources["voice.base_url"]} />
-          </ConfigSection>
-
-          <ConfigSection title="Deployment">
-            <ConfigRow name="Configuration file" value="set F1TELE_CONFIG or keep it in the data directory" />
-            <ConfigRow name="Game on another machine" value="Set F1TELE_UDP_ADVERTISE_HOST and enter the game address above" />
-            <ConfigRow name="Restart required" value={restart.length ? restart.join(", ") : "None pending"} />
-          </ConfigSection>
-        </div>
-      ) : null}
-    </div>
-  );
+  return <Suspense fallback={<p className="p-4 text-sm text-neutral-400">Loading settings…</p>}><AgentSettingsLazy /></Suspense>;
 }

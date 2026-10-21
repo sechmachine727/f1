@@ -15,6 +15,7 @@ import (
 
 	"f1tele/server/internal/analysis"
 	"f1tele/server/internal/analytics"
+	"f1tele/server/internal/auth"
 	"f1tele/server/internal/config"
 	"f1tele/server/internal/contract"
 	"f1tele/server/internal/history"
@@ -24,6 +25,7 @@ import (
 
 type Deps struct {
 	Config        *config.Store
+	Auth          *auth.Store
 	Catalog       *history.Catalog
 	Reducer       *state.Reducer
 	Recorder      *history.Recorder
@@ -47,6 +49,8 @@ type EngineerAPI interface {
 	Request(ctx context.Context, r contract.Request) (contract.Invocation, error)
 	Invocations(ctx context.Context, session, branch, cursor string, limit int, status string) ([]contract.Invocation, string, error)
 	Cancel(ctx context.Context, id string) error
+	ContextUsage(ctx context.Context, sessionID, branchID string) (map[string]any, error)
+	Compact(ctx context.Context, sessionID, branchID, focus string) (map[string]any, error)
 }
 
 type SetupAPI interface {
@@ -81,6 +85,8 @@ type API struct {
 	downloads     map[string]string
 	analysisSlots chan struct{}
 	importSlots   chan struct{}
+	loginLimiter  *loginLimiter
+	AgentActivity *AgentActivityHub
 }
 
 type job struct {
@@ -97,12 +103,16 @@ func New(d Deps) *API {
 	return &API{Deps: d, replays: map[string]*history.Replay{}, jobs: map[string]*job{}, downloads: map[string]string{},
 		// Documented limits: two analysis/export jobs, one import. Live intake
 		// and recording never wait on these.
-		analysisSlots: make(chan struct{}, 2), importSlots: make(chan struct{}, 1)}
+		analysisSlots: make(chan struct{}, 2), importSlots: make(chan struct{}, 1),
+		loginLimiter: &loginLimiter{failures: map[string][]time.Time{}}, AgentActivity: NewAgentActivityHub()}
 }
 
 func (a *API) Handler(static http.Handler) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v1/health", a.health)
+	mux.HandleFunc("POST /api/v1/auth/login", a.login)
+	mux.HandleFunc("POST /api/v1/auth/logout", a.logout)
+	mux.HandleFunc("GET /api/v1/auth/status", a.authStatus)
 	mux.HandleFunc("GET /api/v1/channels", a.channels)
 	mux.HandleFunc("GET /api/v1/config", a.getConfig)
 	mux.HandleFunc("PATCH /api/v1/config", a.patchConfig)
@@ -131,6 +141,17 @@ func (a *API) Handler(static http.Handler) http.Handler {
 	mux.HandleFunc("DELETE /api/v1/replays/{id}", a.deleteReplay)
 	mux.HandleFunc("POST /api/v1/engineer/requests", a.engineerRequest)
 	mux.HandleFunc("GET /api/v1/engineer/invocations", a.engineerInvocations)
+	mux.HandleFunc("GET /api/v1/engineer/logs", a.engineerLogs)
+	mux.HandleFunc("GET /api/v1/engineer/logs/{id}", a.engineerLogDetail)
+	mux.HandleFunc("GET /api/v1/engineer/activity/stream", a.engineerActivityStream)
+	mux.HandleFunc("GET /api/v1/engineer/context", a.contextUsage)
+	mux.HandleFunc("POST /api/v1/engineer/compact", a.manualCompact)
+	mux.HandleFunc("GET /api/v1/agent/prompts", a.listPrompts)
+	mux.HandleFunc("GET /api/v1/agent/prompts/{profile}", a.promptDetail)
+	mux.HandleFunc("POST /api/v1/agent/prompts/{profile}/revisions", a.createPromptRevision)
+	mux.HandleFunc("POST /api/v1/agent/prompts/{profile}/revisions/{id}/select", a.selectPromptRevision)
+	mux.HandleFunc("DELETE /api/v1/agent/prompts/{profile}/revisions/{id}", a.deletePromptRevision)
+	mux.HandleFunc("POST /api/v1/agent/prompts/{profile}/reset", a.resetPrompt)
 	mux.HandleFunc("POST /api/v1/engineer/invocations/{id}/cancel", a.engineerCancel)
 	mux.HandleFunc("POST /api/v1/alerts/{id}/acknowledge", a.acknowledge)
 	mux.HandleFunc("GET /api/v1/setups", a.listSetups)
@@ -149,7 +170,7 @@ func (a *API) Handler(static http.Handler) http.Handler {
 	if static != nil {
 		mux.Handle("/", static)
 	}
-	return withRequestID(mux)
+	return withRequestID(a.guard(mux))
 }
 
 func withRequestID(next http.Handler) http.Handler {

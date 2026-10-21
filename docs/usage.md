@@ -1,6 +1,6 @@
 # Usage
 
-The dashboard has six workspaces: Drive, Pit wall, History, Analysis, Setups and Settings. The top bar switches between them. Live telemetry feeds Drive and the live Pit wall; recorded sessions feed History and selected recorded views.
+The dashboard has seven workspaces: Drive, Pit wall, History, Analysis, Setups, Logs and Settings. The top bar switches between them. Live telemetry feeds Drive and the live Pit wall; recorded sessions feed History and selected recorded views.
 
 ## Live and recorded views
 
@@ -77,11 +77,17 @@ Analysis does not run without a recorded session.
 
 Setups lists saved recommendations and the experiments recorded against them. Each entry shows the proposed parameter changes, handling effect, tradeoff, source count and experiment outcomes. Setup research is recommendation-only; the package never changes the game.
 
+## Agent activity
+
+Logs lists every race-engineer invocation with its trigger, status, model, prompt revision, tokens, cost, latency and decision. Open a row for the exact system-prompt snapshot, model-visible input, output, tool timeline, compaction history and raw JSON. The live Pit wall has an Agent activity drawer with the current stage and a running-count badge. History links a recorded race to the same session-filtered view.
+
+Logs are append-only and remain available after recording-file cleanup. Older invocations captured before activity logging show their available output with an explicit input-not-captured state.
+
 ## Settings
 
-The web Settings workspace is a read-only report of the values the running server resolved, including each value's source and whether a change needs a restart. Secrets show as configured or missing, never as text.
+The web Settings workspace edits race-engineer behavior: trigger rules, cadence, budgets, deadlines, context and sampling, prompt revisions and compaction. Prompt saves show a side-by-side diff; revisions can be selected, reset or deleted with inline confirmation. Endpoint URL, model, protocol and API key stay read-only here and are configured through the environment, `config.json`, or the Windows control center.
 
-To change values, use the environment or `config.json` on Docker and native installs, or the control center's Settings page for the Windows portable build. See [Settings](settings.md).
+Server and recording values are reported read-only with their source and restart state. The Windows control center owns the portable package's first-run password and connection settings. See [Settings](settings.md).
 
 ## Recording states
 

@@ -24,6 +24,8 @@
     </StackPanel>
     <StackPanel Grid.Row="3" Orientation="Horizontal" Spacing="8">
       <Button x:Name="OpenButton" Content="Open dashboard" Click="Open_Click" />
+      <Button x:Name="LogsButton" Content="Agent logs" Click="Logs_Click" />
+      <Button x:Name="SettingsButton" Content="Settings" Click="Settings_Click" />
       <Button x:Name="StopButton" Content="Stop server" Click="Stop_Click" />
       <Button x:Name="ExitButton" Content="Exit" Click="Exit_Click" />
     </StackPanel>

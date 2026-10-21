@@ -1,11 +1,15 @@
 package engineer
 
 import (
+	"context"
 	"crypto/sha256"
 	"embed"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"strings"
+
+	"f1tele/server/internal/history"
 )
 
 //go:embed prompts/base.md prompts/*-strategy.md prompts/live-question.md prompts/post-race.md prompts/setup-research.md prompts/manifest.json prompts/tools.json
@@ -20,6 +24,8 @@ var profileFile = map[string]string{
 	"post_race":           "prompts/post-race.md",
 	"setup_research":      "prompts/setup-research.md",
 }
+
+var PromptProfiles = []string{"scheduled_strategy", "continuous_strategy", "live_question", "post_race", "setup_research"}
 
 // VerifyBundle checks that the embedded prompt files still match the authored
 // manifest. It never rewrites or regenerates them.
@@ -50,6 +56,16 @@ func VerifyBundle() error {
 // Assemble builds the system text in the documented order: base, exactly one
 // profile file, then a short application-generated output-schema instruction.
 func Assemble(profile string) (string, error) {
+	authored, err := Authored(profile)
+	if err != nil {
+		return "", err
+	}
+	return authored + schemaInstruction(), nil
+}
+
+// Authored returns the embedded base plus profile prompt without the
+// application-generated output-schema instruction.
+func Authored(profile string) (string, error) {
 	base, err := bundle.ReadFile("prompts/base.md")
 	if err != nil {
 		return "", err
@@ -62,13 +78,42 @@ func Assemble(profile string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	inst := "\n\nReturn exactly one JSON object matching contract.AgentOutput schema 1.0.0. " +
+	return string(base) + "\n\n" + string(prof), nil
+}
+
+// AssembleCurrent returns a custom prompt when one is selected, otherwise the
+// authored base plus profile prompt. The output-schema instruction is always
+// appended.
+func AssembleCurrent(ctx context.Context, profile string, cat *history.Catalog) (string, string, string, error) {
+	if cat != nil {
+		rev, err := cat.CurrentPrompt(ctx, profile)
+		if err != nil {
+			return "", "", "", err
+		}
+		if rev != nil {
+			return rev.Body + schemaInstruction(), rev.ID, rev.SHA256, nil
+		}
+	}
+	text, err := Assemble(profile)
+	if err != nil {
+		return "", "", "", err
+	}
+	sum := sha256.Sum256([]byte(text))
+	return text, "", hex.EncodeToString(sum[:]), nil
+}
+
+func schemaInstruction() string {
+	return "\n\nReturn exactly one JSON object matching contract.AgentOutput schema 1.0.0. " +
 		"Required fields: schema_version, invocation_id, session_id, branch_id, observation_seq, decision, confidence, notify, urgency, driver_message, plan, rationale_summary, evidence_ids, assumptions, predictions, recheck, analysis, limitations, sources, setup_changes. " +
 		"plan requires action, pit_lap_start, pit_lap_end, compound, alternatives, candidate_id. " +
 		"driver_message is at most 35 words and 240 characters; notify=false requires driver_message=null. " +
 		"Evidence IDs may only cite observations, events, estimates or tool artifacts supplied in this invocation. " +
 		"Do not include Markdown fences or prose outside the JSON object."
-	return string(base) + "\n\n" + string(prof) + inst, nil
+}
+
+func KnownProfile(profile string) bool {
+	_, ok := profileFile[strings.TrimSpace(profile)]
+	return ok
 }
 
 type toolSpec struct {

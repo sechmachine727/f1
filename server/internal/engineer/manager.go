@@ -20,11 +20,12 @@ import (
 
 // Manager runs manual and software-scheduled bounded invocations and audits them.
 type Manager struct {
-	Store   *config.Store
-	Reducer *state.Reducer
-	Catalog *history.Catalog
-	Invoker *Invoker
-	Arbiter *strategy.Arbiter
+	Store    *config.Store
+	Reducer  *state.Reducer
+	Catalog  *history.Catalog
+	Invoker  *Invoker
+	Arbiter  *strategy.Arbiter
+	Activity *Activity
 
 	mu      sync.Mutex
 	budget  *Budget
@@ -34,14 +35,13 @@ type Manager struct {
 	lastEvt string
 	lastLap int
 	running bool
-	convID  string
 }
 
 func NewManager(store *config.Store, r *state.Reducer, cat *history.Catalog, inv *Invoker, arb *strategy.Arbiter) *Manager {
 	cfg := store.Config()
 	return &Manager{Store: store, Reducer: r, Catalog: cat, Invoker: inv, Arbiter: arb, budget: NewBudget(cfg.Agent, nil),
 		active: map[string]context.CancelFunc{}, rules: NewRules(cfg.Agent.Rules),
-		sched: NewScheduler(r.BranchID(), r.ObservationSeq()), convID: fmt.Sprintf("conv-%d", time.Now().UnixNano())}
+		sched: NewScheduler(r.BranchID(), r.ObservationSeq())}
 }
 
 func (m *Manager) Request(ctx context.Context, req contract.Request) (contract.Invocation, error) {
@@ -73,6 +73,7 @@ func (m *Manager) Request(ctx context.Context, req contract.Request) (contract.I
 		m.budget.Release(int64(cfg.Agent.ContextTokens) + int64(cfg.Agent.MaxOutputTokens))
 		return inv, err
 	}
+	m.Activity.Emit(context.Background(), history.AgentEvent{InvocationID: id, SessionID: inv.SessionID, BranchID: inv.BranchID, Profile: inv.Profile, Kind: "queued"}, map[string]any{"trigger_ids": inv.TriggerIDs})
 	go m.run(context.Background(), inv, cfg, snap, req.RequestText)
 	return inv, nil
 }
@@ -85,9 +86,18 @@ func (m *Manager) execute(ctx context.Context, inv contract.Invocation, cfg cont
 	endpoint, ok := endpointByID(cfg, deref(cfg.Agent.EndpointID))
 	if !ok {
 		m.finish(inv.ID, "failed", "endpoint_missing", nil, contract.Usage{UsageEstimated: true})
+		m.Activity.Emit(ctx, history.AgentEvent{InvocationID: inv.ID, SessionID: inv.SessionID, BranchID: inv.BranchID, Profile: inv.Profile, Kind: "error"}, map[string]any{"message": "endpoint_missing"})
 		return
 	}
+	started := time.Now()
+	convID := conversationID(inv.Profile, inv.SessionID, inv.BranchID)
 	key := m.Store.Secret(deref(endpoint.APIKeyEnv))
+	system, promptRevision, promptHash, err := AssembleCurrent(ctx, inv.Profile, m.Catalog)
+	if err != nil {
+		m.finish(inv.ID, "failed", err.Error(), nil, contract.Usage{UsageEstimated: true})
+		return
+	}
+	_ = m.Catalog.SetInvocationMetadata(ctx, inv.ID, convID, endpoint.ID, endpoint.Model, promptRevision, promptHash)
 	continuity := contract.Continuity{MeasuredOutcomes: []string{}, BranchReset: window.Scope.BranchReset}
 	if window.Scope.LastAttempt != nil {
 		continuity.LastAttempt = window.Scope.LastAttempt
@@ -108,7 +118,7 @@ func (m *Manager) execute(ctx context.Context, inv contract.Invocation, cfg cont
 		}
 	}
 	input := contract.AgentInput{
-		SchemaVersion: contract.SchemaVersion, InvocationID: inv.ID, ConversationID: m.convID,
+		SchemaVersion: contract.SchemaVersion, InvocationID: inv.ID, ConversationID: convID,
 		Profile: inv.Profile, EndpointID: endpoint.ID, Model: endpoint.Model,
 		Observation: BoundObservation(m.Reducer.Observation(nil, nil, nil, nil), m.Reducer.PlayerCar()),
 		Continuity:  continuity,
@@ -119,25 +129,83 @@ func (m *Manager) execute(ctx context.Context, inv contract.Invocation, cfg cont
 	if inv.Profile == "post_race" || inv.Profile == "setup_research" {
 		input.Limits.DeadlineMs = cfg.Agent.AnalysisDeadlineMs
 	}
+	limit := effectiveLimit(cfg, endpoint)
+	tailTokens := limit * cfg.Agent.Compaction.RecentTailPercent / 100
+	if tailTokens < 400 {
+		tailTokens = 400
+	}
+	historyMessages, _, _ := m.conversation(ctx, convID, tailTokens)
+	if cmp, _ := m.Catalog.LatestCompaction(ctx, convID); cmp != nil {
+		summary := summaryText(cmp.Summary)
+		historyMessages = append([]history.AgentMessage{{Role: "user", Content: jsonString("[Compacted context]\n" + summary), CreatedAtMs: cmp.CreatedAtMs}}, historyMessages...)
+	}
+	contextTokens := estimateTokens([]byte(system)) + conversationTokens(historyMessages) + estimateTokens(rawJSON(input))
+	if last := m.Catalog.LastInputTokens(ctx, convID); last > 0 {
+		if candidate := last + estimateTokens(rawJSON(input)); candidate > contextTokens {
+			contextTokens = candidate
+		}
+	}
+	compactions := 0
+	if cfg.Agent.Compaction.Enabled && contextTokens >= limit*cfg.Agent.Compaction.TriggerPercent/100 {
+		if cmp, err := m.compact(ctx, inv, cfg, endpoint, key, convID, "threshold", "", contextTokens); err == nil && cmp != nil {
+			compactions++
+			historyMessages, _, _ = m.conversation(ctx, convID, tailTokens)
+			if latest, _ := m.Catalog.LatestCompaction(ctx, convID); latest != nil {
+				historyMessages = append([]history.AgentMessage{{Role: "user", Content: jsonString("[Compacted context]\n" + summaryText(latest.Summary)), CreatedAtMs: latest.CreatedAtMs}}, historyMessages...)
+			}
+			contextTokens = estimateTokens([]byte(system)) + conversationTokens(historyMessages) + estimateTokens(rawJSON(input))
+		}
+	}
+	m.Activity.Emit(ctx, history.AgentEvent{InvocationID: inv.ID, SessionID: inv.SessionID, BranchID: inv.BranchID, Profile: inv.Profile, Kind: "context_built"}, map[string]any{
+		"system_prompt": system, "prompt_revision_id": promptRevision, "prompt_sha256": promptHash,
+		"messages": historyMessages, "input": input, "token_estimate": contextTokens, "context_limit": limit,
+	})
 	cctx, cancel := context.WithTimeout(ctx, time.Duration(input.Limits.DeadlineMs)*time.Millisecond)
 	defer cancel()
 	m.mu.Lock()
 	m.active[inv.ID] = cancel
 	m.mu.Unlock()
-	outText, requests, err := m.Invoker.Run(cctx, inv.Profile, input, endpoint, key, snap)
-	m.budget.Reconcile(int64(input.Limits.MaxContextTokens)+int64(input.Limits.MaxOutputTokens), contract.Usage{ProviderRequests: requests, UsageEstimated: true})
+	var result InvokeResult
+	for attempt := 0; attempt < 3; attempt++ {
+		result, err = m.Invoker.RunRequest(cctx, InvokeRequest{
+			Profile: inv.Profile, Input: input, Endpoint: endpoint, APIKey: key, Snapshot: snap,
+			SystemPrompt: system, PromptRevision: promptRevision, PromptHash: promptHash, ConversationID: convID,
+			History: historyMessages, Generation: cfg.Agent.Generation, Activity: m.Activity,
+			MessageSink: func(msg history.AgentMessage) {
+				msg.ConversationID = convID
+				if msg.CreatedAtMs == 0 {
+					msg.CreatedAtMs = time.Now().UnixMilli()
+				}
+				_ = m.Catalog.AppendAgentMessage(context.Background(), msg)
+			},
+		})
+		if err == nil || !isContextOverflow(err) || compactions >= 2 {
+			break
+		}
+		compactions++
+		if cmp, cerr := m.compact(ctx, inv, cfg, endpoint, key, convID, "overflow", "", contextTokens); cerr != nil || cmp == nil {
+			break
+		}
+		historyMessages, _, _ = m.conversation(ctx, convID, tailTokens)
+		if latest, _ := m.Catalog.LatestCompaction(ctx, convID); latest != nil {
+			historyMessages = append([]history.AgentMessage{{Role: "user", Content: jsonString("[Compacted context]\n" + summaryText(latest.Summary)), CreatedAtMs: latest.CreatedAtMs}}, historyMessages...)
+		}
+	}
+	usage := contract.Usage{ProviderRequests: result.Requests, InputTokens: result.InputTokens, OutputTokens: result.OutputTokens, TotalTokens: result.TotalTokens, UsageEstimated: result.InputTokens == nil}
+	m.budget.Reconcile(int64(input.Limits.MaxContextTokens)+int64(input.Limits.MaxOutputTokens), usage)
 	if err != nil {
 		m.sched.Fail(inv.ID, "provider_error")
-		m.finish(inv.ID, "failed", err.Error(), nil, contract.Usage{ProviderRequests: requests, UsageEstimated: true})
+		m.Activity.Emit(ctx, history.AgentEvent{InvocationID: inv.ID, SessionID: inv.SessionID, BranchID: inv.BranchID, Profile: inv.Profile, Kind: "error"}, map[string]any{"message": err.Error()})
+		m.finish(inv.ID, "failed", err.Error(), nil, usage)
+		_ = m.Catalog.UpdateInvocationAudit(context.Background(), inv.ID, rawJSON(input), time.Since(started).Milliseconds(), compactions)
 		return
 	}
-	out, err := ParseAndValidate(outText, input)
+	out, err := ParseAndValidate(result.Text, input)
 	if err != nil {
 		m.sched.Fail(inv.ID, "invalid")
-		// One bounded repair is allowed in the same deadline/budget.
-		repair := "Repair the previous response into one JSON object matching AgentOutput. Fix only schema and scope; do not add evidence."
-		_ = repair
-		m.finish(inv.ID, "invalid", err.Error(), nil, contract.Usage{ProviderRequests: requests, UsageEstimated: true})
+		m.Activity.Emit(ctx, history.AgentEvent{InvocationID: inv.ID, SessionID: inv.SessionID, BranchID: inv.BranchID, Profile: inv.Profile, Kind: "rejected"}, map[string]any{"error": err.Error(), "output": result.Text})
+		m.finish(inv.ID, "invalid", err.Error(), nil, usage)
+		_ = m.Catalog.UpdateInvocationAudit(context.Background(), inv.ID, rawJSON(input), time.Since(started).Milliseconds(), compactions)
 		return
 	}
 	disposition := "none"
@@ -148,11 +216,17 @@ func (m *Manager) execute(ctx context.Context, inv contract.Invocation, cfg cont
 	// cursor by the frozen window and nothing else.
 	if inv.Profile == "scheduled_strategy" || inv.Profile == "continuous_strategy" {
 		if err := m.sched.Accept(inv.ID, window.Window); err != nil {
-			m.finish(inv.ID, "superseded", err.Error(), nil, contract.Usage{ProviderRequests: requests, UsageEstimated: true})
+			m.finish(inv.ID, "superseded", err.Error(), nil, usage)
+			_ = m.Catalog.UpdateInvocationAudit(context.Background(), inv.ID, rawJSON(input), time.Since(started).Milliseconds(), compactions)
 			return
 		}
 	}
-	m.finish(inv.ID, "accepted", "", &out, contract.Usage{ProviderRequests: requests, UsageEstimated: true, TotalTokens: nil})
+	m.finish(inv.ID, "accepted", "", &out, usage)
+	_ = m.Catalog.UpdateInvocationAudit(context.Background(), inv.ID, rawJSON(input), time.Since(started).Milliseconds(), compactions)
+	m.Activity.Emit(ctx, history.AgentEvent{InvocationID: inv.ID, SessionID: inv.SessionID, BranchID: inv.BranchID, Profile: inv.Profile, Kind: "accepted"}, map[string]any{
+		"output": out, "notification_disposition": disposition, "latency_ms": time.Since(started).Milliseconds(), "compaction_count": compactions,
+	})
+	m.Activity.Emit(ctx, history.AgentEvent{InvocationID: inv.ID, SessionID: inv.SessionID, BranchID: inv.BranchID, Profile: inv.Profile, Kind: "notification"}, map[string]any{"disposition": disposition})
 	m.mu.Lock()
 	if r := m.activeInvocation(inv.ID); r != nil {
 		r.NotificationDisposition = disposition
@@ -182,8 +256,9 @@ func (m *Manager) finish(id, status, errText string, out *contract.AgentOutput, 
 
 func (m *Manager) store(inv contract.Invocation) error {
 	usage, _ := json.Marshal(inv.Usage)
-	_, err := m.Catalog.DB().Exec("INSERT INTO invocations(id, session_id, branch_id, status, output_json, usage_json, profile, started_at_ms, notification_disposition) VALUES(?,?,?,?,NULL,?,?,?,?)",
-		inv.ID, inv.SessionID, inv.BranchID, inv.Status, string(usage), inv.Profile, inv.StartedAtMs, inv.NotificationDisposition)
+	triggers, _ := json.Marshal(inv.TriggerIDs)
+	_, err := m.Catalog.DB().Exec("INSERT INTO invocations(id, session_id, branch_id, status, output_json, usage_json, profile, started_at_ms, notification_disposition, trigger_ids_json) VALUES(?,?,?,?,NULL,?,?,?,?,?)",
+		inv.ID, inv.SessionID, inv.BranchID, inv.Status, string(usage), inv.Profile, inv.StartedAtMs, inv.NotificationDisposition, string(triggers))
 	return err
 }
 
@@ -247,6 +322,7 @@ func (m *Manager) Cancel(ctx context.Context, id string) error {
 		return errors.New("unknown or completed invocation")
 	}
 	cancel()
+	m.Activity.Emit(ctx, history.AgentEvent{InvocationID: id, Kind: "cancelled"}, map[string]any{"reason": "cancelled by user"})
 	_, err := m.Catalog.DB().Exec("UPDATE invocations SET status='cancelled', ended_at_ms=? WHERE id=?", time.Now().UnixMilli(), id)
 	return err
 }
@@ -342,6 +418,7 @@ func (m *Manager) startScheduled(inv Invocation, triggerIDs []string, cfg contra
 		m.sched.Fail(inv.ID, "store_failed")
 		return
 	}
+	m.Activity.Emit(context.Background(), history.AgentEvent{InvocationID: rec.ID, SessionID: rec.SessionID, BranchID: rec.BranchID, Profile: rec.Profile, Kind: "queued"}, map[string]any{"trigger_ids": triggerIDs})
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {

@@ -34,6 +34,11 @@ var envSpecs = []envSpec{
 		}
 		return err
 	}},
+	{"F1TELE_SECURITY_ORIGIN_CHECK", "security.origin_check", false, func(c *contract.Config, v string) error {
+		b, err := parseBool(v)
+		c.Security.OriginCheck = b
+		return err
+	}},
 	{"F1TELE_AGENT_ENABLED", "agent.enabled", false, func(c *contract.Config, v string) error { b, err := parseBool(v); c.Agent.Enabled = b; return err }},
 	{"F1TELE_AGENT_ENDPOINT_ID", "agent.endpoint_id", false, func(c *contract.Config, v string) error { c.Agent.EndpointID = &v; return nil }},
 	{"F1TELE_AGENT_BASE_URL", "agent.endpoint.base_url", false, nil},
@@ -224,6 +229,7 @@ var DocumentedVariables = []string{
 	"F1TELE_DATA_DIR", "F1TELE_CONFIG", "F1TELE_HTTP_ADDR", "F1TELE_UDP_ADDR", "F1TELE_UDP_ADVERTISE_HOST",
 	"F1TELE_RECORDING_ENABLED", "F1TELE_RECORDING_CAP_BYTES", "F1TELE_RECORDING_FREE_RESERVE_BYTES",
 	"F1TELE_RECORDING_CHUNK_BYTES", "F1TELE_RECORDING_ROTATE_BYTES", "F1TELE_RECORDING_CHUNK_FLUSH_MS",
+	"F1TELE_SECURITY_ORIGIN_CHECK",
 	"F1TELE_AGENT_ENABLED", "F1TELE_AGENT_ENDPOINT_ID", "F1TELE_AGENT_BASE_URL", "F1TELE_AGENT_MODEL",
 	"F1TELE_AGENT_PROTOCOL", "F1TELE_AGENT_API_KEY", "F1TELE_SEARCH_PROVIDER", "F1TELE_SEARCH_BASE_URL",
 	"F1TELE_SEARCH_API_KEY", "F1TELE_VOICE_ENABLED", "F1TELE_VOICE_BASE_URL", "F1TELE_VOICE_TRANSCRIPTION_MODEL",
