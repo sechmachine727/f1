@@ -11,15 +11,37 @@ export type Selection = {
 };
 
 const empty: Selection = { sessionId: null, branchId: null, label: "", season: null, recorded: false };
-let current = empty;
+// shortcut: selection follows this tab, not the URL; move it into the query string if shareable links are needed.
+const storedKey = "f1tele.selection";
+
+function stored(): Selection {
+  try {
+    const raw = window.sessionStorage.getItem(storedKey);
+    if (!raw) return empty;
+    const v = JSON.parse(raw) as Partial<Selection>;
+    return {
+      sessionId: typeof v.sessionId === "string" ? v.sessionId : null,
+      branchId: typeof v.branchId === "string" ? v.branchId : null,
+      label: typeof v.label === "string" ? v.label : "",
+      season: typeof v.season === "number" ? v.season : null,
+      recorded: v.recorded === true,
+    };
+  } catch {
+    return empty;
+  }
+}
+
+let current = typeof window === "undefined" ? empty : stored();
 const listeners = new Set<() => void>();
 
 export function select(next: Selection) {
   current = next;
+  try { window.sessionStorage.setItem(storedKey, JSON.stringify(next)); } catch { /* storage disabled */ }
   listeners.forEach((l) => l());
 }
 export function clearSelection() {
   current = empty;
+  try { window.sessionStorage.removeItem(storedKey); } catch { /* storage disabled */ }
   listeners.forEach((l) => l());
 }
 export function useSelection(): Selection {

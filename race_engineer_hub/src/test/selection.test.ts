@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { toggleCarSelection } from "@/lib/selection";
+import { clearSelection, select, toggleCarSelection } from "@/lib/selection";
 
 describe("pit wall car selection", () => {
   it("adds a second car", () => {
@@ -21,6 +21,15 @@ describe("pit wall car selection", () => {
   it("deselects a car but never empties the selection", () => {
     expect(toggleCarSelection([0, 3], 3)).toEqual([0]);
     expect(toggleCarSelection([0], 0)).toEqual([0]);
+  });
+
+  it("keeps a recorded session across a reload", () => {
+    select({ sessionId: "ses-1", branchId: "br-1", label: "Race", season: 2025, recorded: true });
+    expect(JSON.parse(sessionStorage.getItem("f1tele.selection") ?? "{}")).toMatchObject({
+      sessionId: "ses-1", branchId: "br-1", label: "Race", season: 2025, recorded: true,
+    });
+    clearSelection();
+    expect(sessionStorage.getItem("f1tele.selection")).toBeNull();
   });
 });
 

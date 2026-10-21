@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { Drive } from "@/components/Drive";
 import { Analysis, History, PitWall, Setups, Settings, nav } from "@/pages/Workspaces";
 import { RecordedPitWall } from "@/components/RecordedPit";
@@ -21,38 +22,40 @@ const tabs: { id: Tab; label: string }[] = [
 export default function Index() {
   const selection = useSelection();
   const { logout } = useAuth();
-  const [logSession, setLogSession] = useState(() => new URLSearchParams(window.location.search).get("session") ?? "");
-  const [logBranch, setLogBranch] = useState(() => new URLSearchParams(window.location.search).get("branch") ?? "");
-  const initial = (): Tab => {
-    const q = new URLSearchParams(window.location.search).get("workspace");
-    return (tabs.find((t) => t.id === q)?.id ?? "drive") as Tab;
+  const location = useLocation();
+  const navigate = useNavigate();
+  const params = new URLSearchParams(location.search);
+  const tab = (tabs.find((t) => t.id === params.get("workspace"))?.id ?? "drive") as Tab;
+  const logSession = params.get("session") ?? "";
+  const logBranch = params.get("branch") ?? "";
+  const go = (next: Tab) => {
+    if (next === tab) return;
+    const q = new URLSearchParams();
+    if (next !== "drive") q.set("workspace", next);
+    navigate({ pathname: "/", search: q.toString() });
   };
-  const [tab, setTab] = useState<Tab>(initial);
   const openLogs = (sessionId = "", branchId = "") => {
-    setLogSession(sessionId);
-    setLogBranch(branchId);
-    setTab("logs");
+    const q = new URLSearchParams({ workspace: "logs" });
+    if (sessionId) q.set("session", sessionId);
+    if (branchId) q.set("branch", branchId);
+    navigate({ pathname: "/", search: q.toString() });
+  };
+  const setLogFilter = (sessionId: string, branchId: string) => {
+    const q = new URLSearchParams(location.search);
+    if (sessionId) q.set("session", sessionId); else q.delete("session");
+    if (branchId) q.set("branch", branchId); else q.delete("branch");
+    navigate({ pathname: "/", search: q.toString() }, { replace: true });
   };
   useEffect(() => {
     document.title = "F1 Telemetry";
   }, []);
-  useEffect(() => {
-    const url = new URL(window.location.href);
-    if (tab === "drive") url.searchParams.delete("workspace");
-    else url.searchParams.set("workspace", tab);
-    if (tab === "logs" && logSession) url.searchParams.set("session", logSession);
-    else url.searchParams.delete("session");
-    if (tab === "logs" && logBranch) url.searchParams.set("branch", logBranch);
-    else url.searchParams.delete("branch");
-    window.history.replaceState(null, "", url);
-  }, [tab, logSession, logBranch]);
   return (
     <div className="min-h-screen bg-[#0b0d11]">
       <nav aria-label="Workspaces" className="flex gap-1 border-b border-[#232830] bg-[#0d1015] px-3 py-2">
         {tabs.map((t) => (
           <button
             key={t.id}
-            onClick={() => setTab(t.id)}
+            onClick={() => go(t.id)}
             aria-current={tab === t.id ? "page" : undefined}
             className={nav + (tab === t.id ? " bg-[#1d3b2c] text-[#4fd48a]" : " text-neutral-300 hover:bg-[#151920]")}
           >
@@ -63,10 +66,10 @@ export default function Index() {
       </nav>
       {tab === "drive" ? <Drive /> : null}
       {tab === "pit" ? (selection.sessionId ? <RecordedPitWall onOpenLogs={openLogs} /> : <PitWall onOpenLogs={openLogs} />) : null}
-      {tab === "history" ? <History onOpen={() => setTab("pit")} onOpenLogs={openLogs} /> : null}
+      {tab === "history" ? <History onOpen={() => go("pit")} onOpenLogs={openLogs} /> : null}
       {tab === "analysis" ? (selection.sessionId ? <RecordedAnalysis /> : <Analysis />) : null}
       {tab === "setups" ? <Setups /> : null}
-      {tab === "logs" ? <Logs initialSession={logSession} initialBranch={logBranch} onSessionChange={(s, b) => { setLogSession(s); setLogBranch(b); }} /> : null}
+      {tab === "logs" ? <Logs initialSession={logSession} initialBranch={logBranch} onSessionChange={setLogFilter} /> : null}
       {tab === "settings" ? <Settings /> : null}
     </div>
   );

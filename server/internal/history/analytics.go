@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"f1tele/server/internal/contract"
@@ -56,20 +57,20 @@ type Participant struct {
 
 // Stint is one continuous stint or run for a car.
 type Stint struct {
-	CarIndex   int     `json:"car_index"`
-	Kind       string  `json:"kind"`
-	Index      int     `json:"index"`
-	StartLap   int     `json:"start_lap"`
-	EndLap     int     `json:"end_lap"`
-	Compound   string  `json:"compound"`
-	Laps       int     `json:"laps"`
-	BestMs     int64   `json:"best_ms"`
-	MedianMs   int64   `json:"median_ms"`
+	CarIndex    int     `json:"car_index"`
+	Kind        string  `json:"kind"`
+	Index       int     `json:"index"`
+	StartLap    int     `json:"start_lap"`
+	EndLap      int     `json:"end_lap"`
+	Compound    string  `json:"compound"`
+	Laps        int     `json:"laps"`
+	BestMs      int64   `json:"best_ms"`
+	MedianMs    int64   `json:"median_ms"`
 	Degradation float64 `json:"degradation_ms_per_lap"`
-	FuelStart  float64 `json:"fuel_start_kg"`
-	FuelEnd    float64 `json:"fuel_end_kg"`
-	ErsStart   float64 `json:"ers_start_j"`
-	ErsEnd     float64 `json:"ers_end_j"`
+	FuelStart   float64 `json:"fuel_start_kg"`
+	FuelEnd     float64 `json:"fuel_end_kg"`
+	ErsStart    float64 `json:"ers_start_j"`
+	ErsEnd      float64 `json:"ers_end_j"`
 }
 
 func (c *Catalog) Stints(ctx context.Context, sessionID, branchID string) ([]Stint, error) {
@@ -157,13 +158,60 @@ func countPoints(b []byte) int {
 	return len(v)
 }
 
+// branchLineage returns the surviving branch and its ancestors, oldest first.
+// A rewind starts a child branch, so the branch alone only holds the laps
+// recorded after its anchor; earlier laps live on its parents.
+func (c *Catalog) branchLineage(ctx context.Context, sessionID, branchID string) ([]string, error) {
+	if branchID == "" {
+		return nil, nil
+	}
+	rows, err := c.db.QueryContext(ctx, `WITH RECURSIVE lineage(id, parent_id, depth) AS (
+		SELECT id, parent_id, 0 FROM branches WHERE id=? AND session_id=?
+		UNION ALL
+		SELECT b.id, b.parent_id, lineage.depth+1 FROM branches b JOIN lineage ON b.id=lineage.parent_id
+	) SELECT id FROM lineage ORDER BY depth DESC`, branchID, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		out = append(out, id)
+	}
+	return out, rows.Err()
+}
+
+func questionMarks(n int) string {
+	if n <= 0 {
+		return ""
+	}
+	return strings.TrimSuffix(strings.Repeat("?,", n), ",")
+}
+
 func (c *Catalog) LapAnalytics(ctx context.Context, sessionID, branchID string, car int) ([]LapAnalytics, error) {
+	branches, err := c.branchLineage(ctx, sessionID, branchID)
+	if err != nil {
+		return nil, err
+	}
+	if len(branches) == 0 {
+		branches = []string{branchID}
+	}
+	rank := make(map[string]int, len(branches))
+	args := make([]any, 0, len(branches)+2)
+	args = append(args, sessionID)
 	q := `SELECT session_id, branch_id, car_idx, lap, COALESCE(lap_ms,0), COALESCE(sector1_ms,0), COALESCE(sector2_ms,0), COALESCE(sector3_ms,0),
 		COALESCE(distance_m,0), COALESCE(avg_speed_mps,0), COALESCE(top_speed_mps,0), COALESCE(trap_speed_mps,0), COALESCE(position_start,0), COALESCE(position_end,0),
 		COALESCE(gap_ahead_start_ms,0), COALESCE(gap_leader_start_ms,0), COALESCE(compound,''), COALESCE(tyre_age_laps,0), COALESCE(fuel_start_kg,0), COALESCE(fuel_end_kg,0),
 		COALESCE(ers_start_j,0), COALESCE(ers_end_j,0), pit_in, pit_out, valid, track_limits, complete, COALESCE(conditions,''), COALESCE(extra_json,'{}')
-		FROM lap_analytics WHERE session_id=? AND branch_id=?`
-	args := []any{sessionID, branchID}
+		FROM lap_analytics WHERE session_id=? AND branch_id IN (` + questionMarks(len(branches)) + `)`
+	for _, b := range branches {
+		rank[b] = len(rank)
+		args = append(args, b)
+	}
 	if car >= 0 {
 		q += " AND car_idx=?"
 		args = append(args, car)
@@ -174,7 +222,7 @@ func (c *Catalog) LapAnalytics(ctx context.Context, sessionID, branchID string, 
 		return nil, err
 	}
 	defer rows.Close()
-	var out []LapAnalytics
+	byLap := map[string]LapAnalytics{}
 	for rows.Next() {
 		var l LapAnalytics
 		var pitIn, pitOut, valid, limits, complete int
@@ -189,8 +237,22 @@ func (c *Catalog) LapAnalytics(ctx context.Context, sessionID, branchID string, 
 		if l.CornerSpeeds == nil {
 			l.CornerSpeeds = map[string]contract.Measurement{}
 		}
+		k := strconv.Itoa(l.CarIndex) + ":" + strconv.Itoa(l.Lap)
+		if old, ok := byLap[k]; ok && rank[old.BranchID] > rank[l.BranchID] {
+			continue
+		}
+		byLap[k] = l
+	}
+	out := make([]LapAnalytics, 0, len(byLap))
+	for _, l := range byLap {
 		out = append(out, l)
 	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].CarIndex != out[j].CarIndex {
+			return out[i].CarIndex < out[j].CarIndex
+		}
+		return out[i].Lap < out[j].Lap
+	})
 	return out, rows.Err()
 }
 
@@ -335,39 +397,31 @@ func sessionKind(c *Catalog, sessionID string) string {
 }
 
 func (c *Catalog) UpsertSessionAnalytics(ctx context.Context, sessionID, branchID, method string) error {
-	rows, err := c.db.QueryContext(ctx, `SELECT car_idx, COALESCE(lap_ms,0), COALESCE(sector1_ms,0), COALESCE(sector2_ms,0), COALESCE(sector3_ms,0), COALESCE(avg_speed_mps,0), COALESCE(top_speed_mps,0), valid, complete
-		FROM lap_analytics WHERE session_id=? AND branch_id=?`, sessionID, branchID)
+	laps, err := c.LapAnalytics(ctx, sessionID, branchID, -1)
 	if err != nil {
 		return err
 	}
-	defer rows.Close()
 	var best, theo int64
 	var clean, total int
 	var avgSum, top float64
-	for rows.Next() {
-		var car, valid, complete int
-		var lap, s1, s2, s3 int64
-		var avg, t float64
-		if err := rows.Scan(&car, &lap, &s1, &s2, &s3, &avg, &t, &valid, &complete); err != nil {
-			return err
-		}
+	for _, l := range laps {
 		total++
-		if valid == 0 || complete == 0 || lap <= 0 {
+		if !l.Valid || !l.Complete || l.LapMs <= 0 {
 			continue
 		}
 		clean++
-		if best == 0 || lap < best {
-			best = lap
+		if best == 0 || l.LapMs < best {
+			best = l.LapMs
 		}
-		if s1 > 0 && s2 > 0 && s3 > 0 {
-			v := s1 + s2 + s3
+		if l.Sector1Ms > 0 && l.Sector2Ms > 0 && l.Sector3Ms > 0 {
+			v := l.Sector1Ms + l.Sector2Ms + l.Sector3Ms
 			if theo == 0 || v < theo {
 				theo = v
 			}
 		}
-		avgSum += avg
-		if t > top {
-			top = t
+		avgSum += l.AvgSpeed
+		if l.TopSpeed > top {
+			top = l.TopSpeed
 		}
 	}
 	avg := 0.0
@@ -381,4 +435,3 @@ func (c *Catalog) UpsertSessionAnalytics(ctx context.Context, sessionID, branchI
 		sessionID, branchID, best, theo, clean, total, avg, top, time.Now().UnixMilli(), method)
 	return err
 }
-

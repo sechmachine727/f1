@@ -137,6 +137,62 @@ func hashFile(t *testing.T, path string) string {
 	return hex.EncodeToString(sum[:])
 }
 
+func TestSummaryReadsParentBranchLaps(t *testing.T) {
+	cat, _, _ := setup(t)
+	ctx := context.Background()
+	parent := "b"
+	if err := cat.CreateBranch(ctx, contract.Branch{ID: "b2", SessionID: "s", ParentID: &parent, IsSurviving: true}); err != nil {
+		t.Fatal(err)
+	}
+	if err := cat.SetSurviving(ctx, "s", "b2"); err != nil {
+		t.Fatal(err)
+	}
+	for _, l := range []history.LapAnalytics{
+		{SessionID: "s", BranchID: "b", CarIndex: 0, Lap: 1, LapMs: 90000, Valid: true, Complete: true, Compound: "C3"},
+		{SessionID: "s", BranchID: "b", CarIndex: 0, Lap: 2, LapMs: 91000, Valid: true, Complete: true, Compound: "C3"},
+		{SessionID: "s", BranchID: "b2", CarIndex: 0, Lap: 2, LapMs: 90500, Valid: true, Complete: true, Compound: "C3"},
+		{SessionID: "s", BranchID: "b2", CarIndex: 0, Lap: 3, LapMs: 92000, Valid: true, Complete: true, Compound: "C3"},
+	} {
+		if err := cat.UpsertLapAnalytics(ctx, l); err != nil {
+			t.Fatal(err)
+		}
+	}
+	sum, err := Summary(ctx, cat, "s")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(sum.Laps) != 3 || sum.TotalLaps != 3 || sum.BestLapMs != 90000 {
+		t.Fatalf("summary did not merge the parent branch: %#v", sum)
+	}
+	byLap := map[int]history.LapAnalytics{}
+	for _, l := range sum.Laps {
+		byLap[l.Lap] = l
+	}
+	if byLap[2].LapMs != 90500 || byLap[2].BranchID != "b2" {
+		t.Fatalf("rewound lap must come from the child branch: %#v", byLap[2])
+	}
+
+	for _, s := range []history.LapSamples{
+		{CarIndex: 0, Lap: 1, StartMs: 1000, LapMs: 90000, Points: [][]any{{1000.0, 0.5, 0.0, 4.0, nil, nil, nil, nil}}},
+		{CarIndex: 0, Lap: 2, StartMs: 91000, LapMs: 90500, Points: [][]any{{91500.0, 1.0, 0.0, 5.0, nil, nil, nil, nil}}},
+	} {
+		branch := "b2"
+		if s.Lap == 1 {
+			branch = "b"
+		}
+		if err := cat.UpsertLapSamples(ctx, "s", branch, s); err != nil {
+			t.Fatal(err)
+		}
+	}
+	rows, held, err := cat.SessionLapSamples(ctx, "s", "b2", []int{0}, 0, 0)
+	if err != nil || held != 2 || len(rows) != 2 {
+		t.Fatalf("samples held %d rows %d err %v", held, len(rows), err)
+	}
+	if rows[1].Lap != 2 || rows[1].Points[0][1] != 1.0 {
+		t.Fatalf("sample did not follow the branch lineage: %#v", rows[1])
+	}
+}
+
 var _ = time.Now
 var _ = protocol.Version
 var _ = contract.SchemaVersion
