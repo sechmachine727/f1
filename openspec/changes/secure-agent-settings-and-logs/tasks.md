@@ -69,6 +69,7 @@
 - [x] 10.1 Reset pause, samples, frame ordering, participants, laps, events and season state when the session UID changes.
 - [x] 10.2 Treat a same-UID return to the session-clock origin as a new logical session.
 - [x] 10.3 Add reducer tests and an end-to-end WebSocket test for Q1-to-Q2 and restart transitions.
+- [x] 10.4 Set `F1TELE_DATA_DIR=/data` in the container image and Compose so password reset uses the same data directory as the server.
 
 ## Qualification notes
 

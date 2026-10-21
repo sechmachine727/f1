@@ -26,6 +26,7 @@ LABEL org.opencontainers.image.title="f1tele" \
       org.opencontainers.image.licenses="Apache-2.0"
 COPY --from=build /out/f1tele /f1tele
 COPY --from=build --chown=65532:65532 /out/data /data
+ENV F1TELE_DATA_DIR=/data
 USER nonroot:nonroot
 VOLUME ["/data"]
 EXPOSE 8081/tcp 20777/udp

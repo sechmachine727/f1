@@ -13,6 +13,7 @@ services:
     volumes:
       - f1tele-data:/data
     environment:
+      F1TELE_DATA_DIR: ${F1TELE_DATA_DIR:-/data}
       F1TELE_HTTP_ADDR: 0.0.0.0:8081
       F1TELE_UDP_ADDR: 0.0.0.0:20777
       # Host a game on another machine should send telemetry to. Set this to

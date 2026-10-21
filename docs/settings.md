@@ -61,6 +61,8 @@ To replace the password without the old one:
 docker compose exec f1tele /f1tele auth reset
 ```
 
+The image sets `F1TELE_DATA_DIR=/data`, so the command finds the same password file as the running server. Older images that do not set it need `--data-dir /data`.
+
 The interactive command asks twice. A pipeline reads once and skips confirmation:
 
 ```bash

@@ -50,6 +50,8 @@ To set a known password instead, export `F1TELE_AUTH_PASSWORD` before the first 
 docker compose exec f1tele /f1tele auth reset
 ```
 
+If the image predates the `F1TELE_DATA_DIR=/data` default, add `--data-dir /data`.
+
 The reset asks for the new password twice. Piping it to `auth reset --stdin` reads it once and skips confirmation.
 
 When the game runs on another machine, set the address the dashboard should show for the game:
