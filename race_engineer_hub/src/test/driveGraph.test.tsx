@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { DriveGraph } from "@/components/DriveGraph";
+import { WearRing } from "@/components/Drive";
 import { specOf, type Sample } from "@/lib/driveHistory";
+import { wearColor } from "@/lib/wear";
 
 const now = 1_000_000;
 const series: Sample[] = [
@@ -49,6 +51,14 @@ describe("DriveGraph", () => {
     const stops = [...container.querySelectorAll("stop")].map((s) => s.getAttribute("stop-color"));
     expect(stops).toEqual(["hsl(140.0 68% 52%)", "hsl(70.0 68% 52%)", "hsl(0.0 68% 52%)"]);
     expect(container.querySelector("polyline")?.getAttribute("stroke")).toContain("url(#wear-gradient-1)");
+  });
+
+  it("repaints the wear ring when the percentage changes", () => {
+    const { container, rerender } = render(<WearRing pct={10} />);
+    const ring = () => container.querySelectorAll("circle")[1];
+    expect(ring()?.getAttribute("stroke")).toBe(wearColor(10));
+    rerender(<WearRing pct={90} />);
+    expect(ring()?.getAttribute("stroke")).toBe(wearColor(90));
   });
 });
 

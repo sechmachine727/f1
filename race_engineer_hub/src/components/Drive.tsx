@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
-import { activeCars, availabilityLabel, frozenSnapshot, metric, text, useLive, value, type Snapshot } from "@/lib/live";
+import { activeCars, availabilityLabel, frozenSnapshot, isFeedStale, metric, text, useLive, value, type Snapshot } from "@/lib/live";
 import { stats } from "@/lib/latency";
 import { DriveGraph } from "@/components/DriveGraph";
 import { DEFAULT_RANGE_MS, METRICS, appendSample, specOf, type Sample } from "@/lib/driveHistory";
@@ -23,7 +23,7 @@ function stateLabel(availability?: string) {
 
 const withUnit = (v: string, unit: string) => v === "—" ? "—" : v + " " + unit;
 
-function WearRing({ pct }: { pct: number | null }) {
+export function WearRing({ pct }: { pct: number | null }) {
   const v = pct ?? 0, r = 30, c = 2 * Math.PI * r;
   return (
     <svg width="4.2em" height="4.2em" viewBox="0 0 72 72" role="img" aria-label={pct == null ? "wear unknown" : Math.round(v) + " percent wear"} className="shrink-0">
@@ -250,9 +250,9 @@ function Issues({ s }: { s: Snapshot }) {
 export function Drive() {
   const live = useLive();
   const p = live.context?.player_car_index ?? 0;
-  const stale = [metric(live, "car.speed_mps", p), metric(live, "tyre.fl.surface_c", p), metric(live, "fuel.finish_margin_laps", p)]
-    .some((m) => m?.availability === "stale");
-  const s = useMemo(() => (!live.connected || stale ? frozenSnapshot(live) : live), [live, stale]);
+  const stale = isFeedStale(live, p);
+  const pausedNow = text(metric(live, "session.paused")) === "true";
+  const s = useMemo(() => (!live.connected || pausedNow || stale ? frozenSnapshot(live) : live), [live, pausedNow, stale]);
   const speed = value(metric(s, "car.speed_mps", p));
   const gear = value(metric(s, "car.gear", p));
   const lapMs = value(metric(s, "timing.current_lap_ms", p));
@@ -270,7 +270,7 @@ export function Drive() {
   const leaderGap = value(metric(s, "timing.gap_leader_s", p));
   const safety = text(metric(s, "session.safety_car_status"));
   const weather = text(metric(s, "session.weather"));
-  const paused = text(metric(s, "session.paused")) === "true";
+  const paused = pausedNow;
   const call = s.events.filter((e) => e.severity !== "routine").slice(-1)[0]?.summary ?? s.alerts.find((a) => a.state === "active")?.summary ?? (s.context ? "No current call" : "Waiting for telemetry");
   const rival = rivals(s);
   const gapBehind = rival.behind != null ? value(metric(s, "timing.gap_ahead_s", rival.behind)) : null;

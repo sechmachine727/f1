@@ -76,6 +76,7 @@
 - [x] 11.1 Add a corner-aware packet read and use it for every wheel-array channel in the reducer.
 - [x] 11.2 Add unit and golden-packet tests proving four corner values remain distinct.
 - [x] 11.3 Use a continuous green-to-red wear color in the Drive ring and tyre-wear graph.
+- [x] 11.4 Base live freezing on player speed and the pause flag so auxiliary stale channels do not stop wear color updates.
 
 ## Qualification notes
 

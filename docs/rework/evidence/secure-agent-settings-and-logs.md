@@ -35,6 +35,7 @@ A temporary server on `127.0.0.1:8099` with a fresh data directory and `F1TELE_A
 - The container now sets `F1TELE_DATA_DIR=/data`. `docker exec -i f1-25-tele-f1tele-1 /f1tele auth reset --stdin` succeeded without `--data-dir`, the temporary password logged in, and resetting back to the generated password restored login.
 - Corner decoding now reads each wheel-array element independently. A synthetic packet 10 produced FL30%, FR40%, RL10% and RR20% wear, with distinct surface, core, pressure, brake and damage values.
 - The tyre-wear graph uses the worst wheel value and a continuous green-to-red scale. Unit tests pin the scale at 0% green, 50% yellow and 100% red; the synthetic 40% graph rendered yellow-green.
+- Live color updates were blocked by the whole-feed stale check. A stale fuel or surface status channel froze the snapshot and stopped graph sampling even while speed and wear were live. The feed is now stale only when player speed is stale, with the explicit pause flag freezing the display.
 
 ## Not yet qualified
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { activeCars, applyMessage, availabilityLabel, connect, frozenSnapshot, metric, text, type Metric, type Snapshot } from "@/lib/live";
+import { activeCars, applyMessage, availabilityLabel, connect, frozenSnapshot, isFeedStale, metric, text, type Metric, type Snapshot } from "@/lib/live";
 
 const m = (id: string, channel: string, value: number | string | null, availability = "available"): Metric => ({
   id, channel, car_index: 0,
@@ -9,6 +9,16 @@ const m = (id: string, channel: string, value: number | string | null, availabil
 const base: Snapshot = { context: null, metrics: new Map(), events: [], alerts: [], status: null, connected: true, recording: "idle", seq: 4 };
 
 describe("stream store", () => {
+
+  it("does not freeze the live feed when an auxiliary channel is stale", () => {
+    const metrics = new Map<string, Metric>([
+      ["car.speed_mps@0", m("car.speed_mps@0", "car.speed_mps", 42)],
+      ["fuel.finish_margin_laps@0", m("fuel.finish_margin_laps@0", "fuel.finish_margin_laps", null, "stale")],
+    ]);
+    expect(isFeedStale({ ...base, metrics }, 0)).toBe(false);
+    metrics.set("car.speed_mps@0", m("car.speed_mps@0", "car.speed_mps", null, "stale"));
+    expect(isFeedStale({ ...base, metrics }, 0)).toBe(true);
+  });
 
   it("opens exactly one socket no matter how many panels subscribe", () => {
     const sockets: unknown[] = [];

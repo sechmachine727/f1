@@ -139,6 +139,10 @@ export function metric(s: Snapshot, channel: string, car?: number | null): Measu
   return s.metrics.get(channel + "@" + idx)?.measurement ?? s.metrics.get(channel)?.measurement ?? null;
 }
 export function value(m: Measurement | null): number | null { return m && m.availability === "available" && typeof m.value === "number" ? m.value : null; }
+/** Player speed is the liveness signal; auxiliary status channels may lag. */
+export function isFeedStale(s: Snapshot, player: number): boolean {
+  return metric(s, "car.speed_mps", player)?.availability === "stale";
+}
 export function text(m: Measurement | null): string {
   if (!m || m.availability !== "available") return "—";
   return String(m.value);
