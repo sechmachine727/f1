@@ -1,8 +1,12 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { activeCars, api, availabilityLabel, frozenSnapshot, metric, text, useLive, value, type Snapshot } from "@/lib/live";
+import { useEffect, useMemo, useReducer, useRef, useState } from "react";
+import { activeCars, availabilityLabel, frozenSnapshot, metric, text, useLive, value, type Snapshot } from "@/lib/live";
 import { stats } from "@/lib/latency";
+import { DriveGraph } from "@/components/DriveGraph";
+import { DEFAULT_RANGE_MS, METRICS, appendSample, specOf, type Sample } from "@/lib/driveHistory";
+import { completedLaps, useLiveLaps } from "@/lib/liveLaps";
 
 const wheel = ["fl", "fr", "rl", "rr"] as const;
+const SLOT_COLORS = ["#7fb0ff", "#f0a03c", "#5fd68f"];
 const corners: Record<string, string> = { fl: "Front left", fr: "Front right", rl: "Rear left", rr: "Rear right" };
 const recordingLabel: Record<string, string> = { recording: "Recording", stopped_user: "Stopped", stopped_limit: "Rating cap reached", stopped_error: "Recording error", idle: "Not recording" };
 
@@ -129,30 +133,6 @@ function rivals(s: Snapshot) {
     if (pos === me + 1) behind = i;
   }
   return { me, ahead, behind };
-}
-
-type Series = { label: string; unit: string; color: string; values: number[]; digits: number; caption?: string };
-
-function Spark({ series }: { series: Series }) {
-  const n = series.values.length;
-  const min = Math.min(...series.values), max = Math.max(...series.values);
-  const span = max - min || 1;
-  const pt = (v: number, i: number) => `${(i / Math.max(1, n - 1)) * 100},${38 - ((v - min) / span) * 34}`;
-  const pts = series.values.map(pt).join(" ");
-  const latest = n ? series.values[n - 1].toFixed(series.digits) : null;
-  return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col border-t border-[#232830] pt-1 first:border-t-0 first:pt-0">
-      <div className="flex items-baseline justify-between">
-        <span className="text-[0.72em] uppercase tracking-wider text-neutral-400">{series.label}</span>
-        <span className="text-[1.05em] font-semibold tabular-nums text-neutral-100">{latest ?? "—"}<span className="ml-1 text-[0.6em] font-normal text-neutral-400">{series.unit}</span></span>
-      </div>
-      {series.caption ? <div className="text-[0.62em] text-neutral-500">{series.caption}</div> : null}
-      <svg viewBox="0 0 100 40" preserveAspectRatio="none" className="mt-[0.2em] min-h-[2em] w-full flex-1" role="img" aria-label={series.label + (latest ? ", latest " + latest + " " + series.unit : ", collecting")}>
-        <line x1="0" y1="38" x2="100" y2="38" stroke="#2a303a" strokeWidth="1" vectorEffect="non-scaling-stroke" />
-        {n > 1 ? <polyline points={pts} fill="none" stroke={series.color} strokeWidth="1.6" vectorEffect="non-scaling-stroke" strokeLinejoin="round" /> : null}
-      </svg>
-    </div>
-  );
 }
 
 function FieldMap({ s }: { s: Snapshot }) {
@@ -297,9 +277,11 @@ export function Drive() {
   // every 60Hz render was pure garbage.
   const remainingLaps = totalLaps != null && currentLap != null ? Math.max(0, totalLaps - currentLap + 1) : null;
 
-  // Completed laps come from the catalog so the pace graph shows real lap
-  // times rather than a running clock that resets every lap.
-  const [lapTimes, setLapTimes] = useState<number[]>([]);
+  const [slots, setSlots] = useState([
+    { metric: "lap_time", range: DEFAULT_RANGE_MS },
+    { metric: "tyre_wear", range: DEFAULT_RANGE_MS },
+    { metric: "gap_ahead", range: DEFAULT_RANGE_MS },
+  ]);
   const [lagMs, setLagMs] = useState<number | null>(null);
   useEffect(() => {
     const id = setInterval(() => {
@@ -308,43 +290,64 @@ export function Drive() {
     }, 2000);
     return () => clearInterval(id);
   }, []);
-  useEffect(() => {
-    const id = s.context?.session_id;
-    if (!id) return;
-    let alive = true;
-    type Lap = { car_index: number; valid: boolean; complete: boolean; lap_time_ms?: { availability: string; value: number | null } };
-    const load = () => api<{ items?: Lap[] }>(`/sessions/${id}/laps?branch=${encodeURIComponent(s.context?.branch_id ?? "")}`)
-      .then((d) => {
-        if (!alive) return;
-        const times = (d.items ?? [])
-          .filter((l) => l.car_index === p && l.valid && l.complete && l.lap_time_ms?.availability === "available" && typeof l.lap_time_ms.value === "number")
-          .map((l) => (l.lap_time_ms?.value as number) / 1000)
-          .slice(-12);
-        setLapTimes(times);
-      })
-      .catch(() => null);
-    load();
-    const timer = setInterval(load, 15000);
-    return () => { alive = false; clearInterval(timer); };
-  }, [s.context?.session_id, s.context?.branch_id, p]);
+  const history = useRef<Record<string, Sample[]>>({});
+  const peakRef = useRef(0);
+  const seenLaps = useRef<Set<number>>(new Set());
+  const [, bumpHistory] = useReducer((n: number) => n + 1, 0);
+  const snapshotRef = useRef(s);
+  snapshotRef.current = s;
+  const feedRef = useRef({ connected: live.connected, stale });
+  feedRef.current = { connected: live.connected, stale };
 
-  // Local trend ring. Samples are observed values only, one every 500 ms.
-  const hist = useRef<{ at: number; gap: number[]; wear: number[]; peak: number }>({ at: 0, gap: [], wear: [], peak: 0 });
-  const now = Date.now();
-  if (now - hist.current.at >= 1000) {
-    hist.current.at = now;
-    const push = (arr: number[], v: number | null) => { if (v != null) { arr.push(v); if (arr.length > 240) arr.shift(); } };
-    push(hist.current.gap, value(gap));
-    const wears = wheel.map((w) => value(metric(s, "tyre." + w + ".wear_pct", p))).filter((v): v is number => v != null);
-    push(hist.current.wear, wears.length ? Math.max(...wears) : null);
-    if (energy != null && energy > hist.current.peak) hist.current.peak = energy;
-  }
-  const series: Series[] = [
-    { label: "Lap time", unit: "s", color: "#7fb0ff", values: lapTimes, digits: 3, caption: lapTimes.length ? "Last " + lapTimes.length + " valid laps · best " + Math.min(...lapTimes).toFixed(3) + " s" : "Waiting for a completed valid lap" },
-    { label: "Tyre wear", unit: "% max", color: "#f0a03c", values: hist.current.wear, digits: 1, caption: "Worst corner, last 2 minutes" },
-    { label: "Gap ahead", unit: "s", color: "#5fd68f", values: hist.current.gap, digits: 1, caption: "Live gap to the car in front" },
-  ];
-  const ersPeak = hist.current.peak > 0 ? hist.current.peak : energy;
+  // A new session starts a fresh history and peak.
+  useEffect(() => {
+    history.current = {};
+    peakRef.current = 0;
+    seenLaps.current.clear();
+    bumpHistory();
+  }, [live.context?.session_id]);
+
+  const { laps: liveLaps, sessionId: lapSession } = useLiveLaps(
+    live.context?.session_id ?? null,
+    live.context?.branch_id ?? null,
+    !!live.context && live.connected && !stale,
+  );
+
+  // Completed laps enter the lap-time graph once, at the poll that saw them.
+  useEffect(() => {
+    if (!lapSession || lapSession !== live.context?.session_id) return;
+    const now = Date.now();
+    for (const lap of completedLaps(liveLaps, p)) {
+      const ms = lap.lap_time_ms?.value;
+      if (typeof ms !== "number" || seenLaps.current.has(lap.lap)) continue;
+      seenLaps.current.add(lap.lap);
+      appendSample((history.current["lap_time"] ??= []), now, ms / 1000);
+    }
+    bumpHistory();
+  }, [liveLaps, lapSession, live.context?.session_id, p]);
+
+  // One tick samples every metric, whether or not a slot shows it.
+  useEffect(() => {
+    const tick = () => {
+      const feed = feedRef.current;
+      if (!feed.connected || feed.stale) return;
+      const snap = snapshotRef.current;
+      const now = Date.now();
+      for (const spec of METRICS) {
+        if (!spec.read) continue;
+        const series = (history.current[spec.id] ??= []);
+        appendSample(series, now, spec.read(snap, p));
+      }
+      const e = value(metric(snap, "energy.store_j", p));
+      if (e != null && e > peakRef.current) peakRef.current = e;
+      bumpHistory();
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [p]);
+
+  const ersPeak = peakRef.current > 0 ? peakRef.current : energy;
 
   return (
     <div style={{ fontSize: "clamp(16px, 1.48vh, 22px)" }} className="flex min-h-[calc(100vh-49px)] flex-col gap-2 bg-[#0b0d11] px-4 pb-2 pt-2 text-neutral-100 [@media(min-width:1024px)]:h-[calc(100vh-49px)] [@media(min-width:1024px)]:overflow-hidden">
@@ -432,7 +435,15 @@ export function Drive() {
           </div>
 
           <section className="flex min-h-0 flex-1 flex-col gap-1 border border-[#262b33] bg-[#11141a] px-3 py-2">
-            {series.map((x) => <Spark key={x.label} series={x} />)}
+            {slots.map((slot, i) => {
+              const spec = specOf(slot.metric);
+              return (
+                <DriveGraph key={i} index={i} spec={spec} series={history.current[spec.id] ?? []}
+                  rangeMs={slot.range} color={SLOT_COLORS[i] ?? SLOT_COLORS[0]}
+                  onMetric={(id) => setSlots((prev) => prev.map((x, j) => j === i ? { ...x, metric: id } : x))}
+                  onRange={(ms) => setSlots((prev) => prev.map((x, j) => j === i ? { ...x, range: ms } : x))} />
+              );
+            })}
           </section>
         </div>
       </div>

@@ -9,6 +9,7 @@ import { CompareGrid } from "@/components/CompareGrid";
 import { TraceStack, type TraceSeries } from "@/components/TraceStack";
 import { useLiveSamples } from "@/lib/liveSamples";
 import { teamInk } from "@/lib/teams";
+import { paceRows, useLiveLaps, type LiveLap } from "@/lib/liveLaps";
 
 export const nav =
   "px-3 py-1.5 text-sm rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#4fd48a]";
@@ -72,7 +73,7 @@ export function PitWall() {
   const sel = useSelection();
   const [view, setView] = useState<"drivers" | "teams">("drivers");
   const [picked, setPicked] = useState<number[] | null>(null);
-  const [laps, setLaps] = useState<any[]>([]);
+  const [recordedLaps, setRecordedLaps] = useState<LiveLap[]>([]);
   const [candidates, setCandidates] = useState<Candidate[] | null>(null);
   const [strategyError, setStrategyError] = useState("");
   const player = s.context?.player_car_index ?? 0;
@@ -82,6 +83,8 @@ export function PitWall() {
 
   const toggleCar = (car: number) => setPicked(toggleCarSelection(selected, car));
   const live = useLiveSamples(s.context?.session_id ?? null, s.context?.branch_id ?? null, selected, !sel.sessionId && !!s.context);
+  const { laps: liveLaps } = useLiveLaps(s.context?.session_id ?? null, s.context?.branch_id ?? null, !sel.sessionId && !!s.context);
+  const laps = sel.sessionId ? recordedLaps : liveLaps;
 
   const cars = useMemo(() => {
     return activeCars(s);
@@ -106,12 +109,12 @@ export function PitWall() {
 
   useEffect(() => {
     if (!sel.sessionId) {
-      setLaps([]);
+      setRecordedLaps([]);
       return;
     }
     api<any>(`/sessions/${sel.sessionId}/laps?branch=${encodeURIComponent(sel.branchId ?? "")}`)
-      .then((d) => setLaps(d.items ?? []))
-      .catch(() => setLaps([]));
+      .then((d) => setRecordedLaps(d.items ?? []))
+      .catch(() => setRecordedLaps([]));
   }, [sel.sessionId, sel.branchId]);
 
   const requestPit = useCallback(async () => {
@@ -139,7 +142,9 @@ export function PitWall() {
 
   // The stint strip comes from catalogued laps for the selected branch.
   const stint = laps.filter((l) => l.car_index === selectedCar).slice(-12);
-  const pace = stint.filter((l) => l.lap_time_ms?.availability === "available").map((l) => ({ lap: l.lap, ms: l.lap_time_ms.value as number }));
+  const currentLapNo = value(metric(s, "timing.current_lap_num", selectedCar));
+  const currentLapMs = value(metric(s, "timing.current_lap_ms", selectedCar));
+  const pace = paceRows(laps, selectedCar, currentLapNo, currentLapMs, !sel.sessionId);
 
   return (
     <div className="min-h-[calc(100vh-49px)] bg-[#0b0d11] text-neutral-100 p-4 space-y-3">
@@ -241,10 +246,13 @@ export function PitWall() {
         <section className={panel + " p-4 self-start"}>
           <div className="flex items-baseline justify-between"><div className={label}>Pace by lap</div><span className="text-[11px] text-neutral-400">{pace.length} eligible laps</span></div>
           <div className="h-[120px] mt-2">
-            {pace.length < 2 ? <Empty>Needs two catalogued laps.</Empty> : (
+            {pace.length === 0 ? <Empty>Waiting for a completed lap.</Empty> : (
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={pace}><XAxis dataKey="lap" stroke="#6b7280" tick={{ fontSize: 11 }} /><YAxis hide domain={["dataMin - 200", "dataMax + 200"]} />
-                  <Tooltip contentStyle={{ background: "#11141a", border: "1px solid #232830" }} /><Line dataKey="ms" stroke="#5fd68f" dot={false} strokeWidth={2} /></LineChart>
+                  <Tooltip contentStyle={{ background: "#11141a", border: "1px solid #232830" }} />
+                  <Line dataKey="ms" stroke="#5fd68f" dot={pace.length <= 2} strokeWidth={2} connectNulls={false} />
+                  <Line dataKey="prov" stroke="#5fd68f" strokeDasharray="4 3" dot={pace.length <= 2} strokeWidth={2} connectNulls={false} />
+                </LineChart>
               </ResponsiveContainer>
             )}
           </div>

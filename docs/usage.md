@@ -12,7 +12,9 @@ The dashboard shows `Waiting for telemetry` until the first packet. That is expe
 
 Drive is the at-a-glance view for when you are in the car. It shows the current race-engineer call, tyre surface and core temperatures with wear rings, fuel margin and tank bars, ERS state, speed, gear, lap time, gaps ahead and behind, car issues and damage, and the field map.
 
-Graphs in Drive are small trend lines for a glance. Use the Pit wall for analysis.
+The three graphs in Drive are configurable. Each has a metric selector, a time-range selector and labelled time and value axes. Available metrics include lap time, worst tyre wear, gaps, ERS store, fuel, engine temperature, tyre surface and core temperatures, speed, throttle, brake and brake temperature.
+
+Drive samples every metric once a second and keeps ten minutes, so switching a metric or range shows the history that already exists. A range of 30 seconds, 1 minute, 2 minutes, 5 minutes or 10 minutes only changes the visible window; it does not clear the graph. The window follows the newest sample and holds at the last value when telemetry stops. Use the Pit wall for lap and sector analysis.
 
 ## Pit wall
 
@@ -27,6 +29,8 @@ The live Pit wall lists the field. Click a row, or focus it and press Enter or S
 The live comparison takes at most two cars. The table itself still shows every car.
 
 When a recorded session is open, the Pit wall switches to the recorded workspace described next.
+
+While driving, the live Pit wall refreshes the active session's laps every two seconds. The pace chart shows the current lap as a provisional dashed point and replaces it with the final lap time when the lap is catalogued. The stint strip and the trace charts update with it; no page reload is needed.
 
 ## Recorded Pit wall
 
