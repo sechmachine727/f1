@@ -49,9 +49,10 @@ func (c *Catalog) InheritedSegments(ctx context.Context, branchID string) ([]Seg
 	return segs, nil
 }
 
-// RecordingsForSession returns owned recording files in creation order.
+// RecordingsForSession returns owned recording files in sequence order so a
+// recovered older chunk cannot replay after a newer one.
 func (c *Catalog) RecordingsForSession(ctx context.Context, sessionID string) ([]string, error) {
-	rows, err := c.db.QueryContext(ctx, "SELECT r.path FROM recordings r JOIN fragments f ON f.id=r.fragment_id WHERE f.session_id=? ORDER BY r.created_at_ms, r.id", sessionID)
+	rows, err := c.db.QueryContext(ctx, "SELECT r.path FROM recordings r JOIN fragments f ON f.id=r.fragment_id WHERE f.session_id=? ORDER BY r.first_seq, r.created_at_ms, r.rowid", sessionID)
 	if err != nil {
 		return nil, err
 	}
@@ -77,7 +78,7 @@ type RecordingRange struct {
 }
 
 func (c *Catalog) RecordingRanges(ctx context.Context, sessionID string) ([]RecordingRange, error) {
-	rows, err := c.db.QueryContext(ctx, "SELECT r.path, r.fragment_id, r.first_seq, r.last_seq FROM recordings r JOIN fragments f ON f.id=r.fragment_id WHERE f.session_id=? ORDER BY r.first_seq, r.created_at_ms", sessionID)
+	rows, err := c.db.QueryContext(ctx, "SELECT r.path, r.fragment_id, r.first_seq, r.last_seq FROM recordings r JOIN fragments f ON f.id=r.fragment_id WHERE f.session_id=? ORDER BY r.first_seq, r.created_at_ms, r.rowid", sessionID)
 	if err != nil {
 		return nil, err
 	}

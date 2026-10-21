@@ -25,12 +25,13 @@ Set `F1TELE_CONFIG` to point at a different config file. Secret values are writt
 | `F1TELE_UDP_ADVERTISE_HOST` | first non-loopback IPv4 | live | Host the dashboard tells you to enter in the game |
 | `F1TELE_SECURITY_ORIGIN_CHECK` | `true` | live | Reject cross-origin browser requests |
 | `F1TELE_AUTH_PASSWORD` | generated on first start | live | Dashboard password; never returned by the API |
-| `F1TELE_RECORDING_ENABLED` | `true` | live | Record received datagrams |
-| `F1TELE_RECORDING_CAP_BYTES` | `107374182400` | live | Total recording cap (100 GB) |
-| `F1TELE_RECORDING_FREE_RESERVE_BYTES` | `5368709120` | live | Free disk kept unused (5 GB) |
-| `F1TELE_RECORDING_CHUNK_BYTES` | `1048576` | live | MCAP chunk size |
-| `F1TELE_RECORDING_ROTATE_BYTES` | `268435456` | live | Recording rotation size |
-| `F1TELE_RECORDING_CHUNK_FLUSH_MS` | `1000` | live | Checkpoint cadence |
+| `F1TELE_RECORDING_ENABLED` | `true` | restart | Record received datagrams |
+| `F1TELE_RECORDING_CAP_BYTES` | `107374182400` | restart | Total recording cap (100 GB) |
+| `F1TELE_RECORDING_FREE_RESERVE_BYTES` | `5368709120` | restart | Free disk kept unused (5 GB) |
+| `F1TELE_RECORDING_CHUNK_BYTES` | `1048576` | restart | MCAP chunk size |
+| `F1TELE_RECORDING_ROTATE_BYTES` | `268435456` | restart | Recording rotation size |
+| `F1TELE_RECORDING_CHUNK_FLUSH_MS` | `1000` | restart | Checkpoint cadence |
+| `F1TELE_SESSION_INACTIVITY_SECONDS` | `600` | live | Close a session after this quiet period |
 | `F1TELE_AGENT_ENABLED` | `false` | live | Enable model-backed engineer calls |
 | `F1TELE_AGENT_ENDPOINT_ID` | `env` | live | Endpoint identifier to use |
 | `F1TELE_AGENT_BASE_URL` | none | live | OpenAI-compatible base URL |

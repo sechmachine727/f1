@@ -46,6 +46,7 @@ export type AgentLog = {
   event_count: number;
   last_kind?: string;
   last_at_ms?: number | null;
+  output_json?: unknown;
 };
 
 /** Live activity feed. EventSource sends cookies and Last-Event-ID on reconnect. */

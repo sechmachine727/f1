@@ -15,30 +15,126 @@ type Rules struct {
 	sat    map[string]map[string]bool
 	laps   map[string]int
 	last   map[string]time.Time
+	cool   map[string]time.Time
 	manual map[string]bool
+	now    func() time.Time
 }
 
 func NewRules(cfg []contract.TriggerRule) *Rules {
-	return &Rules{cfg: cfg, sat: map[string]map[string]bool{}, laps: map[string]int{}, last: map[string]time.Time{}, manual: map[string]bool{}}
+	return &Rules{cfg: cfg, sat: map[string]map[string]bool{}, laps: map[string]int{}, last: map[string]time.Time{},
+		cool: map[string]time.Time{}, manual: map[string]bool{}, now: time.Now}
+}
+
+// TriggerContext carries the live scope needed to apply rule filters.
+type TriggerContext struct {
+	ModeFamily string
+	PlayerCar  int
+	Events     []PendingEvent
+	Laps       int
 }
 
 func (r *Rules) Trigger(eventTypes []string, laps int) []string {
+	events := make([]PendingEvent, 0, len(eventTypes))
+	for _, t := range eventTypes {
+		events = append(events, PendingEvent{Type: t, Severity: "critical"})
+	}
+	return r.TriggerWithContext(TriggerContext{Events: events, Laps: laps, PlayerCar: -1})
+}
+
+func (r *Rules) TriggerWithContext(in TriggerContext) []string {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	var out []string
+	now := r.now()
 	for _, rule := range r.cfg {
 		if !rule.Enabled {
 			continue
 		}
-		if r.eval(rule.ID, "0", rule.Predicate, eventTypes, laps) {
+		if !r.modeAllowed(rule, in.ModeFamily) {
+			continue
+		}
+		if last, ok := r.cool[rule.ID]; ok && rule.CooldownSeconds > 0 && now.Sub(last) < time.Duration(rule.CooldownSeconds)*time.Second {
+			continue
+		}
+		events := r.filterEvents(rule, in.Events, in.PlayerCar)
+		if r.eval(rule.ID, "0", rule.Predicate, events, in.Laps) {
 			r.reset(rule.ID)
+			r.cool[rule.ID] = now
 			out = append(out, rule.ID)
 		}
 	}
 	return out
 }
 
-func (r *Rules) eval(id, path string, p contract.Predicate, events []string, laps int) bool {
+// Configure applies edited rules immediately and clears latches for the old set.
+func (r *Rules) Configure(cfg []contract.TriggerRule) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.cfg = cfg
+	r.clearLocked()
+}
+
+// Reset clears per-rule latches when the logical session changes.
+func (r *Rules) Reset() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.clearLocked()
+}
+
+func (r *Rules) clearLocked() {
+	r.sat = map[string]map[string]bool{}
+	r.laps = map[string]int{}
+	r.last = map[string]time.Time{}
+	r.cool = map[string]time.Time{}
+	r.manual = map[string]bool{}
+}
+
+func (r *Rules) modeAllowed(rule contract.TriggerRule, mode string) bool {
+	if len(rule.Filters.ModeFamilies) == 0 {
+		return true
+	}
+	for _, m := range rule.Filters.ModeFamilies {
+		if m == mode {
+			return true
+		}
+	}
+	return false
+}
+
+func (r *Rules) filterEvents(rule contract.TriggerRule, events []PendingEvent, player int) []PendingEvent {
+	// Live state only emits events from validated packets, so validity=valid is
+	// already satisfied. selected is the player car in the live context.
+	if rule.Filters.Validity == "invalid" {
+		return nil
+	}
+	min := severityRank(rule.Filters.MinimumSeverity)
+	out := make([]PendingEvent, 0, len(events))
+	for _, e := range events {
+		if severityRank(e.Severity) < min {
+			continue
+		}
+		if (rule.Filters.CarScope == "player" || rule.Filters.CarScope == "selected") && e.CarIndex != nil && *e.CarIndex != player {
+			continue
+		}
+		out = append(out, e)
+	}
+	return out
+}
+
+func severityRank(s string) int {
+	switch s {
+	case "critical":
+		return 3
+	case "important":
+		return 2
+	case "routine":
+		return 1
+	default:
+		return 0
+	}
+}
+
+func (r *Rules) eval(id, path string, p contract.Predicate, events []PendingEvent, laps int) bool {
 	key := id + "/" + path
 	if r.sat[id] == nil {
 		r.sat[id] = map[string]bool{}
@@ -74,8 +170,8 @@ func (r *Rules) eval(id, path string, p contract.Predicate, events []string, lap
 	case "event":
 		for _, e := range events {
 			for _, want := range p.EventTypes {
-				if e == want {
-					r.sat[id][key+":"+e] = true
+				if e.Type == want {
+					r.sat[id][key+":"+e.Type] = true
 				}
 			}
 		}

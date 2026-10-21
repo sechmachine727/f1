@@ -75,6 +75,19 @@ describe("stream store", () => {
     expect(next.metrics.size).toBe(0);
   });
 
+  it("replaces alerts with an empty delta and keeps them when the field is absent", () => {
+    const alert = { id: "a", severity: "caution", summary: "Tyre wear", acknowledged: false, state: "active" };
+    const prev = { ...base, alerts: [alert] };
+    const msg = {
+      type: "delta", seq: "5", base_seq: "4", context: null,
+      metrics: [], removed_metric_ids: [], status: null,
+    };
+    const cleared = applyMessage(prev, { ...msg, events: [], alerts: [] });
+    expect(cleared.next.alerts).toEqual([]);
+    const kept = applyMessage(prev, { ...msg, events: [], alerts: null });
+    expect(kept.next.alerts).toBe(prev.alerts);
+  });
+
   it("sequence mismatch requests a resync instead of merging", () => {
     const prev = { ...base, metrics: new Map([["a", m("a", "car.speed_mps", 1)]]) };
     const { next, resync } = applyMessage(prev, {

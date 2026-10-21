@@ -50,6 +50,12 @@ type carState struct {
 	compound     string
 	tyreAge      int
 	wear         float64
+	wearSum      float64
+	wearN        int
+	surfaceSum   float64
+	coreSum      float64
+	surfaceN     int
+	coreN        int
 	startFuel    float64
 	startErs     float64
 	startPos     int
@@ -57,8 +63,16 @@ type carState struct {
 	startLeader  int64
 	startWear    float64
 	pit          bool
+	pitOut       bool
+	pitState     int
+	havePitState bool
 	invalid      bool
 	trackLimits  bool
+	cornerWarns  int
+	haveWarns    bool
+	trapSpeed    float64
+	trapLap      int
+	haveTrapLap  bool
 	samples      []sample
 	lastSampleMs int64
 }
@@ -110,6 +124,12 @@ func (t *Tracker) Begin(sessionID, branchID string, trackID, player int, trackLe
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	if t.session == sessionID && t.branch == branchID {
+		if trackLength > 0 {
+			t.length = trackLength
+		}
+		// Telemetry resumed in the same session and branch after an inactivity
+		// close; the tracker must accept new laps and close again later.
+		t.closed = false
 		return
 	}
 	if t.session != "" && !t.closed {
@@ -171,6 +191,16 @@ func (t *Tracker) Observe(ctx context.Context, seq uint64, p *protocol.Packet, c
 			throttle, okThrottle := p.CarField("m_throttle", car)
 			brake, okBrake := p.CarField("m_brake", car)
 			gear, okGear := p.CarField("m_gear", car)
+			for w := 0; w < 4; w++ {
+				if v, ok := p.CarCornerField("m_tyresSurfaceTemperature", car, w); ok {
+					st.surfaceSum += v.F
+					st.surfaceN++
+				}
+				if v, ok := p.CarCornerField("m_tyresInnerTemperature", car, w); ok {
+					st.coreSum += v.F
+					st.coreN++
+				}
+			}
 			if !okThrottle || !okBrake || !okGear || st.lap <= 0 || st.lapDistance <= 0 {
 				continue
 			}
@@ -208,18 +238,21 @@ func (t *Tracker) Observe(ctx context.Context, seq uint64, p *protocol.Packet, c
 				st.tyreAge = int(v.F)
 			}
 		}
+	case 3:
+		if code, ok := p.Field("m_eventStringCode"); ok && code.S == "FLBK" {
+			t.resetFlashback()
+		}
 	case 10:
 		for car := 0; car < p.CarCount(); car++ {
 			st := t.car(car)
 			maxWear := 0.0
 			for w := 0; w < 4; w++ {
-				if v, ok := p.CarField(fmt.Sprintf("m_tyresWear[%d]", w), car); ok && v.F > maxWear {
-					maxWear = v.F
-				}
-			}
-			for _, name := range []string{"m_frontLeftWingDamage", "m_frontRightWingDamage", "m_rearWingDamage", "m_floorDamage", "m_diffuserDamage", "m_sidepodDamage"} {
-				if v, ok := p.CarField(name, car); ok && v.F >= 100 {
-					st.trackLimits = true
+				if v, ok := p.CarCornerField("m_tyresWear", car, w); ok {
+					if v.F > maxWear {
+						maxWear = v.F
+					}
+					st.wearSum += v.F
+					st.wearN++
 				}
 			}
 			st.wear = maxWear
@@ -251,6 +284,32 @@ func (t *Tracker) car(i int) *carState {
 	return st
 }
 
+// resetFlashback drops the abandoned timeline's lap state. Rows already
+// written stay; laps replayed after the rewind overwrite them on the same key.
+func (t *Tracker) resetFlashback() {
+	for _, st := range t.cars {
+		st.lap = 0
+		st.startSeq = 0
+		st.lapDistance = 0
+		st.haveLapDist = false
+		st.lastLapDist = 0
+		st.haveTotal = false
+		st.lastTotal = 0
+		st.topSpeed = 0
+		st.samples = nil
+		st.pit = false
+		st.pitOut = false
+		st.invalid = false
+		st.trackLimits = false
+		st.trapSpeed = 0
+		st.trapLap = 0
+		st.haveTrapLap = false
+		st.pitState = 0
+		st.havePitState = false
+		st.wearSum, st.wearN, st.surfaceSum, st.surfaceN, st.coreSum, st.coreN = 0, 0, 0, 0, 0, 0
+	}
+}
+
 func (t *Tracker) observeLap(ctx context.Context, seq uint64, p *protocol.Packet) {
 	sessionMs := int64(math.Round(p.Header.SessionTime * 1000))
 	for car := 0; car < p.CarCount(); car++ {
@@ -262,12 +321,14 @@ func (t *Tracker) observeLap(ctx context.Context, seq uint64, p *protocol.Packet
 		lap := int(lapV.F)
 		if st.lap == 0 {
 			st.lap, st.startSeq = lap, seq
+			st.wearSum, st.wearN, st.surfaceSum, st.surfaceN, st.coreSum, st.coreN = 0, 0, 0, 0, 0, 0
 			st.lapStartMs = sessionMs
 			st.startFuel, st.startErs, st.startWear = st.fuelKg, st.ersJ, st.wear
 			st.startPos = st.position
 		}
 		if lap > st.lap {
 			t.finishLap(ctx, seq, car, p, st.lap)
+			st.wearSum, st.wearN, st.surfaceSum, st.surfaceN, st.coreSum, st.coreN = 0, 0, 0, 0, 0, 0
 			st.startSeq = seq
 			st.lap = lap
 			st.lapStartMs = sessionMs
@@ -305,11 +366,31 @@ func (t *Tracker) observeLap(ctx context.Context, seq uint64, p *protocol.Packet
 				st.lapDistance = v.F
 			}
 		}
-		if v, ok := p.CarField("m_pitStatus", car); ok && v.F != 0 {
-			st.pit = true
+		if v, ok := p.CarField("m_pitStatus", car); ok {
+			if st.havePitState {
+				if st.pitState == 0 && v.F != 0 {
+					st.pit = true
+				}
+				if st.pitState != 0 && v.F == 0 {
+					st.pitOut = true
+				}
+			}
+			st.pitState, st.havePitState = int(v.F), true
 		}
 		if v, ok := p.CarField("m_currentLapInvalid", car); ok && v.F != 0 {
 			st.invalid = true
+		}
+		if v, ok := p.CarField("m_cornerCuttingWarnings", car); ok {
+			if st.haveWarns && int(v.F) > st.cornerWarns {
+				st.trackLimits = true
+			}
+			st.cornerWarns, st.haveWarns = int(v.F), true
+		}
+		if v, ok := p.CarField("m_speedTrapFastestSpeed", car); ok && v.F/3.6 > st.trapSpeed {
+			st.trapSpeed = v.F / 3.6
+		}
+		if v, ok := p.CarField("m_speedTrapFastestLap", car); ok && v.F > 0 {
+			st.trapLap, st.haveTrapLap = int(v.F), true
 		}
 	}
 }
@@ -338,14 +419,29 @@ func (t *Tracker) finishLap(ctx context.Context, seq uint64, car int, p *protoco
 	if st.startPos == 0 {
 		st.startPos = st.position
 	}
+	trap := 0.0
+	if !st.haveTrapLap || st.trapLap == lap {
+		trap = st.trapSpeed
+	}
+	wearPct, surfaceC, coreC := 0.0, 0.0, 0.0
+	if st.wearN > 0 {
+		wearPct = st.wearSum / float64(st.wearN)
+	}
+	if st.surfaceN > 0 {
+		surfaceC = st.surfaceSum / float64(st.surfaceN)
+	}
+	if st.coreN > 0 {
+		coreC = st.coreSum / float64(st.coreN)
+	}
 	row := history.LapAnalytics{
 		SessionID: t.session, BranchID: t.branch, CarIndex: car, Lap: lap,
-		LapMs: lapMs, DistanceM: distance, AvgSpeed: avg, TopSpeed: top,
+		LapMs: lapMs, DistanceM: distance, AvgSpeed: avg, TopSpeed: top, TrapSpeed: trap,
 		PositionStart: st.startPos, PositionEnd: st.position,
 		GapAheadStart: st.startGap, GapLeaderStart: st.startLeader,
 		Compound: st.compound, TyreAge: st.tyreAge,
 		FuelStart: st.startFuel, FuelEnd: st.fuelKg, ErsStart: st.startErs, ErsEnd: st.ersJ,
-		PitIn: st.pit, Valid: !st.invalid, TrackLimits: st.trackLimits, Complete: true,
+		TyreWearPct: wearPct, TyreSurfaceC: surfaceC, TyreCoreC: coreC,
+		PitIn: st.pit, PitOut: st.pitOut, Valid: !st.invalid, TrackLimits: st.trackLimits, Complete: true,
 		CornerSpeeds: t.cornerSpeeds(st.samples),
 	}
 	if err := t.Catalog.UpsertLapAnalytics(ctx, row); err == nil && len(st.samples) > 1 {
@@ -356,9 +452,11 @@ func (t *Tracker) finishLap(ctx context.Context, seq uint64, car int, p *protoco
 			CarIndex: car, Lap: lap, StartMs: st.lapStartMs, LapMs: lapMs, Points: points,
 		})
 	}
-	st.invalid, st.pit, st.trackLimits = false, false, false
+	st.invalid, st.pit, st.pitOut, st.trackLimits = false, false, false, false
+	st.trapSpeed, st.trapLap, st.haveTrapLap = 0, 0, false
 	st.topSpeed = 0
 	st.samples = nil
+	st.wearSum, st.wearN, st.surfaceSum, st.surfaceN, st.coreSum, st.coreN = 0, 0, 0, 0, 0, 0
 	st.startFuel, st.startErs, st.startWear = st.fuelKg, st.ersJ, st.wear
 	st.startPos, st.startGap, st.startLeader = st.position, st.gapAheadMs, st.gapLeaderMs
 	_ = seq
@@ -446,11 +544,62 @@ func (t *Tracker) closeLocked(ctx context.Context) error {
 	if t.session == "" || t.closed {
 		return nil
 	}
+	t.flushPartialLaps(ctx)
 	if err := t.Catalog.RebuildStints(ctx, t.session, t.branch); err != nil {
 		return err
 	}
 	t.closed = true
 	return t.Catalog.UpsertSessionAnalytics(ctx, t.session, t.branch, MethodVersion)
+}
+
+// flushPartialLaps stores the in-progress lap as incomplete when a session
+// ends mid-lap, so recorded analysis can show it with its own label.
+func (t *Tracker) flushPartialLaps(ctx context.Context) {
+	for car, st := range t.cars {
+		if st.lap <= 0 {
+			continue
+		}
+		if exists, complete, err := t.Catalog.LapComplete(ctx, t.session, t.branch, car, st.lap); err != nil || (exists && complete) {
+			continue
+		}
+		partialMs := int64(0)
+		if st.lapStartMs > 0 && len(st.samples) > 0 {
+			partialMs = st.samples[len(st.samples)-1].timeMs - st.lapStartMs
+			if partialMs < 0 {
+				partialMs = 0
+			}
+		}
+		distance := st.lapDistance
+		avg := 0.0
+		if distance > 0 && partialMs > 0 {
+			avg = distance / (float64(partialMs) / 1000)
+		}
+		top := st.topSpeed
+		if len(st.samples) > 0 {
+			top = math.Max(top, st.samples[len(st.samples)-1].speed)
+		}
+		wearPct, surfaceC, coreC := 0.0, 0.0, 0.0
+		if st.wearN > 0 {
+			wearPct = st.wearSum / float64(st.wearN)
+		}
+		if st.surfaceN > 0 {
+			surfaceC = st.surfaceSum / float64(st.surfaceN)
+		}
+		if st.coreN > 0 {
+			coreC = st.coreSum / float64(st.coreN)
+		}
+		_ = t.Catalog.UpsertLapAnalytics(ctx, history.LapAnalytics{
+			SessionID: t.session, BranchID: t.branch, CarIndex: car, Lap: st.lap,
+			LapMs: partialMs, DistanceM: distance, AvgSpeed: avg, TopSpeed: top,
+			PositionStart: st.startPos, PositionEnd: st.position,
+			GapAheadStart: st.startGap, GapLeaderStart: st.startLeader,
+			Compound: st.compound, TyreAge: st.tyreAge,
+			FuelStart: st.startFuel, FuelEnd: st.fuelKg, ErsStart: st.startErs, ErsEnd: st.ersJ,
+			TyreWearPct: wearPct, TyreSurfaceC: surfaceC, TyreCoreC: coreC,
+			PitIn: st.pit, PitOut: st.pitOut, Valid: false, TrackLimits: st.trackLimits, Complete: false,
+			CornerSpeeds: t.cornerSpeeds(st.samples),
+		})
+	}
 }
 
 func decimate(in []sample, max int) []byte {

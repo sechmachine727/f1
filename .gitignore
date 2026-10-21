@@ -228,3 +228,7 @@ logs/
 artifacts/
 *.zip
 qualification.test
+
+# Windows build outputs
+windows/**/obj/
+windows/**/bin/

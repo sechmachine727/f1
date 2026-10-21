@@ -291,7 +291,7 @@ function useSessions(season: string) {
   const [items, setItems] = useState<any[]>([]);
   const [error, setError] = useState("");
   useEffect(() => {
-    const q = season === "unassigned" ? "" : "?season=" + season;
+    const q = "?season=" + encodeURIComponent(season);
     api<any>("/sessions" + q)
       .then((d) => {
         setItems(d.items ?? []);

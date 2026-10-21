@@ -64,7 +64,7 @@ Rows also respond to Enter and Space, and the final pass selected the second car
 
 - A long lap used to exceed the 4000-sample live buffer and lose its newest samples, ending the trace early. The buffer now halves while keeping both ends and every gear or brake change.
 - The pathological decimation branch could repeat the last protected index. It now resamples the protected set evenly without duplicates, and bounds of one and two points are handled.
-- Throttle and brake read `—` in the comparison until the first selected-car sample arrived, and the delta printed `3%% apart`. The grid falls back to the newest buffered sample and the unit is carried once.
+- Throttle and brake read as empty (`-`) in the comparison until the first selected-car sample arrived, and the delta printed `3%% apart`. The grid falls back to the newest buffered sample and the unit is carried once.
 - The live Pit wall took the throttle floor as a 0% trace and drew three panels as one axis block. Panels now carry titles and separators, and a constant ERS series gets a padded domain instead of three identical ticks.
 - Rows were mouse-only; Enter and Space now toggle the comparison.
 

@@ -97,6 +97,141 @@ func TestLapAnalyticsFromLapBoundaryAndHistory(t *testing.T) {
 	}
 }
 
+func TestFlashbackClearsTyreAccumulators(t *testing.T) {
+	cat, tr, cx := setup(t)
+	ctx := context.Background()
+	session := map[string]float64{"track_length_m": 5000}
+	wear := func(v float64) *protocol.Packet {
+		return packet(10, 2, nil, map[int]map[string]float64{0: {
+			"m_tyresWear[0]": v, "m_tyresWear[1]": v, "m_tyresWear[2]": v, "m_tyresWear[3]": v,
+		}})
+	}
+	temps := func(surface, core float64) *protocol.Packet {
+		return packet(6, 3, nil, map[int]map[string]float64{0: {
+			"m_speed": 200, "m_throttle": 0.8, "m_brake": 0, "m_gear": 7,
+			"m_tyresSurfaceTemperature[0]": surface, "m_tyresSurfaceTemperature[1]": surface,
+			"m_tyresSurfaceTemperature[2]": surface, "m_tyresSurfaceTemperature[3]": surface,
+			"m_tyresInnerTemperature[0]": core, "m_tyresInnerTemperature[1]": core,
+			"m_tyresInnerTemperature[2]": core, "m_tyresInnerTemperature[3]": core,
+		}})
+	}
+	start := func() *protocol.Packet {
+		return packet(2, 1, nil, map[int]map[string]float64{0: {"m_currentLapNum": 1, "m_lapDistance": 100, "m_totalDistance": 100}})
+	}
+	tr.Observe(ctx, 1, start(), cx, session)
+	tr.Observe(ctx, 2, wear(10), cx, session)
+	tr.Observe(ctx, 3, temps(80, 90), cx, session)
+	tr.resetFlashback()
+	tr.Observe(ctx, 4, start(), cx, session)
+	tr.Observe(ctx, 5, wear(20), cx, session)
+	tr.Observe(ctx, 6, temps(100, 110), cx, session)
+	if st := tr.car(0); st.wearN != 4 || st.surfaceN != 4 || st.coreN != 4 {
+		t.Fatalf("tyre samples wear=%d surface=%d core=%d", st.wearN, st.surfaceN, st.coreN)
+	}
+	tr.Observe(ctx, 7, packet(2, 7, nil, map[int]map[string]float64{0: {"m_currentLapNum": 2, "m_lastLapTimeInMS": 90000, "m_lapDistance": 0}}), cx, session)
+	laps, err := cat.LapAnalytics(ctx, "s", "b", 0)
+	if err != nil || len(laps) != 1 {
+		t.Fatalf("laps %d err %v", len(laps), err)
+	}
+	if laps[0].TyreWearPct != 20 || laps[0].TyreSurfaceC != 100 || laps[0].TyreCoreC != 110 {
+		t.Fatalf("flashback tyre averages %#v", laps[0])
+	}
+}
+
+func TestCloseStoresIncompleteLap(t *testing.T) {
+	cat, tr, cx := setup(t)
+	ctx := context.Background()
+	session := map[string]float64{"track_length_m": 5000}
+	tr.Observe(ctx, 1, packet(2, 1, nil, map[int]map[string]float64{0: {"m_currentLapNum": 1, "m_lapDistance": 500, "m_totalDistance": 500}}), cx, session)
+	tr.Observe(ctx, 2, packet(6, 2, nil, map[int]map[string]float64{0: {"m_speed": 200, "m_throttle": 0.8, "m_brake": 0, "m_gear": 7}}), cx, session)
+	if err := tr.Close(ctx); err != nil {
+		t.Fatal(err)
+	}
+	laps, err := cat.LapAnalytics(ctx, "s", "b", 0)
+	if err != nil || len(laps) != 1 {
+		t.Fatalf("partial laps %d err %v", len(laps), err)
+	}
+	if laps[0].Lap != 1 || laps[0].Complete {
+		t.Fatalf("partial lap %#v", laps[0])
+	}
+}
+
+func TestCloseThenResumeReopensTracker(t *testing.T) {
+	cat, tr, cx := setup(t)
+	ctx := context.Background()
+	session := map[string]float64{"track_length_m": 5000}
+	observe := func(seq uint64, lap int, distance, lastMs float64) {
+		tr.Observe(ctx, seq, packet(2, uint32(seq), nil, map[int]map[string]float64{0: {
+			"m_currentLapNum": float64(lap), "m_lastLapTimeInMS": lastMs,
+			"m_lapDistance": distance, "m_totalDistance": distance,
+		}}), cx, session)
+	}
+	observe(1, 1, 500, 0)
+	if err := tr.Close(ctx); err != nil {
+		t.Fatal(err)
+	}
+	// Resume on the same lap and close again; the partial row must refresh.
+	observe(2, 1, 800, 0)
+	if err := tr.Close(ctx); err != nil {
+		t.Fatal(err)
+	}
+	laps, err := cat.LapAnalytics(ctx, "s", "b", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var partial *history.LapAnalytics
+	for _, l := range laps {
+		if l.Lap == 1 && !l.Complete {
+			copy := l
+			partial = &copy
+		}
+	}
+	if partial == nil || partial.DistanceM != 800 {
+		t.Fatalf("partial lap after resume = %#v", partial)
+	}
+	// Resume again, finish the lap, and close; the second close must rebuild
+	// stints for the resumed segment.
+	observe(3, 1, 900, 0)
+	observe(4, 2, 0, 90000)
+	if err := tr.Close(ctx); err != nil {
+		t.Fatal(err)
+	}
+	laps, err = cat.LapAnalytics(ctx, "s", "b", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	complete := 0
+	for _, l := range laps {
+		if l.Lap == 1 && l.Complete {
+			complete++
+		}
+	}
+	if complete != 1 {
+		t.Fatalf("complete lap after final close = %d (%#v)", complete, laps)
+	}
+	stints, err := cat.Stints(ctx, "s", "b")
+	if err != nil || len(stints) == 0 {
+		t.Fatalf("stints after final close %#v err %v", stints, err)
+	}
+}
+
+func TestCloseKeepsZeroPartialDistance(t *testing.T) {
+	cat, tr, cx := setup(t)
+	ctx := context.Background()
+	session := map[string]float64{"track_length_m": 5000}
+	tr.Observe(ctx, 1, packet(2, 1, nil, map[int]map[string]float64{0: {"m_currentLapNum": 1}}), cx, session)
+	if err := tr.Close(ctx); err != nil {
+		t.Fatal(err)
+	}
+	laps, err := cat.LapAnalytics(ctx, "s", "b", 0)
+	if err != nil || len(laps) != 1 {
+		t.Fatalf("partial laps %d err %v", len(laps), err)
+	}
+	if laps[0].DistanceM != 0 {
+		t.Fatalf("partial distance = %v, want the observed zero", laps[0].DistanceM)
+	}
+}
+
 func TestParticipantsAndTraces(t *testing.T) {
 	cat, tr, cx := setup(t)
 	ctx := context.Background()
@@ -176,5 +311,86 @@ func TestNewSessionClosesPreviousAnalytics(t *testing.T) {
 	var n int
 	if err := cat.DB().QueryRow("SELECT COUNT(*) FROM session_analytics WHERE session_id='s'").Scan(&n); err != nil || n != 1 {
 		t.Fatalf("previous session was not closed: %d %v", n, err)
+	}
+}
+
+func TestDamageDoesNotSetTrackLimits(t *testing.T) {
+	cat, tr, cx := setup(t)
+	ctx := context.Background()
+	session := map[string]float64{"track_length_m": 5000}
+	damage := packet(10, 1, nil, map[int]map[string]float64{0: {
+		"m_frontLeftWingDamage": 100, "m_frontRightWingDamage": 100, "m_rearWingDamage": 100,
+		"m_floorDamage": 100, "m_diffuserDamage": 100, "m_sidepodDamage": 100,
+	}})
+	tr.Observe(ctx, 1, damage, cx, session)
+	tr.Observe(ctx, 2, packet(2, 2, nil, map[int]map[string]float64{0: {
+		"m_currentLapNum": 1, "m_lapDistance": 100, "m_totalDistance": 100,
+	}}), cx, session)
+	tr.Observe(ctx, 3, packet(2, 3, nil, map[int]map[string]float64{0: {
+		"m_currentLapNum": 2, "m_lastLapTimeInMS": 90000, "m_lapDistance": 0, "m_totalDistance": 5000,
+	}}), cx, session)
+	laps, err := cat.LapAnalytics(ctx, "s", "b", 0)
+	if err != nil || len(laps) != 1 {
+		t.Fatalf("laps %#v err %v", laps, err)
+	}
+	if laps[0].TrackLimits {
+		t.Fatal("body damage was reported as a track-limit violation")
+	}
+}
+
+func TestPitOutLapAndTrapSpeed(t *testing.T) {
+	cat, tr, cx := setup(t)
+	ctx := context.Background()
+	session := map[string]float64{"track_length_m": 5000}
+	tr.Observe(ctx, 1, packet(2, 1, nil, map[int]map[string]float64{0: {
+		"m_currentLapNum": 1, "m_pitStatus": 0, "m_lapDistance": 100, "m_totalDistance": 100,
+		"m_speedTrapFastestSpeed": 88, "m_speedTrapFastestLap": 1,
+	}}), cx, session)
+	tr.Observe(ctx, 2, packet(2, 2, nil, map[int]map[string]float64{0: {
+		"m_currentLapNum": 1, "m_pitStatus": 1, "m_lapDistance": 120, "m_totalDistance": 120,
+	}}), cx, session)
+	tr.Observe(ctx, 3, packet(2, 3, nil, map[int]map[string]float64{0: {
+		"m_currentLapNum": 2, "m_lastLapTimeInMS": 90000, "m_pitStatus": 1, "m_lapDistance": 0, "m_totalDistance": 5000,
+	}}), cx, session)
+	tr.Observe(ctx, 4, packet(2, 4, nil, map[int]map[string]float64{0: {
+		"m_currentLapNum": 2, "m_pitStatus": 0, "m_lapDistance": 20, "m_totalDistance": 5020,
+	}}), cx, session)
+	tr.Observe(ctx, 5, packet(2, 5, nil, map[int]map[string]float64{0: {
+		"m_currentLapNum": 3, "m_lastLapTimeInMS": 91000, "m_lapDistance": 0, "m_totalDistance": 6000,
+	}}), cx, session)
+	laps, err := cat.LapAnalytics(ctx, "s", "b", 0)
+	if err != nil || len(laps) != 2 {
+		t.Fatalf("laps %#v err %v", laps, err)
+	}
+	if !laps[0].PitIn || laps[0].PitOut {
+		t.Fatalf("pit-in lap %#v", laps[0])
+	}
+	if laps[0].TrapSpeed < 24.4 || laps[0].TrapSpeed > 24.5 {
+		t.Fatalf("trap speed = %v", laps[0].TrapSpeed)
+	}
+	if !laps[1].PitOut {
+		t.Fatalf("pit-out lap was not flagged: %#v", laps[1])
+	}
+}
+
+func TestCornerCuttingWarningSetsTrackLimits(t *testing.T) {
+	cat, tr, cx := setup(t)
+	ctx := context.Background()
+	session := map[string]float64{"track_length_m": 5000}
+	tr.Observe(ctx, 1, packet(2, 1, nil, map[int]map[string]float64{0: {
+		"m_currentLapNum": 1, "m_cornerCuttingWarnings": 0, "m_lapDistance": 10, "m_totalDistance": 10,
+	}}), cx, session)
+	tr.Observe(ctx, 2, packet(2, 2, nil, map[int]map[string]float64{0: {
+		"m_currentLapNum": 1, "m_cornerCuttingWarnings": 1, "m_lapDistance": 20, "m_totalDistance": 20,
+	}}), cx, session)
+	tr.Observe(ctx, 3, packet(2, 3, nil, map[int]map[string]float64{0: {
+		"m_currentLapNum": 2, "m_lastLapTimeInMS": 90000,
+	}}), cx, session)
+	laps, err := cat.LapAnalytics(ctx, "s", "b", 0)
+	if err != nil || len(laps) != 1 {
+		t.Fatalf("laps %#v err %v", laps, err)
+	}
+	if !laps[0].TrackLimits {
+		t.Fatal("corner-cutting warning did not set track limits")
 	}
 }

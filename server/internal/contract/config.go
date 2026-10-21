@@ -5,6 +5,7 @@ type Config struct {
 	HTTP              Addr               `json:"http"`
 	UDP               Addr               `json:"udp"`
 	Recording         RecordingConfig    `json:"recording"`
+	Session           SessionConfig      `json:"session"`
 	Security          SecurityConfig     `json:"security"`
 	Agent             AgentConfig        `json:"agent"`
 	Notifications     NotificationConfig `json:"notifications"`
@@ -31,6 +32,10 @@ type RecordingConfig struct {
 	ChunkFlushMs     int     `json:"chunk_flush_ms"`
 	RotateBytes      int64   `json:"rotate_bytes"`
 	AutomaticCleanup bool    `json:"automatic_cleanup"`
+}
+
+type SessionConfig struct {
+	InactivitySeconds int `json:"inactivity_seconds"`
 }
 
 type SecurityConfig struct {

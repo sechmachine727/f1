@@ -191,6 +191,14 @@ func (s *Store) Revision() int {
 	return s.revision
 }
 
+// Snapshot returns the desired config and its revision under one lock so a
+// concurrent patch cannot pair an old config with a new revision.
+func (s *Store) Snapshot() (contract.Config, int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.desired, s.revision
+}
+
 // View returns the redacted configuration view.
 func (s *Store) View() contract.ConfigView {
 	s.mu.Lock()
@@ -264,6 +272,9 @@ func restartFields(a, b contract.Config) []string {
 	}
 	if valueOr(a.DataDir, "") != valueOr(b.DataDir, "") {
 		out = append(out, "data_dir")
+	}
+	if a.Recording != b.Recording {
+		out = append(out, "recording")
 	}
 	return out
 }
@@ -382,6 +393,8 @@ func configValue(c contract.Config, key string) string {
 		return strconv.Itoa(c.Recording.ChunkFlushMs)
 	case "security.origin_check":
 		return strconv.FormatBool(c.Security.OriginCheck)
+	case "session.inactivity_seconds":
+		return strconv.Itoa(c.Session.InactivitySeconds)
 	case "agent.enabled":
 		return strconv.FormatBool(c.Agent.Enabled)
 	case "agent.endpoint_id":
@@ -448,6 +461,9 @@ func Validate(c contract.Config) error {
 	}
 	if r.AutomaticCleanup {
 		return errors.New("automatic_cleanup cannot be enabled")
+	}
+	if c.Session.InactivitySeconds < 30 {
+		return errors.New("session inactivity_seconds must be at least 30")
 	}
 	ids := map[string]bool{}
 	for _, e := range c.Agent.Endpoints {

@@ -13,22 +13,22 @@ import (
 // SessionSummary is the recorded-session payload used by History, Pit wall and
 // Analysis. It never reads live state.
 type SessionSummary struct {
-	SessionID        string                  `json:"session_id"`
-	SessionType      string                  `json:"session_type"`
-	SessionTypeCode  *int                    `json:"session_type_code"`
-	WeekendLinkID    *string                 `json:"weekend_link_id"`
-	TrackID          *int                    `json:"track_id"`
-	Season           *int                    `json:"regulation_season"`
-	StartedAtMs      int64                   `json:"started_at_ms"`
-	EndedAtMs        *int64                  `json:"ended_at_ms"`
-	Participants     []history.Participant   `json:"participants"`
-	Laps             []history.LapAnalytics  `json:"laps"`
-	Stints           []history.Stint         `json:"stints"`
-	BestLapMs        int64                   `json:"best_lap_ms"`
-	TheoreticalBest  int64                   `json:"theoretical_best_ms"`
-	CleanLaps        int                     `json:"clean_laps"`
-	TotalLaps        int                     `json:"total_laps"`
-	AnalyticsReady   bool                    `json:"analytics_ready"`
+	SessionID       string                 `json:"session_id"`
+	SessionType     string                 `json:"session_type"`
+	SessionTypeCode *int                   `json:"session_type_code"`
+	WeekendLinkID   *string                `json:"weekend_link_id"`
+	TrackID         *int                   `json:"track_id"`
+	Season          *int                   `json:"regulation_season"`
+	StartedAtMs     int64                  `json:"started_at_ms"`
+	EndedAtMs       *int64                 `json:"ended_at_ms"`
+	Participants    []history.Participant  `json:"participants"`
+	Laps            []history.LapAnalytics `json:"laps"`
+	Stints          []history.Stint        `json:"stints"`
+	BestLapMs       int64                  `json:"best_lap_ms"`
+	TheoreticalBest int64                  `json:"theoretical_best_ms"`
+	CleanLaps       int                    `json:"clean_laps"`
+	TotalLaps       int                    `json:"total_laps"`
+	AnalyticsReady  bool                   `json:"analytics_ready"`
 }
 
 func Summary(ctx context.Context, cat *history.Catalog, sessionID string) (SessionSummary, error) {
@@ -100,12 +100,12 @@ type CompareLap struct {
 }
 
 type LapComparison struct {
-	Laps          []history.LapAnalytics `json:"laps"`
-	SectorDeltas  []map[string]int64     `json:"sector_deltas"`
-	CornerDeltas  []map[string]float64   `json:"corner_deltas"`
-	Theoretical   int64                  `json:"theoretical_best_ms"`
-	Differences   []string               `json:"differences"`
-	Comparable    bool                   `json:"comparable"`
+	Laps         []history.LapAnalytics `json:"laps"`
+	SectorDeltas []map[string]int64     `json:"sector_deltas"`
+	CornerDeltas []map[string]float64   `json:"corner_deltas"`
+	Theoretical  int64                  `json:"theoretical_best_ms"`
+	Differences  []string               `json:"differences"`
+	Comparable   bool                   `json:"comparable"`
 }
 
 func Compare(ctx context.Context, cat *history.Catalog, sessionID, branchID string, pairs []CompareLap) (LapComparison, error) {
@@ -127,10 +127,10 @@ func Compare(ctx context.Context, cat *history.Catalog, sessionID, branchID stri
 		if !ok {
 			return out, fmt.Errorf("lap %d for car %d not found", p.Lap, p.Car)
 		}
-		out.Laps = append(out.Laps, l)
-		if !l.Valid || !l.Complete {
-			out.Differences = append(out.Differences, fmt.Sprintf("car %d lap %d is invalid or incomplete", p.Car, p.Lap))
+		if !l.Valid || !l.Complete || l.LapMs <= 0 {
+			return out, fmt.Errorf("lap %d for car %d is invalid, incomplete, or has no lap time", p.Lap, p.Car)
 		}
+		out.Laps = append(out.Laps, l)
 		if l.Sector1Ms > 0 && (bestS1 == 0 || l.Sector1Ms < bestS1) {
 			bestS1 = l.Sector1Ms
 		}
@@ -141,7 +141,14 @@ func Compare(ctx context.Context, cat *history.Catalog, sessionID, branchID stri
 			bestS3 = l.Sector3Ms
 		}
 	}
+	sort.SliceStable(out.Laps, func(i, j int) bool { return out.Laps[i].LapMs < out.Laps[j].LapMs })
 	base := out.Laps[0]
+	baseCorner := map[string]float64{}
+	for k, m := range base.CornerSpeeds {
+		if mv, ok := number(m.Value); ok {
+			baseCorner[k] = mv
+		}
+	}
 	for _, l := range out.Laps {
 		out.SectorDeltas = append(out.SectorDeltas, map[string]int64{
 			"sector1": l.Sector1Ms - base.Sector1Ms, "sector2": l.Sector2Ms - base.Sector2Ms, "sector3": l.Sector3Ms - base.Sector3Ms,
@@ -149,7 +156,9 @@ func Compare(ctx context.Context, cat *history.Catalog, sessionID, branchID stri
 		corner := map[string]float64{}
 		for k, m := range l.CornerSpeeds {
 			if mv, ok := number(m.Value); ok {
-				corner[k] = mv
+				if bv, ok := baseCorner[k]; ok {
+					corner[k] = mv - bv
+				}
 			}
 		}
 		out.CornerDeltas = append(out.CornerDeltas, corner)
@@ -164,7 +173,6 @@ func Compare(ctx context.Context, cat *history.Catalog, sessionID, branchID stri
 	}
 	out.Theoretical = bestS1 + bestS2 + bestS3
 	out.Comparable = len(out.Differences) == 0
-	sort.SliceStable(out.Laps, func(i, j int) bool { return out.Laps[i].LapMs < out.Laps[j].LapMs })
 	return out, nil
 }
 

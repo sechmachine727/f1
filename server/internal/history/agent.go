@@ -218,10 +218,12 @@ func (c *Catalog) AgentMessages(ctx context.Context, conversationID string, limi
 	return out, rows.Err()
 }
 
-func (c *Catalog) MarkMessagesCompacted(ctx context.Context, conversationID, summaryID string, throughRowid int64) error {
+// MarkMessagesCompacted marks rows before the first retained message. The first
+// kept rowid is the exclusive boundary so the recent tail survives intact.
+func (c *Catalog) MarkMessagesCompacted(ctx context.Context, conversationID, summaryID string, firstKeptRowid int64) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	_, err := c.db.ExecContext(ctx, `UPDATE agent_messages SET compacted_into=? WHERE conversation_id=? AND rowid<=? AND (compacted_into IS NULL OR compacted_into='')`, summaryID, conversationID, throughRowid)
+	_, err := c.db.ExecContext(ctx, `UPDATE agent_messages SET compacted_into=? WHERE conversation_id=? AND rowid<? AND (compacted_into IS NULL OR compacted_into='')`, summaryID, conversationID, firstKeptRowid)
 	return err
 }
 

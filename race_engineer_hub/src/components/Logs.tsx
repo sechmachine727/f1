@@ -2,11 +2,14 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/live";
 import { type AgentEvent, type AgentLog, eventStage, useAgentActivity } from "@/lib/activity";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const panel = "border border-[#232830] bg-[#11141a]";
 const tabClass = "rounded-sm px-2 py-1 text-[12px] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#5fd68f]";
 
 type Detail = { invocation: AgentLog; events: AgentEvent[]; compactions: any[]; messages: any[] };
+const detailTabs = ["overview", "input", "output", "tools", "context", "raw"] as const;
+type DetailTab = (typeof detailTabs)[number];
 
 export function Logs({ initialSession = "", initialBranch = "", onSessionChange }: { initialSession?: string; initialBranch?: string; onSessionChange?: (session: string, branch: string) => void }) {
   const [session, setSession] = useState(initialSession);
@@ -22,7 +25,7 @@ export function Logs({ initialSession = "", initialBranch = "", onSessionChange 
   const [next, setNext] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const [detail, setDetail] = useState<Detail | null>(null);
-  const [detailTab, setDetailTab] = useState<"overview" | "input" | "output" | "tools" | "context" | "raw">("overview");
+  const [detailTab, setDetailTab] = useState<DetailTab>("overview");
   const [follow, setFollow] = useState(true);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -97,6 +100,7 @@ export function Logs({ initialSession = "", initialBranch = "", onSessionChange 
   const activeLive = useMemo(() => Object.values(live).filter((e) => ["queued", "context_built", "compaction_started", "provider_request", "tool_call", "tool_result"].includes(e.kind)).slice(0, 8), [live]);
   const contextEvent = detail?.events.find((e) => e.kind === "context_built");
   const outputEvent = detail?.events.find((e) => e.kind === "accepted" || e.kind === "rejected");
+  const output = outputEvent?.payload;
   const toolEvents = detail?.events.filter((e) => e.kind === "tool_call" || e.kind === "tool_result") ?? [];
 
   return (
@@ -149,20 +153,26 @@ export function Logs({ initialSession = "", initialBranch = "", onSessionChange 
 
       {detail ? (
         <section className={panel + " p-4"}>
+          <Tabs value={detailTab} onValueChange={(v) => setDetailTab(v as DetailTab)}>
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="text-sm font-semibold">{detail.invocation.profile.replaceAll("_", " ")} · {detail.invocation.status}</h3>
             <span className="font-mono text-[11px] text-neutral-400">{detail.invocation.id}</span>
-            <div className="ml-auto flex gap-1">{(["overview", "input", "output", "tools", "context", "raw"] as const).map((t) => <button key={t} onClick={() => setDetailTab(t)} className={tabClass + (detailTab === t ? " bg-[#1d3b2c] text-[#8ef0b4]" : " text-neutral-300")}>{t[0].toUpperCase() + t.slice(1)}</button>)}</div>
+            <TabsList className="ml-auto flex h-auto flex-wrap justify-start gap-1 rounded-none bg-transparent p-0" aria-label="Invocation detail">
+              {detailTabs.map((t) => <TabsTrigger key={t} value={t} onClick={() => setDetailTab(t)} className={tabClass + " text-neutral-300 data-[state=active]:bg-[#1d3b2c] data-[state=active]:text-[#8ef0b4]"}>{t[0].toUpperCase() + t.slice(1)}</TabsTrigger>)}
+            </TabsList>
             <button onClick={() => download(detail)} className={tabClass + " bg-[#151920] text-neutral-300"}>Download</button>
           </div>
-          <div className="mt-3 text-[12px]">
-            {detailTab === "overview" ? <Overview detail={detail} /> : null}
-            {detailTab === "input" ? <InputView event={contextEvent} /> : null}
-            {detailTab === "output" ? <pre className="max-h-[420px] overflow-auto whitespace-pre-wrap text-[11px] text-neutral-300">{JSON.stringify(outputEvent?.payload ?? { note: "No accepted or rejected output recorded." }, null, 2)}</pre> : null}
-            {detailTab === "tools" ? <pre className="max-h-[420px] overflow-auto whitespace-pre-wrap text-[11px] text-neutral-300">{JSON.stringify(toolEvents, null, 2)}</pre> : null}
-            {detailTab === "context" ? <ContextView detail={detail} /> : null}
-            {detailTab === "raw" ? <pre className="max-h-[520px] overflow-auto whitespace-pre-wrap text-[11px] text-neutral-300">{JSON.stringify(detail, null, 2)}</pre> : null}
-          </div>
+          <TabsContent value="overview" className="mt-3 text-[12px]"><Overview detail={detail} /></TabsContent>
+          <TabsContent value="input" className="mt-3 text-[12px]"><InputView event={contextEvent} /></TabsContent>
+          <TabsContent value="output" className="mt-3 text-[12px]">
+            {output != null ? <pre className="max-h-[420px] overflow-auto whitespace-pre-wrap text-[11px] text-neutral-300">{JSON.stringify(output, null, 2)}</pre>
+              : detail.invocation.output_json != null && detail.invocation.output_json !== "" ? <div><p className="mb-2 text-[11px] text-neutral-400">Legacy invocation: stored output, recorded before accepted and rejected events.</p><pre className="max-h-[420px] overflow-auto whitespace-pre-wrap text-[11px] text-neutral-300">{jsonText(detail.invocation.output_json)}</pre></div>
+              : <pre className="max-h-[420px] overflow-auto whitespace-pre-wrap text-[11px] text-neutral-300">{JSON.stringify({ note: "No accepted or rejected output recorded." }, null, 2)}</pre>}
+          </TabsContent>
+          <TabsContent value="tools" className="mt-3 text-[12px]"><pre className="max-h-[420px] overflow-auto whitespace-pre-wrap text-[11px] text-neutral-300">{JSON.stringify(toolEvents, null, 2)}</pre></TabsContent>
+          <TabsContent value="context" className="mt-3 text-[12px]"><ContextView detail={detail} /></TabsContent>
+          <TabsContent value="raw" className="mt-3 text-[12px]"><pre className="max-h-[520px] overflow-auto whitespace-pre-wrap text-[11px] text-neutral-300">{JSON.stringify(detail, null, 2)}</pre></TabsContent>
+          </Tabs>
         </section>
       ) : null}
     </div>
@@ -220,4 +230,8 @@ function download(detail: Detail) {
   a.download = "agent-" + detail.invocation.id + ".json";
   a.click();
   URL.revokeObjectURL(url);
+}
+function jsonText(value: unknown) {
+  if (typeof value !== "string") return JSON.stringify(value, null, 2);
+  try { return JSON.stringify(JSON.parse(value), null, 2); } catch { return value; }
 }

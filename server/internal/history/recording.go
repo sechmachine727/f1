@@ -55,6 +55,7 @@ type Recorder struct {
 	now       func() time.Time
 	warn      atomic.Int64
 	rotateReq atomic.Bool
+	failed    atomic.Bool
 
 	sessionID        string
 	fragmentID       string
@@ -72,6 +73,8 @@ type Recorder struct {
 	rotation         int
 	lastCheckpoint   int64
 	lastCheckpointAt time.Time
+	gapRecorded      bool
+	gapSink          func(string)
 }
 
 type countingWriter struct {
@@ -114,10 +117,21 @@ func (r *Recorder) SetIdentity(sessionID, fragmentID, sourceCtx string) {
 	r.mu.Lock()
 	changed := r.fragmentID != "" && r.fragmentID != fragmentID
 	r.sessionID, r.fragmentID, r.sourceCtx = sessionID, fragmentID, sourceCtx
+	if changed {
+		r.gapRecorded = false
+	}
 	r.mu.Unlock()
 	if changed {
 		r.rotateReq.Store(true)
 	}
+}
+
+// SetGapSink reports a recording gap to the live observation so
+// Coverage.Gaps reflects dropped datagrams without a catalog read.
+func (r *Recorder) SetGapSink(fn func(string)) {
+	r.mu.Lock()
+	r.gapSink = fn
+	r.mu.Unlock()
 }
 
 // Record enqueues a datagram. It never blocks ingestion: an exhausted budget
@@ -129,9 +143,8 @@ func (r *Recorder) Record(seq uint64, at time.Time, data []byte) {
 		return
 	}
 	if r.queued+int64(len(data)) > r.cfg.QueueBytes {
-		r.state = RecStoppedLimit
-		r.reason = "recording queue exhausted; interval not recorded"
 		r.mu.Unlock()
+		r.stopForGap(RecStoppedLimit, "recording queue exhausted; interval not recorded", seq)
 		return
 	}
 	r.queued += int64(len(data))
@@ -141,9 +154,35 @@ func (r *Recorder) Record(seq uint64, at time.Time, data []byte) {
 	default:
 		r.mu.Lock()
 		r.queued -= int64(len(data))
-		r.state = RecStoppedLimit
-		r.reason = "recording queue full; interval not recorded"
 		r.mu.Unlock()
+		r.stopForGap(RecStoppedLimit, "recording queue full; interval not recorded", seq)
+	}
+}
+
+// stopForGap records one durable gap per stop episode and reports the reason.
+func (r *Recorder) stopForGap(state, reason string, seq uint64) {
+	r.mu.Lock()
+	if r.state != RecRecording {
+		r.mu.Unlock()
+		return
+	}
+	sessionID, lastSeq, sink := r.sessionID, r.lastSeq, r.gapSink
+	record := !r.gapRecorded && sessionID != ""
+	r.state, r.reason = state, reason
+	r.gapRecorded = true
+	r.mu.Unlock()
+	if !record {
+		return
+	}
+	from := lastSeq + 1
+	if seq < from {
+		seq = from
+	}
+	if branch := survivingBranch(context.Background(), r.catalog, sessionID); branch != "" {
+		_ = r.catalog.InsertGap(context.Background(), sessionID, branch, from, seq, reason)
+	}
+	if sink != nil {
+		sink(reason)
 	}
 }
 
@@ -152,6 +191,10 @@ func (r *Recorder) loop() {
 	flush := time.NewTicker(time.Duration(max(1, r.cfg.ChunkFlushMs)) * time.Millisecond)
 	defer flush.Stop()
 	for {
+		if r.failed.Load() {
+			r.finish()
+			return
+		}
 		select {
 		case item := <-r.queue:
 			r.write(item)
@@ -188,7 +231,7 @@ func (r *Recorder) write(item recorderItem) {
 		return
 	}
 	if err := r.ensureOpen(item, identity); err != nil {
-		r.fail(err)
+		r.fail(err, item.seq)
 		return
 	}
 	pid := uint8(0)
@@ -205,12 +248,15 @@ func (r *Recorder) write(item recorderItem) {
 		ChannelID: ch, Sequence: uint32(item.seq), LogTime: uint64(item.at.UnixNano()),
 		PublishTime: uint64(item.at.UnixNano()), Data: item.data,
 	}); err != nil {
-		r.fail(err)
+		r.fail(err, item.seq)
 		return
 	}
 	r.hasher.Write(item.data)
 	if r.firstSeq == 0 {
 		r.firstSeq = item.seq
+		if r.recordingID != "" {
+			_ = r.catalog.SetRecordingFirstSeq(context.Background(), r.recordingID, item.seq)
+		}
 	}
 	if item.seq > r.lastSeq || r.lastSeq == 0 {
 		r.lastSeq = item.seq
@@ -294,19 +340,27 @@ func (r *Recorder) usedBytes() (int64, error) {
 }
 
 func (r *Recorder) checkpoint() {
-	if r.file == nil || r.writer == nil {
+	r.mu.Lock()
+	file, recordingID := r.file, r.recordingID
+	if file == nil || r.writer == nil || r.countWriter == nil {
+		r.mu.Unlock()
 		return
 	}
-	if r.countWriter.n == r.lastCheckpoint && !r.lastCheckpointAt.IsZero() {
+	n, lastSeq := r.countWriter.n, r.lastSeq
+	lastCheckpoint, lastCheckpointAt := r.lastCheckpoint, r.lastCheckpointAt
+	r.mu.Unlock()
+	if n == lastCheckpoint && !lastCheckpointAt.IsZero() {
 		return
 	}
-	if err := r.file.Sync(); err != nil {
-		r.fail(err)
+	if err := file.Sync(); err != nil {
+		r.fail(err, lastSeq)
 		return
 	}
-	r.lastCheckpoint = r.countWriter.n
+	r.mu.Lock()
+	r.lastCheckpoint = n
 	r.lastCheckpointAt = r.now()
-	_ = r.catalog.Checkpoint(context.Background(), r.recordingID, r.countWriter.n, r.lastSeq)
+	r.mu.Unlock()
+	_ = r.catalog.Checkpoint(context.Background(), recordingID, n, lastSeq)
 }
 
 func (r *Recorder) rotate() {
@@ -330,11 +384,11 @@ func (r *Recorder) finishFile(state string) {
 		return
 	}
 	if err := r.writer.Close(); err != nil {
-		r.fail(err)
+		r.fail(err, r.lastSeq)
 		return
 	}
 	if err := r.file.Sync(); err != nil {
-		r.fail(err)
+		r.fail(err, r.lastSeq)
 		return
 	}
 	sum := r.hasher.Sum(nil)
@@ -344,18 +398,39 @@ func (r *Recorder) finishFile(state string) {
 	r.fileBytes = 0
 }
 
-func (r *Recorder) fail(err error) {
-	r.mu.Lock()
-	r.state = RecStoppedError
+func (r *Recorder) fail(err error, seq uint64) {
+	state := RecStoppedError
 	if strings.Contains(err.Error(), "cap reached") || strings.Contains(err.Error(), "reserve") || strings.Contains(err.Error(), "queue") {
-		r.state = RecStoppedLimit
+		state = RecStoppedLimit
 	}
-	r.reason = err.Error()
+	r.failed.Store(true)
+	r.stopForGap(state, err.Error(), seq)
+	r.mu.Lock()
+	file := r.file
+	writer := r.writer
+	recordingID := r.recordingID
+	offset := int64(0)
+	if r.countWriter != nil {
+		offset = r.countWriter.n
+	}
+	lastSeq := r.lastSeq
+	sha := ""
+	if r.hasher != nil {
+		sha = hex.EncodeToString(r.hasher.Sum(nil))
+	}
 	r.mu.Unlock()
-	if r.file != nil {
-		_ = r.writer.Close()
-		_ = r.file.Close()
+	if file != nil {
+		_ = writer.Close()
+		_ = file.Close()
+		r.mu.Lock()
 		r.file, r.writer, r.countWriter = nil, nil, nil
+		r.mu.Unlock()
+	}
+	if recordingID != "" {
+		_ = r.catalog.CloseRecording(context.Background(), recordingID, offset, lastSeq, sha, state)
+		r.mu.Lock()
+		r.recordingID = ""
+		r.mu.Unlock()
 	}
 }
 
@@ -399,6 +474,17 @@ func (r *Recorder) StopByUser() {
 // Resume starts a new recording after an explicit user stop.
 func (r *Recorder) Resume() error {
 	r.mu.Lock()
+	state, done := r.state, r.done
+	r.mu.Unlock()
+	if state == RecStoppedError {
+		// The failed loop must exit before a second writer can own the queue.
+		select {
+		case <-done:
+		case <-time.After(2 * time.Second):
+			return errors.New("recording writer is still shutting down")
+		}
+	}
+	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.state == RecRecording {
 		return nil
@@ -411,8 +497,10 @@ func (r *Recorder) Resume() error {
 	}
 	r.stopCh = make(chan struct{})
 	r.done = make(chan struct{})
+	r.failed.Store(false)
 	r.state = RecRecording
 	r.reason = ""
+	r.gapRecorded = false
 	go r.loop()
 	return nil
 }

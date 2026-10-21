@@ -300,13 +300,14 @@ export function Drive() {
   const feedRef = useRef({ connected: live.connected, stale });
   feedRef.current = { connected: live.connected, stale };
 
-  // A new session starts a fresh history and peak.
+  // A flashback keeps the session id but starts a new branch, so branch is part
+  // of the reset key too. Otherwise re-run laps are skipped as already seen.
   useEffect(() => {
     history.current = {};
     peakRef.current = 0;
     seenLaps.current.clear();
     bumpHistory();
-  }, [live.context?.session_id]);
+  }, [live.context?.session_id, live.context?.branch_id]);
 
   const { laps: liveLaps, sessionId: lapSession } = useLiveLaps(
     live.context?.session_id ?? null,

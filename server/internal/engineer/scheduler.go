@@ -16,6 +16,7 @@ type PendingEvent struct {
 	ID       string
 	Type     string
 	Severity string
+	CarIndex *int
 }
 
 type Scope struct {
@@ -48,6 +49,15 @@ func (s *Scheduler) NewSession(branch string) {
 	defer s.mu.Unlock()
 	s.scope = Scope{Branch: branch}
 	s.active = nil
+	s.inFlight = map[string]*Invocation{}
+	s.lastStart = time.Time{}
+}
+
+// SetDispatchGap applies the live minimum gap between AI dispatches.
+func (s *Scheduler) SetDispatchGap(gap time.Duration) {
+	s.mu.Lock()
+	s.minGap = gap
+	s.mu.Unlock()
 }
 
 // ChangeEndpoint clears opaque provider state and keeps portable accepted advice.
@@ -95,6 +105,8 @@ type Scheduler struct {
 	scope            Scope
 	inFlight         map[string]*Invocation
 	active           *Invocation
+	minGap           time.Duration
+	lastStart        time.Time
 	ProviderRequests int
 	TokensUsed       int
 	BudgetBlocked    bool
@@ -128,6 +140,9 @@ func (s *Scheduler) Dispatch(id string, through uint64, now time.Time) (Invocati
 	if s.active != nil {
 		return Invocation{}, errors.New("an invocation is already running")
 	}
+	if s.minGap > 0 && !s.lastStart.IsZero() && now.Sub(s.lastStart) < s.minGap {
+		return Invocation{}, errors.New("minimum dispatch gap")
+	}
 	if through < s.scope.DispatchCursor {
 		through = s.scope.DispatchCursor
 	}
@@ -139,6 +154,7 @@ func (s *Scheduler) Dispatch(id string, through uint64, now time.Time) (Invocati
 		}
 	}
 	s.scope.DispatchCursor = through
+	s.lastStart = now
 	s.active = &inv
 	s.inFlight[id] = &inv
 	return inv, nil
@@ -212,6 +228,12 @@ func (s *Scheduler) BudgetBlockedNow(v bool) {
 	s.mu.Unlock()
 }
 
+func (s *Scheduler) IsBudgetBlocked() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.BudgetBlocked
+}
+
 // Flashback switches branches: parent evidence before the anchor is retained,
 // child cursors and provider continuation are cleared.
 func (s *Scheduler) Flashback(branch string, anchor uint64) {
@@ -231,6 +253,7 @@ func (s *Scheduler) Flashback(branch string, anchor uint64) {
 	}
 	s.scope = Scope{Branch: branch, Events: keep, LastInherited: &inherited, Previous: nil, EvidenceCursor: nil, ProviderState: nil, BranchReset: true}
 	s.active = nil
+	s.lastStart = time.Time{}
 }
 
 func (s *Scheduler) Reset() {
@@ -238,6 +261,7 @@ func (s *Scheduler) Reset() {
 	defer s.mu.Unlock()
 	s.scope = Scope{Branch: s.scope.Branch}
 	s.active = nil
+	s.lastStart = time.Time{}
 }
 
 func (s *Scheduler) CountRequest(tokens int) {

@@ -2,6 +2,8 @@
 
 The prompt below starts application implementation after the user has reviewed the specification bundle. It does not authorize publishing, external messages or automatic deletion of history. Paste it into a new chat attached to this repository. For a smaller goal, replace the stated full-program scope with one named change before starting; do not let the implementation agent silently choose a smaller goal.
 
+> Superseded: the web password, signed sessions and default-on Origin check added by `openspec/changes/secure-agent-settings-and-logs` replace the historical "no accounts/login/Origin checks" decision in the prompt below. Endpoint connection fields and secrets remain environment or native-Windows owned; the web surface is protected by the dashboard password.
+
 ~~~text
 Implement the approved F1 telemetry redesign as a finite goal in /Users/sechmachine/Documents/Clanka/f1-25-tele. The specification bundle is docs/rework/README.md. Preserve the existing working tree and all user changes. Inspect git status and current instructions before edits; never reset/overwrite foreign work. I authorize application implementation of the nine ordered OpenSpec changes, local builds/tests and local packaging. Do not publish, push, merge, archive OpenSpec changes, send external messages, install services/autostart, delete existing recordings, or add unrelated features.
 

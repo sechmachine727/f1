@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"sync/atomic"
 
 	"f1tele/server/internal/contract"
 	"f1tele/server/internal/history"
@@ -69,14 +70,44 @@ func (i *Invoker) RunRequest(ctx context.Context, req InvokeRequest) (InvokeResu
 		}
 		req.SystemPrompt, req.PromptRevision, req.PromptHash = system, rev, hash
 	}
-	tools, err := BuildTools(req.Profile, i.Backend, req.Input.Observation)
+	backend := i.Backend
+	backend.Snapshot = func() state.Snapshot { return req.Snapshot }
+	tools, err := BuildTools(req.Profile, backend, req.Input.Observation)
 	if err != nil {
 		return InvokeResult{}, err
 	}
+	tools = limitTools(tools, req.Input.Limits.MaxToolCalls)
 	if req.Endpoint.Protocol == "responses" {
 		return i.runResponses(ctx, req, tools)
 	}
 	return i.runChat(ctx, req, tools)
+}
+
+// limitedTool enforces the configured tool-call ceiling before execution.
+type limitedTool struct {
+	tool.BaseTool
+	invokable tool.InvokableTool
+	used      *atomic.Int32
+	max       int
+}
+
+func (t *limitedTool) InvokableRun(ctx context.Context, args string, opts ...tool.Option) (string, error) {
+	if int(t.used.Add(1)) > t.max {
+		return "", fmt.Errorf("tool call limit %d reached", t.max)
+	}
+	return t.invokable.InvokableRun(ctx, args, opts...)
+}
+
+func limitTools(tools []tool.BaseTool, max int) []tool.BaseTool {
+	used := &atomic.Int32{}
+	for i, t := range tools {
+		invokable, ok := t.(tool.InvokableTool)
+		if !ok {
+			continue
+		}
+		tools[i] = &limitedTool{BaseTool: t, invokable: invokable, used: used, max: max}
+	}
+	return tools
 }
 
 func (i *Invoker) runChat(ctx context.Context, req InvokeRequest, tools []tool.BaseTool) (InvokeResult, error) {

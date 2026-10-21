@@ -3,15 +3,16 @@ import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, X
 import { api } from "@/lib/live";
 import { clearSelection, select, useSelection } from "@/lib/selection";
 import { carPoints, type SampleCar } from "@/lib/samples";
-import { driversOf, fmtGap, fmtLap, sessionLabel, useSessionAnalytics, useSessionTelemetry, type RecordedLap, type SessionAnalytics } from "@/lib/recorded";
+import { driversOf, fmtGap, fmtLap, seriesKeys, sessionLabel, useSessionAnalytics, useSessionTelemetry, type RecordedLap, type SessionAnalytics } from "@/lib/recorded";
 import { TraceStack } from "@/components/TraceStack";
 import { teamInk } from "@/lib/teams";
 import { ZoomBox } from "@/components/ZoomBox";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const panel = "border border-[#232830] bg-[#11141a]";
 const label = "text-[11px] uppercase tracking-wider text-neutral-400";
 const tabClass = "px-3 py-1.5 text-sm rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#4fd48a]";
-const colors = ["#5fd68f", "#f0a03c", "#7fb0ff", "#f25a5c"];
+const colors = ["#5fd68f", "#f0a03c", "#7fb0ff", "#f25a5c", "#c084fc", "#2dd4bf", "#f472b6", "#facc15", "#38bdf8", "#a3e635", "#fb923c", "#e879f9"];
 
 type Tab = "overview" | "laps" | "sectors" | "speed" | "telemetry" | "tyres" | "fuel" | "stints" | "corners";
 const tabs: { id: Tab; label: string }[] = [
@@ -25,22 +26,29 @@ function nameOf(s: SessionAnalytics, car: number) {
   return p?.name || `Car ${car + 1}`;
 }
 
-function seriesFor(s: SessionAnalytics, cars: number[], pick: (l: RecordedLap) => number | null) {
+type LapPick = { label?: string; pick: (l: RecordedLap) => number | null };
+
+function seriesFor(s: SessionAnalytics, cars: number[], picks: LapPick | LapPick[]) {
   const rows = new Map<number, Record<string, number | null>>();
+  const defs = Array.isArray(picks) ? picks : [picks];
   for (const car of cars) {
     for (const l of driversOf(s, car)) {
-      const v = pick(l);
-      if (v == null || !Number.isFinite(v)) continue;
       const row = rows.get(l.lap) ?? { lap: l.lap };
-      row[nameOf(s, car)] = v;
-      rows.set(l.lap, row);
+      let changed = false;
+      for (const def of defs) {
+        const v = def.pick(l);
+        if (v == null || !Number.isFinite(v)) continue;
+        row[nameOf(s, car) + (def.label ? " " + def.label : "")] = v;
+        changed = true;
+      }
+      if (changed) rows.set(l.lap, row);
     }
   }
   return [...rows.values()].sort((a, b) => (a.lap as number) - (b.lap as number));
 }
 
 function Chart({ data, unit }: { data: Record<string, number | null>[]; unit: string }) {
-  const keys = data.length ? Object.keys(data[0]).filter((k) => k !== "lap") : [];
+  const keys = seriesKeys(data);
   if (!data.length) return <p className="px-4 py-6 text-sm text-neutral-400">No recorded laps for this view.</p>;
   return (
     <ZoomBox count={data.length} labels={data.map((d) => "L" + d.lap)}>
@@ -52,7 +60,7 @@ function Chart({ data, unit }: { data: Record<string, number | null>[]; unit: st
           <YAxis stroke="#6b7280" tick={{ fontSize: 11 }} width={64} tickFormatter={(v) => `${v}${unit}`} domain={["auto", "auto"]} />
           <Tooltip contentStyle={{ background: "#11141a", border: "1px solid #232830" }} formatter={(v: number) => [`${Number(v).toFixed(3)} ${unit}`, ""]} />
           <Legend wrapperStyle={{ fontSize: 12 }} />
-          {keys.map((k, i) => <Line key={k} dataKey={k} dot={false} strokeWidth={2} stroke={colors[i % 4]} connectNulls={false} />)}
+          {keys.map((k, i) => <Line key={k} dataKey={k} dot={false} strokeWidth={2} stroke={colors[i % colors.length]} connectNulls={false} />)}
         </LineChart>
       </ResponsiveContainer>
       </div>}
@@ -107,9 +115,9 @@ export function RecordedPitWall({ onOpenLogs }: { onOpenLogs?: (session?: string
         <span className="text-neutral-200">{sessionLabel[data.session_type] ?? data.session_type} · track {data.track_id ?? "unknown"} · {String(data.regulation_season ?? "season unknown")}</span>
         {data.session_type === "practice" ? <span className="text-[12px] text-neutral-400">Runs split by pit visits</span> : null}
         {data.session_type.startsWith("qualifying") ? <span className="text-[12px] text-neutral-400">Segment {data.session_type.replace("qualifying_", "").toUpperCase()}</span> : null}
-        {segments.length > 1 ? <div className="flex gap-1" role="tablist" aria-label="Qualifying segments">
+        {segments.length > 1 ? <div className="flex gap-1" role="group" aria-label="Qualifying segments">
           {segments.sort((a, b) => a.session_type.localeCompare(b.session_type)).map((seg) => (
-            <button key={seg.id} role="tab" aria-selected={seg.id === data.session_id} className={tabClass + (seg.id === data.session_id ? " bg-[#1d3b2c] text-[#4fd48a]" : " text-neutral-300")}
+            <button key={seg.id} type="button" aria-pressed={seg.id === data.session_id} className={tabClass + (seg.id === data.session_id ? " bg-[#1d3b2c] text-[#4fd48a]" : " text-neutral-300")}
               onClick={async () => {
                 const d = await api<{ surviving_branch_id: string }>("/sessions/" + seg.id);
                 select({ sessionId: seg.id, branchId: d.surviving_branch_id, label: seg.session_type.replace("qualifying_", "Q").toUpperCase(), season: data.regulation_season, recorded: true });
@@ -120,12 +128,13 @@ export function RecordedPitWall({ onOpenLogs }: { onOpenLogs?: (session?: string
         <button className="text-sm text-neutral-300 underline" onClick={clearSelection}>Back to live</button>
       </div>
 
+      <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)} className="space-y-3">
       <div className={panel + " flex flex-wrap items-center gap-3 px-4 py-2"}>
         <h2 className="text-lg font-semibold">Session analysis</h2>
         <span className="text-sm text-neutral-400">{data.clean_laps} clean laps · best {fmtLap(data.best_lap_ms)} · theoretical {fmtLap(data.theoretical_best_ms)}</span>
-        <div className="ml-auto flex flex-wrap gap-1" role="tablist" aria-label="Analysis view">
-          {tabs.map((t) => <button key={t.id} role="tab" aria-selected={tab === t.id} onClick={() => setTab(t.id)} className={tabClass + (tab === t.id ? " bg-[#1d3b2c] text-[#4fd48a]" : " text-neutral-300 hover:bg-[#151920]")}>{t.label}</button>)}
-        </div>
+        <TabsList className="ml-auto flex h-auto flex-wrap justify-start gap-1 rounded-none bg-transparent p-0" aria-label="Analysis view">
+          {tabs.map((t) => <TabsTrigger key={t.id} value={t.id} onClick={() => setTab(t.id)} className={tabClass + " text-neutral-300 hover:bg-[#151920] data-[state=active]:bg-[#1d3b2c] data-[state=active]:text-[#4fd48a]"}>{t.label}</TabsTrigger>)}
+        </TabsList>
       </div>
 
       <div className={panel + " px-4 py-2"}>
@@ -140,7 +149,7 @@ export function RecordedPitWall({ onOpenLogs }: { onOpenLogs?: (session?: string
         </div>
       </div>
 
-      {tab === "overview" ? (
+      <TabsContent value="overview" className="mt-0">
         <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
           <section className={panel}><div className={label + " px-4 pt-3"}>Session classification</div>
             <table className="w-full text-sm"><thead className="text-neutral-400"><tr><th className="p-2 text-left">Pos</th><th className="p-2 text-left">Driver</th><th className="p-2 text-right">Best lap</th><th className="p-2 text-right">Gap</th><th className="p-2 text-right">Laps</th></tr></thead>
@@ -151,13 +160,13 @@ export function RecordedPitWall({ onOpenLogs }: { onOpenLogs?: (session?: string
                 return <tr key={car} className={"border-t border-[#232830] " + (selected.includes(car) ? "bg-[#18211b]" : "")}><td className="p-2 tabular-nums">{last?.position_end ? last.position_end : "—"}</td><td className="p-2">{nameOf(data, car)}</td><td className="p-2 text-right tabular-nums">{fmtLap(best)}</td><td className="p-2 text-right tabular-nums">{fastest ? fmtGap(best - fastest) : "—"}</td><td className="p-2 text-right tabular-nums">{laps.length}</td></tr>;
               })}</tbody></table>
           </section>
-          <section className={panel + " p-3"}><div className={label}>Lap time and gap to leader</div><Chart data={seriesFor(data, selected, (l) => l.lap_ms / 1000)} unit="s" />
-            <div className="mt-2 border-t border-[#232830] pt-2"><Chart data={seriesFor(data, selected, (l) => l.gap_leader_start_ms ? l.gap_leader_start_ms / 1000 : null)} unit="s" /></div>
+          <section className={panel + " p-3"}><div className={label}>Lap time and gap to leader</div><Chart data={seriesFor(data, selected, { pick: (l) => l.lap_ms / 1000 })} unit="s" />
+            <div className="mt-2 border-t border-[#232830] pt-2"><Chart data={seriesFor(data, selected, { pick: (l) => l.gap_leader_start_ms ? l.gap_leader_start_ms / 1000 : null })} unit="s" /></div>
           </section>
         </div>
-      ) : null}
+      </TabsContent>
 
-      {tab === "laps" ? <section className={panel + " overflow-auto"}>
+      <TabsContent value="laps" className="mt-0"><section className={panel + " overflow-auto"}>
         <table className="w-full text-sm"><thead className="sticky top-0 bg-[#151920] text-neutral-400"><tr>
           <th className="p-2 text-left">Driver</th><th className="p-2 text-right">Lap</th><th className="p-2 text-right">Time</th><th className="p-2 text-right">S1</th><th className="p-2 text-right">S2</th><th className="p-2 text-right">S3</th><th className="p-2 text-right">Avg km/h</th><th className="p-2 text-right">Top km/h</th><th className="p-2 text-right">Tyre</th><th className="p-2 text-right">Pos</th><th className="p-2 text-right">Flags</th>
         </tr></thead><tbody>
@@ -165,11 +174,18 @@ export function RecordedPitWall({ onOpenLogs }: { onOpenLogs?: (session?: string
             <tr key={`${car}-${l.lap}`} className="border-t border-[#232830]"><td className="p-2">{nameOf(data, car)}</td><td className="p-2 text-right tabular-nums">{l.lap}</td><td className="p-2 text-right tabular-nums">{fmtLap(l.lap_ms)}</td><td className="p-2 text-right tabular-nums">{l.sector1_ms ? (l.sector1_ms / 1000).toFixed(3) : "—"}</td><td className="p-2 text-right tabular-nums">{l.sector2_ms ? (l.sector2_ms / 1000).toFixed(3) : "—"}</td><td className="p-2 text-right tabular-nums">{l.sector3_ms ? (l.sector3_ms / 1000).toFixed(3) : "—"}</td><td className="p-2 text-right tabular-nums">{(l.avg_speed_mps * 3.6).toFixed(0)}</td><td className="p-2 text-right tabular-nums">{(l.top_speed_mps * 3.6).toFixed(0)}</td><td className="p-2 text-right">{l.compound || "—"} · {l.tyre_age_laps}</td><td className="p-2 text-right tabular-nums">{l.position_end}</td><td className="p-2 text-right text-neutral-400">{l.pit_in ? "Pit " : ""}{l.valid ? "" : "Invalid "}{l.track_limits ? "Limits" : ""}</td></tr>
           )))}
         </tbody></table>
-      </section> : null}
+      </section></TabsContent>
 
-      {tab === "sectors" ? <section className={panel + " p-3"}><div className={label}>Sector 1 / 2 / 3 by lap</div><Chart data={seriesFor(data, selected, (l) => l.sector1_ms ? l.sector1_ms / 1000 : null)} unit="s" /></section> : null}
-      {tab === "speed" ? <section className={panel + " p-3"}><div className={label}>Average and top speed by lap</div><Chart data={seriesFor(data, selected, (l) => l.avg_speed_mps * 3.6)} unit="km/h" /></section> : null}
-      {tab === "telemetry" ? <section className={panel + " p-3"}>
+      <TabsContent value="sectors" className="mt-0"><section className={panel + " p-3"}><div className={label}>Sector 1, 2 and 3 by lap</div><Chart data={seriesFor(data, selected, [
+        { label: "S1", pick: (l) => l.sector1_ms > 0 ? l.sector1_ms / 1000 : null },
+        { label: "S2", pick: (l) => l.sector2_ms > 0 ? l.sector2_ms / 1000 : null },
+        { label: "S3", pick: (l) => l.sector3_ms > 0 ? l.sector3_ms / 1000 : null },
+      ])} unit="s" /></section></TabsContent>
+      <TabsContent value="speed" className="mt-0"><section className={panel + " p-3"}><div className={label}>Average and top speed by lap</div><Chart data={seriesFor(data, selected, [
+        { label: "avg", pick: (l) => l.avg_speed_mps > 0 ? l.avg_speed_mps * 3.6 : null },
+        { label: "top", pick: (l) => l.top_speed_mps > 0 ? l.top_speed_mps * 3.6 : null },
+      ])} unit="km/h" /></section></TabsContent>
+      <TabsContent value="telemetry" className="mt-0"><section className={panel + " p-3"}>
         <div className="flex flex-wrap items-center gap-4">
           <div className={label}>Throttle, brake, gear and energy over session time</div>
           <div className="ml-auto flex items-center gap-2 text-[12px] text-neutral-400">
@@ -186,14 +202,33 @@ export function RecordedPitWall({ onOpenLogs }: { onOpenLogs?: (session?: string
               : "No stored samples for the selected cars and lap range."
           } />
         </div>
-      </section> : null}
-      {tab === "tyres" ? <section className={panel + " p-3"}><div className={label}>Tyre age by lap</div><Chart data={seriesFor(data, selected, (l) => l.tyre_age_laps)} unit=" laps" /></section> : null}
-      {tab === "fuel" ? <section className={panel + " p-3"}><div className={label}>Fuel at lap end (kg)</div><Chart data={seriesFor(data, selected, (l) => l.fuel_end_kg || null)} unit=" kg" /></section> : null}
-      {tab === "stints" ? <section className={panel + " overflow-auto"}>
+      </section></TabsContent>
+      <TabsContent value="tyres" className="mt-0"><section className={panel + " p-3"}>
+        <div className={label}>Tyre age by lap</div>
+        <Chart data={seriesFor(data, selected, { pick: (l) => l.tyre_age_laps })} unit=" laps" />
+        <div className={label + " mt-3"}>Average tyre wear by lap</div>
+        <Chart data={seriesFor(data, selected, { pick: (l) => l.tyre_wear_pct || null })} unit="%" />
+        <div className={label + " mt-3"}>Tyre surface temperature by lap</div>
+        <Chart data={seriesFor(data, selected, { pick: (l) => l.tyre_surface_c || null })} unit="°C" />
+        <div className={label + " mt-3"}>Tyre core temperature by lap</div>
+        <Chart data={seriesFor(data, selected, { pick: (l) => l.tyre_core_c || null })} unit="°C" />
+      </section></TabsContent>
+      <TabsContent value="fuel" className="mt-0"><section className={panel + " p-3"}>
+        <div className={label}>Fuel at lap start and end</div>
+        <Chart data={seriesFor(data, selected, [
+          { label: "start", pick: (l) => l.fuel_start_kg > 0 ? l.fuel_start_kg : null },
+          { label: "end", pick: (l) => l.fuel_end_kg > 0 ? l.fuel_end_kg : null },
+        ])} unit=" kg" />
+        <div className="mt-2 border-t border-[#232830] pt-2"><div className={label}>ERS store at lap start and end</div><Chart data={seriesFor(data, selected, [
+          { label: "start", pick: (l) => l.ers_start_j > 0 ? l.ers_start_j / 1e6 : null },
+          { label: "end", pick: (l) => l.ers_end_j > 0 ? l.ers_end_j / 1e6 : null },
+        ])} unit=" MJ" /></div>
+      </section></TabsContent>
+      <TabsContent value="stints" className="mt-0"><section className={panel + " overflow-auto"}>
         <table className="w-full text-sm"><thead className="bg-[#151920] text-neutral-400"><tr><th className="p-2 text-left">Driver</th><th className="p-2 text-left">Kind</th><th className="p-2 text-right">Laps</th><th className="p-2 text-right">Best</th><th className="p-2 text-right">Median</th><th className="p-2 text-right">Degradation</th><th className="p-2 text-right">Compound</th></tr></thead>
           <tbody>{data.stints.filter((s) => selected.includes(s.car_index)).map((s) => <tr key={`${s.car_index}-${s.kind}-${s.index}`} className="border-t border-[#232830]"><td className="p-2">{nameOf(data, s.car_index)}</td><td className="p-2 text-neutral-400">{s.kind} {s.index + 1}</td><td className="p-2 text-right tabular-nums">{s.start_lap}–{s.end_lap} ({s.laps})</td><td className="p-2 text-right tabular-nums">{fmtLap(s.best_ms)}</td><td className="p-2 text-right tabular-nums">{fmtLap(s.median_ms)}</td><td className="p-2 text-right tabular-nums">{s.degradation_ms_per_lap.toFixed(1)} ms/lap</td><td className="p-2 text-right">{s.compound || "—"}</td></tr>)}</tbody></table>
-      </section> : null}
-      {tab === "corners" ? <section className={panel + " p-3"}>
+      </section></TabsContent>
+      <TabsContent value="corners" className="mt-0"><section className={panel + " p-3"}>
         <div className={label}>Provisional corner minimum speed</div>
         <p className="mt-1 text-[12px] text-neutral-400">Derived from circuit geometry and recorded samples; not a calibrated optimum.</p>
         <table className="mt-2 w-full text-sm"><thead className="text-neutral-400"><tr><th className="p-2 text-left">Corner</th>{selected.map((car) => <th key={car} className="p-2 text-right">{nameOf(data, car)}</th>)}</tr></thead>
@@ -203,7 +238,8 @@ export function RecordedPitWall({ onOpenLogs }: { onOpenLogs?: (session?: string
             const best = vals.length ? Math.min(...vals) : null;
             return <td key={car} className="p-2 text-right tabular-nums">{best == null ? "—" : (best * 3.6).toFixed(0) + " km/h"}</td>;
           })}</tr>)}</tbody></table>
-      </section> : null}
+      </section></TabsContent>
+      </Tabs>
     </div>
   );
 }

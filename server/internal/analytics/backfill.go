@@ -43,11 +43,21 @@ func Backfill(ctx context.Context, cat *history.Catalog, logger *slog.Logger, li
 		if err != nil || len(paths) == 0 {
 			continue
 		}
+		cx := detail.Context
+		cx.SessionID = id
+		if detail.SurvivingBranchID != "" {
+			cx.BranchID = detail.SurvivingBranchID
+		}
 		tr := NewTracker(cat)
-		length := 5000.0
+		session := map[string]float64{"track_length_m": 0}
 		for _, path := range paths {
 			scan(path, func(seq uint64, p *protocol.Packet) {
-				tr.Observe(ctx, seq, p, detail.Context, map[string]float64{"track_length_m": length})
+				if p.Header.PacketID == 1 {
+					if v, ok := p.Field("m_trackLength"); ok && v.F > 0 {
+						session["track_length_m"] = v.F
+					}
+				}
+				tr.Observe(ctx, seq, p, cx, session)
 			})
 		}
 		if err := tr.Close(ctx); err != nil {

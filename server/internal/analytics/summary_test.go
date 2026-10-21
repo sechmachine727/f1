@@ -127,6 +127,35 @@ func TestBackfillDerivesWithoutRewritingRecording(t *testing.T) {
 	_ = cx
 }
 
+func TestCompareSortsBeforeSectorAndCornerDeltas(t *testing.T) {
+	cat, _, _ := setup(t)
+	ctx := context.Background()
+	slow := history.LapAnalytics{SessionID: "s", BranchID: "b", CarIndex: 0, Lap: 1, LapMs: 92000,
+		Sector1Ms: 30000, Sector2Ms: 32000, Sector3Ms: 30000, Valid: true, Complete: true,
+		CornerSpeeds: map[string]contract.Measurement{"T1": contract.Derived(40.0, "m/s", "t")}}
+	fast := history.LapAnalytics{SessionID: "s", BranchID: "b", CarIndex: 0, Lap: 2, LapMs: 90000,
+		Sector1Ms: 29000, Sector2Ms: 31000, Sector3Ms: 30000, Valid: true, Complete: true,
+		CornerSpeeds: map[string]contract.Measurement{"T1": contract.Derived(45.0, "m/s", "t")}}
+	for _, l := range []history.LapAnalytics{slow, fast} {
+		if err := cat.UpsertLapAnalytics(ctx, l); err != nil {
+			t.Fatal(err)
+		}
+	}
+	cmp, err := Compare(ctx, cat, "s", "b", []CompareLap{{Car: 0, Lap: 1}, {Car: 0, Lap: 2}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cmp.Laps[0].Lap != 2 || cmp.Laps[1].Lap != 1 {
+		t.Fatalf("rows not sorted by lap time: %#v", cmp.Laps)
+	}
+	if cmp.SectorDeltas[0]["sector1"] != 0 || cmp.SectorDeltas[1]["sector1"] != 1000 {
+		t.Fatalf("sector deltas misaligned: %#v", cmp.SectorDeltas)
+	}
+	if cmp.CornerDeltas[0]["T1"] != 0 || cmp.CornerDeltas[1]["T1"] != -5 {
+		t.Fatalf("corner deltas are not relative to the baseline: %#v", cmp.CornerDeltas)
+	}
+}
+
 func hashFile(t *testing.T, path string) string {
 	t.Helper()
 	b, err := os.ReadFile(path)
@@ -190,6 +219,22 @@ func TestSummaryReadsParentBranchLaps(t *testing.T) {
 	}
 	if rows[1].Lap != 2 || rows[1].Points[0][1] != 1.0 {
 		t.Fatalf("sample did not follow the branch lineage: %#v", rows[1])
+	}
+}
+
+func TestCompareRejectsIncompleteLap(t *testing.T) {
+	cat, _, _ := setup(t)
+	ctx := context.Background()
+	for _, l := range []history.LapAnalytics{
+		{SessionID: "s", BranchID: "b", CarIndex: 0, Lap: 1, LapMs: 90000, Valid: true, Complete: true},
+		{SessionID: "s", BranchID: "b", CarIndex: 0, Lap: 2, LapMs: 0, Valid: false, Complete: false},
+	} {
+		if err := cat.UpsertLapAnalytics(ctx, l); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := Compare(ctx, cat, "s", "b", []CompareLap{{Car: 0, Lap: 1}, {Car: 0, Lap: 2}}); err == nil {
+		t.Fatal("incomplete lap accepted as a comparison baseline")
 	}
 }
 

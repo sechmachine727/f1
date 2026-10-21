@@ -503,3 +503,76 @@ func TestSlowClientResync(t *testing.T) {
 		t.Fatal("fast client missed the delta")
 	}
 }
+
+func TestEventsForDeliversEachEventOnce(t *testing.T) {
+	api := &API{}
+	c := &streamClient{}
+	first := []contract.Event{{ID: "e1", Seq: "1"}, {ID: "e2", Seq: "2"}}
+	if got := api.eventsFor(c, first); len(got) != 2 {
+		t.Fatalf("first delivery %#v", got)
+	}
+	if got := api.eventsFor(c, first); len(got) != 0 {
+		t.Fatalf("events repeated on an unchanged snapshot: %#v", got)
+	}
+	third := append(append([]contract.Event{}, first...), contract.Event{ID: "e3", Seq: "3"})
+	got := api.eventsFor(c, third)
+	if len(got) != 1 || got[0].ID != "e3" {
+		t.Fatalf("new event delivery %#v", got)
+	}
+	same := []contract.Event{{ID: "a1", Seq: "9"}, {ID: "a2", Seq: "9"}}
+	if got := api.eventsFor(c, same); len(got) != 2 {
+		t.Fatalf("same-sequence delivery %#v", got)
+	}
+	if got := api.eventsFor(c, same); len(got) != 0 {
+		t.Fatalf("same-sequence events repeated %#v", got)
+	}
+}
+
+func TestDeltaCarriesAlertChangesAndClears(t *testing.T) {
+	d, _ := deps(t)
+	api := New(d)
+	cfg, err := config.Defaults()
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Short windows keep the test deterministic instead of sleeping five seconds.
+	api.Arbiter = strategy.NewArbiter(contract.NotificationConfig{CautionPersistenceMs: 1, CriticalPersistenceMs: 1, ClearPersistenceMs: 1}, cfg.ReferenceProfiles, cfg.CapacityProfiles)
+	player := 0
+	season, formula := 2025, 0
+	snap := state.Snapshot{
+		Context:        contract.Context{SessionID: "s", BranchID: "b", PlayerCarIndex: &player, RegulationSeason: &season, FormulaCode: &formula},
+		ObservationSeq: 5, Metrics: []contract.Metric{
+			{ID: "tyre.fl.surface_c@0", Channel: "tyre.fl.surface_c", CarIndex: &player, Measurement: contract.Available(130.0, "degC", "t")},
+			{ID: "tyre.fl.wear_pct@0", Channel: "tyre.fl.wear_pct", CarIndex: &player, Measurement: contract.Available(10.0, "%", "t")},
+		},
+		Events: []contract.Event{}, Session: map[string]float64{}, RecordingState: "recording",
+	}
+	api.Arbiter.Observe(snap)
+	time.Sleep(5 * time.Millisecond)
+	api.Arbiter.Observe(snap)
+	if len(api.Arbiter.Alerts()) == 0 {
+		t.Fatal("arbiter did not raise a critical alert")
+	}
+	c := &streamClient{sub: defaultSubscription(api), last: map[string]fingerprint{}}
+	msg := api.deltaMessage(c)
+	if msg == nil || len(msg.Alerts) != 1 {
+		t.Fatalf("alert delta alerts=%d", len(msg.Alerts))
+	}
+	if msg = api.deltaMessage(c); msg != nil {
+		t.Fatalf("unchanged alert delta repeated")
+	}
+	// Calm snapshots clear the condition after the one-millisecond window.
+	calm := state.Snapshot{Context: snap.Context, ObservationSeq: 6, Metrics: []contract.Metric{}, Events: []contract.Event{}, Session: map[string]float64{}, RecordingState: "recording"}
+	api.Arbiter.Observe(calm)
+	time.Sleep(5 * time.Millisecond)
+	api.Arbiter.Observe(calm)
+	if len(api.Arbiter.Alerts()) != 0 {
+		t.Fatalf("condition did not clear: %d", len(api.Arbiter.Alerts()))
+	}
+	// A stale digest with no active conditions must still clear the client list.
+	cleared := &streamClient{sub: defaultSubscription(api), last: map[string]fingerprint{}, lastAlerts: "stale"}
+	msg = api.deltaMessage(cleared)
+	if msg == nil || msg.Alerts == nil || len(msg.Alerts) != 0 {
+		t.Fatalf("alert clear delta alerts=%v", msg != nil)
+	}
+}

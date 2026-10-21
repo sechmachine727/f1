@@ -23,10 +23,26 @@ var envSpecs = []envSpec{
 	{"F1TELE_UDP_ADDR", "udp", true, func(c *contract.Config, v string) error { return setAddr(&c.UDP, v) }},
 	{"F1TELE_UDP_ADVERTISE_HOST", "udp_advertise_host", false, func(*contract.Config, string) error { return nil }},
 	{"F1TELE_RECORDING_ENABLED", "recording.enabled", false, func(c *contract.Config, v string) error { b, err := parseBool(v); c.Recording.Enabled = b; return err }},
-	{"F1TELE_RECORDING_CAP_BYTES", "recording.cap_bytes", false, func(c *contract.Config, v string) error { n, err := parseBytes(v); c.Recording.CapBytes = n; return err }},
-	{"F1TELE_RECORDING_FREE_RESERVE_BYTES", "recording.free_reserve_bytes", false, func(c *contract.Config, v string) error { n, err := parseBytes(v); c.Recording.FreeReserveBytes = n; return err }},
-	{"F1TELE_RECORDING_CHUNK_BYTES", "recording.chunk_bytes", false, func(c *contract.Config, v string) error { n, err := parseBytes(v); c.Recording.ChunkBytes = n; return err }},
-	{"F1TELE_RECORDING_ROTATE_BYTES", "recording.rotate_bytes", false, func(c *contract.Config, v string) error { n, err := parseBytes(v); c.Recording.RotateBytes = n; return err }},
+	{"F1TELE_RECORDING_CAP_BYTES", "recording.cap_bytes", false, func(c *contract.Config, v string) error {
+		n, err := parseBytes(v)
+		c.Recording.CapBytes = n
+		return err
+	}},
+	{"F1TELE_RECORDING_FREE_RESERVE_BYTES", "recording.free_reserve_bytes", false, func(c *contract.Config, v string) error {
+		n, err := parseBytes(v)
+		c.Recording.FreeReserveBytes = n
+		return err
+	}},
+	{"F1TELE_RECORDING_CHUNK_BYTES", "recording.chunk_bytes", false, func(c *contract.Config, v string) error {
+		n, err := parseBytes(v)
+		c.Recording.ChunkBytes = n
+		return err
+	}},
+	{"F1TELE_RECORDING_ROTATE_BYTES", "recording.rotate_bytes", false, func(c *contract.Config, v string) error {
+		n, err := parseBytes(v)
+		c.Recording.RotateBytes = n
+		return err
+	}},
 	{"F1TELE_RECORDING_CHUNK_FLUSH_MS", "recording.chunk_flush_ms", false, func(c *contract.Config, v string) error {
 		n, err := strconv.Atoi(v)
 		if err == nil {
@@ -39,6 +55,13 @@ var envSpecs = []envSpec{
 		c.Security.OriginCheck = b
 		return err
 	}},
+	{"F1TELE_SESSION_INACTIVITY_SECONDS", "session.inactivity_seconds", false, func(c *contract.Config, v string) error {
+		n, err := strconv.Atoi(v)
+		if err == nil {
+			c.Session.InactivitySeconds = n
+		}
+		return err
+	}},
 	{"F1TELE_AGENT_ENABLED", "agent.enabled", false, func(c *contract.Config, v string) error { b, err := parseBool(v); c.Agent.Enabled = b; return err }},
 	{"F1TELE_AGENT_ENDPOINT_ID", "agent.endpoint_id", false, func(c *contract.Config, v string) error { c.Agent.EndpointID = &v; return nil }},
 	{"F1TELE_AGENT_BASE_URL", "agent.endpoint.base_url", false, nil},
@@ -47,13 +70,29 @@ var envSpecs = []envSpec{
 	{"F1TELE_AGENT_API_KEY", "agent.endpoint.api_key", false, nil},
 	{"F1TELE_SEARCH_PROVIDER", "search.provider", false, func(c *contract.Config, v string) error { c.Search.Provider = v; return nil }},
 	{"F1TELE_SEARCH_BASE_URL", "search.base_url", false, func(c *contract.Config, v string) error { c.Search.BaseURL = &v; return nil }},
-	{"F1TELE_SEARCH_API_KEY", "search.api_key", false, func(c *contract.Config, v string) error { name := "F1TELE_SEARCH_API_KEY"; c.Search.APIKeyEnv = &name; return nil }},
+	{"F1TELE_SEARCH_API_KEY", "search.api_key", false, func(c *contract.Config, v string) error {
+		name := "F1TELE_SEARCH_API_KEY"
+		c.Search.APIKeyEnv = &name
+		return nil
+	}},
 	{"F1TELE_VOICE_ENABLED", "voice.enabled", false, func(c *contract.Config, v string) error { b, err := parseBool(v); c.Voice.Enabled = b; return err }},
-	{"F1TELE_VOICE_BASE_URL", "voice.base_url", false, func(c *contract.Config, v string) error { c.Voice.TranscriptionEndpoint = &v; c.Voice.SpeechEndpoint = &v; return nil }},
+	{"F1TELE_VOICE_BASE_URL", "voice.base_url", false, func(c *contract.Config, v string) error {
+		c.Voice.TranscriptionEndpoint = &v
+		c.Voice.SpeechEndpoint = &v
+		return nil
+	}},
 	{"F1TELE_VOICE_TRANSCRIPTION_MODEL", "voice.transcription_model", false, func(c *contract.Config, v string) error { c.Voice.TranscriptionModel = &v; return nil }},
-	{"F1TELE_VOICE_TRANSCRIPTION_API_KEY", "voice.transcription_api_key", false, func(c *contract.Config, v string) error { name := "F1TELE_VOICE_TRANSCRIPTION_API_KEY"; c.Voice.TranscriptionAPIKeyEnv = &name; return nil }},
+	{"F1TELE_VOICE_TRANSCRIPTION_API_KEY", "voice.transcription_api_key", false, func(c *contract.Config, v string) error {
+		name := "F1TELE_VOICE_TRANSCRIPTION_API_KEY"
+		c.Voice.TranscriptionAPIKeyEnv = &name
+		return nil
+	}},
 	{"F1TELE_VOICE_SPEECH_MODEL", "voice.speech_model", false, func(c *contract.Config, v string) error { c.Voice.SpeechModel = &v; return nil }},
-	{"F1TELE_VOICE_SPEECH_API_KEY", "voice.speech_api_key", false, func(c *contract.Config, v string) error { name := "F1TELE_VOICE_SPEECH_API_KEY"; c.Voice.SpeechAPIKeyEnv = &name; return nil }},
+	{"F1TELE_VOICE_SPEECH_API_KEY", "voice.speech_api_key", false, func(c *contract.Config, v string) error {
+		name := "F1TELE_VOICE_SPEECH_API_KEY"
+		c.Voice.SpeechAPIKeyEnv = &name
+		return nil
+	}},
 }
 
 // ApplyEnv merges documented environment variables into cfg and records the
@@ -221,7 +260,7 @@ func AdvertiseHost(explicit string) string {
 }
 
 // RestartOnlyKeys is the static restart classification shown by Settings.
-var RestartOnlyKeys = []string{"http", "udp", "data_dir"}
+var RestartOnlyKeys = []string{"http", "udp", "data_dir", "recording"}
 
 // DocumentedVariables is the operator-facing list. It exists so tests can keep
 // the reference table and the loader in step.
@@ -230,6 +269,7 @@ var DocumentedVariables = []string{
 	"F1TELE_RECORDING_ENABLED", "F1TELE_RECORDING_CAP_BYTES", "F1TELE_RECORDING_FREE_RESERVE_BYTES",
 	"F1TELE_RECORDING_CHUNK_BYTES", "F1TELE_RECORDING_ROTATE_BYTES", "F1TELE_RECORDING_CHUNK_FLUSH_MS",
 	"F1TELE_SECURITY_ORIGIN_CHECK",
+	"F1TELE_SESSION_INACTIVITY_SECONDS",
 	"F1TELE_AGENT_ENABLED", "F1TELE_AGENT_ENDPOINT_ID", "F1TELE_AGENT_BASE_URL", "F1TELE_AGENT_MODEL",
 	"F1TELE_AGENT_PROTOCOL", "F1TELE_AGENT_API_KEY", "F1TELE_SEARCH_PROVIDER", "F1TELE_SEARCH_BASE_URL",
 	"F1TELE_SEARCH_API_KEY", "F1TELE_VOICE_ENABLED", "F1TELE_VOICE_BASE_URL", "F1TELE_VOICE_TRANSCRIPTION_MODEL",

@@ -55,7 +55,7 @@ Token accounting uses the provider's `PromptTokens` from the last successful res
 
 Compaction config: enabled by default, trigger 80%, recent tail 25%. A fixed internal summarizer prompt requests a structured `CompactionSummary`. The summary preserves plan, decision timeline, accepted advice, evidence IDs, assumptions, predictions, outcomes, event transitions, coverage gaps and focus instructions. Raw sample/tool payloads are omitted first; the recent tail is preserved.
 
-Overflow recovery targets 70%, 50% and 35% of the rejected request, at most two compactions per logical turn. Compaction uses the same endpoint/model, counts against budgets, creates a `compaction` activity timeline and clears provider continuation. A manual compaction endpoint accepts `{session_id, branch_id, focus?}` and runs even below the threshold.
+Overflow recovery targets 70%, then 50%, then 35% of the rejected request if the two-compaction cap permits; at most two compactions run per logical turn. Compaction uses the same endpoint/model, counts against budgets, creates a `compaction` activity timeline and clears provider continuation. A manual compaction endpoint accepts `{session_id, branch_id, focus?}` and runs even below the threshold.
 
 ## Prompt Revisions
 

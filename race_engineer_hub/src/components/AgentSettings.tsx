@@ -7,6 +7,8 @@ import jsonWorker from "monaco-editor/esm/vs/language/json/json.worker?worker";
 import { api } from "@/lib/live";
 import { useAuth } from "@/lib/auth";
 import { useSelection } from "@/lib/selection";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 loader.config({ monaco });
 (globalThis as any).MonacoEnvironment = {
@@ -20,12 +22,14 @@ const label = "text-[11px] uppercase tracking-wider text-neutral-400";
 const inputClass = "w-full border border-[#2a3038] bg-[#151920] px-2 py-1.5 text-sm text-neutral-100 outline-none focus-visible:border-[#5fd68f] disabled:opacity-50";
 
 const eventTypes = ["pit_window_changed", "rival_pitted", "weather_changed", "safety_car", "virtual_safety_car", "red_flag", "tyre_risk", "fuel_risk", "energy_risk", "damage_changed", "race_control"];
+const settingsTabs = ["agent", "prompt", "compaction", "connections", "security"] as const;
+type SettingsTab = (typeof settingsTabs)[number];
 
 export function AgentSettings() {
   const { logout } = useAuth();
   const [view, setView] = useState<any>(null);
   const [draft, setDraft] = useState<any>(null);
-  const [tab, setTab] = useState<"agent" | "prompt" | "compaction" | "connections" | "security">("agent");
+  const [tab, setTab] = useState<SettingsTab>("agent");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [saving, setSaving] = useState(false);
@@ -90,16 +94,17 @@ export function AgentSettings() {
         <span className="text-[12px] text-neutral-400">Revision {view?.revision ?? "—"} · agent and harness behavior</span>
         <button onClick={() => void saveConfig()} disabled={!draft || saving} className="ml-auto rounded-sm border border-[#2f5a3d] bg-[#1d3b2c] px-3 py-1.5 text-sm text-[#8ef0b4] disabled:opacity-40">{saving ? "Saving…" : "Save agent settings"}</button>
       </div>
-      <div className="mb-3 flex flex-wrap gap-1" role="tablist" aria-label="Settings sections">
-        {(["agent", "prompt", "compaction", "connections", "security"] as const).map((t) => (
-          <button key={t} role="tab" aria-selected={tab === t} onClick={() => setTab(t)} className={"rounded-sm px-3 py-1.5 text-sm " + (tab === t ? "bg-[#1d3b2c] text-[#4fd48a]" : "text-neutral-300 hover:bg-[#151920]")}>{t[0].toUpperCase() + t.slice(1)}</button>
+      <Tabs value={tab} onValueChange={(v) => setTab(v as SettingsTab)}>
+      <TabsList className="mb-3 flex h-auto flex-wrap justify-start gap-1 rounded-none bg-transparent p-0" aria-label="Settings sections">
+        {settingsTabs.map((t) => (
+          <TabsTrigger key={t} value={t} onClick={() => setTab(t)} className="rounded-sm px-3 py-1.5 text-sm text-neutral-300 hover:bg-[#151920] data-[state=active]:bg-[#1d3b2c] data-[state=active]:text-[#4fd48a]">{t[0].toUpperCase() + t.slice(1)}</TabsTrigger>
         ))}
-      </div>
+      </TabsList>
       {error ? <p role="alert" className="mb-3 text-[#f25a5c]">{error}</p> : null}
       {notice ? <p role="status" className="mb-3 text-[#5fd68f]">{notice}</p> : null}
       {!draft || !view ? <p className="text-sm text-neutral-400">Loading configuration…</p> : null}
 
-      {draft && view && tab === "agent" ? (
+      <TabsContent value="agent" className="mt-0">{draft && view ? (
         <div className="flex flex-wrap gap-3">
           <Section title="Race engineer">
             <Check label="Enabled" checked={agent.enabled} disabled={envLocked("agent.enabled")} onChange={(v) => update("agent.enabled", v)} />
@@ -152,12 +157,13 @@ export function AgentSettings() {
             </div>
           </Section>
         </div>
-      ) : null}
+      ) : null}</TabsContent>
 
-      {tab === "prompt" ? <PromptSettings /> : null}
-      {draft && tab === "compaction" ? <CompactionSettings view={view} draft={draft} update={update} /> : null}
-      {draft && view && tab === "connections" ? <Connections view={view} source={source} /> : null}
-      {draft && view && tab === "security" ? <Security view={view} logout={logout} /> : null}
+      <TabsContent value="prompt" className="mt-0"><PromptSettings /></TabsContent>
+      <TabsContent value="compaction" className="mt-0">{draft ? <CompactionSettings view={view} draft={draft} update={update} /> : null}</TabsContent>
+      <TabsContent value="connections" className="mt-0">{draft && view ? <Connections view={view} source={source} /> : null}</TabsContent>
+      <TabsContent value="security" className="mt-0">{draft && view ? <Security view={view} logout={logout} /> : null}</TabsContent>
+      </Tabs>
     </div>
   );
 }
@@ -166,8 +172,8 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   return <section className={panel + " min-w-0 flex-1 basis-[26rem] p-4"}><h3 className="mb-3 border-b border-[#232830] pb-2 text-[11px] uppercase tracking-wider text-neutral-400">{title}</h3><div className="space-y-2">{children}</div></section>;
 }
 
-function Row({ name, value, source }: { name: string; value: string; source?: string }) {
-  return <div className="flex items-baseline gap-2 border-b border-[#1c2128] py-1 text-sm last:border-0"><span className="w-40 shrink-0 text-neutral-400">{name}</span><span className="min-w-0 flex-1 [overflow-wrap:anywhere]">{value}</span>{source ? <span className="rounded-sm border border-[#2a3038] px-1 text-[10px] text-neutral-400">{source}</span> : null}</div>;
+function Row({ name, value, source, restart }: { name: string; value: string; source?: string; restart?: string }) {
+  return <div className="flex items-baseline gap-2 border-b border-[#1c2128] py-1 text-sm last:border-0"><span className="w-40 shrink-0 text-neutral-400">{name}</span><span className="min-w-0 flex-1 [overflow-wrap:anywhere]">{value}</span>{restart ? <span className={"rounded-sm border px-1 text-[10px] " + (restart === "Restart to apply" ? "border-[#5a4522] text-[#f0a03c]" : "border-[#2a3038] text-neutral-400")}>{restart}</span> : null}{source ? <span className="rounded-sm border border-[#2a3038] px-1 text-[10px] text-neutral-400">{source}</span> : null}</div>;
 }
 
 function Number({ label: text, value, min, onChange }: { label: string; value: number; min: number; onChange: (v: number) => void }) {
@@ -221,9 +227,11 @@ function CompactionSettings({ view, draft, update }: { view: any; draft: any; up
 
 function Connections({ view, source }: { view: any; source: (k: string) => string | undefined }) {
   const c = view.active_config;
+  const restart = (key: string) => view.restart_required?.includes(key) ? "Restart to apply" : view.restart_only?.includes(key) ? "Restart only" : undefined;
   return <div className="flex flex-wrap gap-3">
-    <Section title="Server"><Row name="Dashboard" value={c.http.host + ":" + c.http.port} source={source("http")} /><Row name="Telemetry (UDP)" value={c.udp.host + ":" + c.udp.port} source={source("udp")} /><Row name="Game address" value={view.udp_advertise_host ? view.udp_advertise_host + ":" + c.udp.port : "unknown"} /><Row name="Data directory" value={c.data_dir ?? "default"} source={source("data_dir")} /></Section>
-    <Section title="Recording"><Row name="Recording" value={c.recording.enabled ? "Enabled" : "Disabled"} source={source("recording.enabled")} /><Row name="Storage cap" value={gb(c.recording.cap_bytes)} source={source("recording.cap_bytes")} /><Row name="Free reserve" value={gb(c.recording.free_reserve_bytes)} source={source("recording.free_reserve_bytes")} /><Row name="Chunk size" value={(c.recording.chunk_bytes / 1048576).toFixed(0) + " MiB"} /><Row name="Rotation size" value={(c.recording.rotate_bytes / 1048576).toFixed(0) + " MiB"} /></Section>
+    <Section title="Server"><Row name="Dashboard" value={c.http.host + ":" + c.http.port} source={source("http")} restart={restart("http")} /><Row name="Telemetry (UDP)" value={c.udp.host + ":" + c.udp.port} source={source("udp")} restart={restart("udp")} /><Row name="Game address" value={view.udp_advertise_host ? view.udp_advertise_host + ":" + c.udp.port : "unknown"} /><Row name="Data directory" value={c.data_dir ?? "default"} source={source("data_dir")} restart={restart("data_dir")} /></Section>
+    <Section title="Recording"><Row name="Recording" value={c.recording.enabled ? "Enabled" : "Disabled"} source={source("recording.enabled")} restart={restart("recording")} /><Row name="Storage cap" value={gb(c.recording.cap_bytes)} source={source("recording.cap_bytes")} restart={restart("recording")} /><Row name="Free reserve" value={gb(c.recording.free_reserve_bytes)} source={source("recording.free_reserve_bytes")} restart={restart("recording")} /><Row name="Chunk size" value={(c.recording.chunk_bytes / 1048576).toFixed(0) + " MiB"} restart={restart("recording")} /><Row name="Rotation size" value={(c.recording.rotate_bytes / 1048576).toFixed(0) + " MiB"} restart={restart("recording")} /></Section>
+    <Section title="Session"><Row name="Inactivity close" value={String(c.session?.inactivity_seconds ?? 600) + " s"} source={source("session.inactivity_seconds")} /></Section>
     <Section title="Search and voice"><Row name="Search provider" value={c.search.provider} source={source("search.provider")} /><Row name="Search URL" value={c.search.base_url || "provider default"} /><Row name="Voice" value={c.voice.enabled ? "Enabled" : "Disabled"} source={source("voice.enabled")} /><Row name="Voice URL" value={c.voice.transcription_endpoint || "not configured"} /></Section>
   </div>;
 }
@@ -304,11 +312,11 @@ function PromptSettings() {
         </li>) : <li className="py-3 text-[12px] text-neutral-400">No custom revisions yet.</li>}
       </ul>
     </section>
-    {diff ? <div className="fixed inset-0 z-50 flex flex-col bg-black/60 p-4">
-      <div className="mx-auto flex h-full w-full max-w-6xl flex-col border border-[#2a3038] bg-[#0d1015]">
-        <div className="flex items-center gap-2 border-b border-[#232830] p-3"><span className="text-sm">Review {diff.mode === "reset" ? "reset to authored prompt" : diff.mode === "select" ? "revision selection" : "prompt revision"}</span><span className="text-[11px] text-neutral-400">left: current · right: proposed</span><button onClick={() => setDiff(null)} className="ml-auto text-[12px] text-neutral-400 underline">Cancel</button><button onClick={() => void apply()} className="rounded-sm bg-[#1d3b2c] px-3 py-1 text-[12px] text-[#8ef0b4]">Confirm</button></div>
+    {diff ? <Dialog open onOpenChange={(open) => { if (!open) setDiff(null); }}>
+      <DialogContent className="flex h-[calc(100vh-2rem)] w-[calc(100vw-2rem)] max-w-6xl flex-col gap-0 border-[#2a3038] bg-[#0d1015] p-0 text-neutral-100">
+        <div className="flex items-center gap-2 border-b border-[#232830] p-3 pr-12"><DialogTitle className="text-sm font-normal">Review {diff.mode === "reset" ? "reset to authored prompt" : diff.mode === "select" ? "revision selection" : "prompt revision"}</DialogTitle><DialogDescription className="text-[11px] text-neutral-400">left: current · right: proposed</DialogDescription><button onClick={() => setDiff(null)} className="ml-auto text-[12px] text-neutral-400 underline">Cancel</button><button onClick={() => void apply()} className="rounded-sm bg-[#1d3b2c] px-3 py-1 text-[12px] text-[#8ef0b4]">Confirm</button></div>
         <div className="min-h-0 flex-1"><DiffEditor height="70vh" language="markdown" theme="vs-dark" original={diff.original} modified={diff.modified} options={{ readOnly: true, minimap: { enabled: false }, fontSize: 12, wordWrap: "on", renderSideBySide: true, automaticLayout: true }} /></div>
-      </div>
-    </div> : null}
+      </DialogContent>
+    </Dialog> : null}
   </div>;
 }

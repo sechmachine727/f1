@@ -100,5 +100,19 @@ describe("recorded telemetry", () => {
       expect(calls.every((u) => u.includes("/api/v1/sessions/"))).toBe(true);
     } finally { restore(); }
   });
+
+  it("moves the analysis tabs with the arrow keys", async () => {
+    const restore = stub();
+    try {
+      render(<RecordedPitWall />);
+      const overview = await screen.findByRole("tab", { name: "Overview" });
+      await act(async () => {
+        overview.focus();
+        fireEvent.keyDown(overview, { key: "ArrowRight" });
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+      expect(screen.getByRole("tab", { name: "Laps" })).toHaveAttribute("aria-selected", "true");
+    } finally { restore(); }
+  });
 });
 

@@ -1,6 +1,7 @@
 package history
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -8,6 +9,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"time"
 
 	"f1tele/server/internal/contract"
 
@@ -180,4 +182,94 @@ func RecoveryGap(lastCheckpoint, recovered uint64) contract.Range {
 		recovered = from
 	}
 	return contract.Range{FromSeq: fmt.Sprint(from), ToSeq: fmt.Sprint(recovered)}
+}
+
+type staleRecording struct {
+	id         string
+	fragmentID string
+	sessionID  string
+	path       string
+	firstSeq   uint64
+	lastSeq    uint64
+}
+
+// ReconcileRecordings finalizes recordings left active by a previous process.
+// Readable MCAP is verified and closed. A damaged file is copied to a recovered
+// artifact, the original row is marked failed, and the lost sequence range is
+// recorded as a gap. The source file is never modified.
+func ReconcileRecordings(ctx context.Context, cat *Catalog) error {
+	rows, err := cat.DB().QueryContext(ctx, `SELECT r.id, r.fragment_id, f.session_id, r.path, r.first_seq, r.last_seq
+		FROM recordings r JOIN fragments f ON f.id=r.fragment_id WHERE r.state='active'`)
+	if err != nil {
+		return err
+	}
+	var stale []staleRecording
+	for rows.Next() {
+		var s staleRecording
+		var first, last int64
+		if err := rows.Scan(&s.id, &s.fragmentID, &s.sessionID, &s.path, &first, &last); err != nil {
+			rows.Close()
+			return err
+		}
+		s.firstSeq, s.lastSeq = uint64(first), uint64(last)
+		stale = append(stale, s)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	for _, s := range stale {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		reconcileRecording(ctx, cat, s)
+	}
+	return nil
+}
+
+func reconcileRecording(ctx context.Context, cat *Catalog, s staleRecording) {
+	_, digest, last, err := VerifyRecording(s.path)
+	state := "complete"
+	recoveredLast := uint64(last)
+	closeLast := uint64(last)
+	if err != nil {
+		state = "failed"
+		closeLast = s.lastSeq
+		digest = ""
+		res, rerr := RecoverFile(s.path, filepath.Join(filepath.Dir(s.path), "recovered"))
+		if rerr == nil && res.Messages > 0 {
+			recoveredLast = uint64(res.LastSeq)
+			size := int64(0)
+			if st, serr := os.Stat(res.Artifact); serr == nil {
+				size = st.Size()
+			}
+			_ = cat.CreateRecording(ctx, contract.Recording{
+				ID: newID("rec"), FragmentID: s.fragmentID, State: "recovered", Bytes: size,
+				Range:  contract.Range{FromSeq: fmt.Sprint(s.firstSeq), ToSeq: fmt.Sprint(res.LastSeq)},
+				SHA256: &res.SHA256,
+			}, res.Artifact, time.Now().UnixMilli())
+		}
+	}
+	size := int64(0)
+	if st, serr := os.Stat(s.path); serr == nil {
+		size = st.Size()
+	}
+	_ = cat.CloseRecording(ctx, s.id, size, closeLast, digest, state)
+	if s.lastSeq > 0 {
+		from, to := s.lastSeq+1, s.lastSeq+1
+		reason := "recording interrupted without a clean stop; coverage resumes at the next captured sequence"
+		if recoveredLast < s.lastSeq {
+			from, to = recoveredLast+1, s.lastSeq
+			reason = "recording tail was lost; readable prefix recovered into a separate artifact"
+		}
+		_ = cat.InsertGap(ctx, s.sessionID, survivingBranch(ctx, cat, s.sessionID), from, to, reason)
+	}
+}
+
+func survivingBranch(ctx context.Context, cat *Catalog, sessionID string) string {
+	var id string
+	if err := cat.DB().QueryRowContext(ctx, `SELECT id FROM branches WHERE session_id=? ORDER BY is_surviving DESC, rowid DESC LIMIT 1`, sessionID).Scan(&id); err != nil {
+		return ""
+	}
+	return id
 }

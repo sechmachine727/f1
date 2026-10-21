@@ -80,7 +80,7 @@ export function applyMessage(prev: Snapshot, msg: StreamMsg): { next: Snapshot; 
     next: {
       metrics, events,
       context: msg.context ?? prev.context,
-      alerts: msg.alerts && msg.alerts.length ? msg.alerts : prev.alerts,
+      alerts: msg.alerts != null ? msg.alerts : prev.alerts,
       status: msg.status ?? prev.status,
       recording: msg.status ?? prev.recording,
       seq: Number(msg.seq),

@@ -1498,7 +1498,8 @@
             "validity": {
               "enum": [
                 "valid",
-                "any"
+                "any",
+                "invalid"
               ]
             }
           }
@@ -1587,6 +1588,7 @@
         "http",
         "udp",
         "recording",
+        "session",
         "agent",
         "notifications",
         "search",
@@ -2075,6 +2077,19 @@
           "type": "array",
           "items": {
             "$ref": "#/$defs/TrackProfile"
+          }
+        },
+        "session": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "inactivity_seconds"
+          ],
+          "properties": {
+            "inactivity_seconds": {
+              "type": "integer",
+              "minimum": 30
+            }
           }
         },
         "security": {

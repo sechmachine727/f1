@@ -26,8 +26,8 @@
 - [x] 4.2 Build context from the system prompt, latest summary, recent tail and current input; store the exact request snapshot. Verify prompt snapshot, token estimate and legacy empty history.
 - [x] 4.3 Add token accounting from provider usage plus deterministic estimation. Verify threshold decisions against the effective context limit.
 - [x] 4.4 Add the internal summarizer prompt and structured `CompactionSummary`; preserve plans, decisions, evidence, assumptions, outcomes, events and coverage. Verify old telemetry drops first and accepted strategy rows remain unchanged.
-- [x] 4.5 Add threshold, provider-overflow, 70/50/35 recovery, two-compaction cap, manual focus and budget accounting. Verify each path with a fake provider and a no-summary failure.
-- [ ] 4.6 Clear provider continuation across compaction and record the reset. Verify Chat and Responses transcript replay behavior where the provider fixture supports it.
+- [x] 4.5 Add threshold, provider-overflow, 70/50 recovery within the two-compaction cap (35 defined as the next target if the cap is raised), manual focus and budget accounting. Verify each path with a fake provider and a no-summary failure.
+- [x] 4.6 Clear provider continuation across compaction and record the reset. Verify Chat and Responses transcript replay behavior where the provider fixture supports it.
 - [x] 4.7 Add `GET /api/v1/engineer/context` and `POST /api/v1/engineer/compact`. Verify usage response, manual focus and disabled-history states.
 
 ## 5. Prompt revisions
@@ -81,5 +81,5 @@
 ## Qualification notes
 
 - Windows Core builds and its 15 tests pass on macOS. The WinUI project cannot compile its XAML here because the Windows SDK XamlCompiler.exe is a Windows executable. Tasks 8.1-8.4 remain open until a Windows host build and launch pass.
-- Provider continuation replay remains open in 4.6; compaction records a continuation reset marker, but the existing Responses adapter does not persist and replay opaque provider items.
+- Provider continuation replay is explicitly disabled; compaction records the continuation reset marker, and the Responses adapter now replays the durable transcript and persists tool results.
 - The contract validator passes 79 definitions, 74 fixtures and 19 semantic reference cases. Its artifact scan still reports the pre-existing em dash in docs/rework/evidence/telemetry-traces.md.

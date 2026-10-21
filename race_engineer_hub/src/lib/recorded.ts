@@ -8,6 +8,7 @@ export type RecordedLap = {
   distance_m: number; avg_speed_mps: number; top_speed_mps: number; trap_speed_mps: number;
   position_start: number; position_end: number; gap_ahead_start_ms: number; gap_leader_start_ms: number;
   compound: string; tyre_age_laps: number; fuel_start_kg: number; fuel_end_kg: number; ers_start_j: number; ers_end_j: number;
+  tyre_wear_pct: number; tyre_surface_c: number; tyre_core_c: number;
   pit_in: boolean; pit_out: boolean; valid: boolean; track_limits: boolean; complete: boolean;
   extra_json?: string; corner_speeds?: Record<string, { availability: string; value: number | null }>;
 };
@@ -38,6 +39,10 @@ export function useSessionAnalytics(sessionId: string | null) {
 
 export const driversOf = (s: SessionAnalytics | null, car: number) =>
   s?.laps.filter((l) => l.car_index === car && l.complete && l.lap_ms > 0) ?? [];
+
+/** Every driver/series key across all rows, so a late first lap is not dropped. */
+export const seriesKeys = (data: Record<string, number | null>[]) =>
+  data.length ? [...new Set(data.flatMap((row) => Object.keys(row)))].filter((k) => k !== "lap") : [];
 
 export const sessionLabel: Record<string, string> = {
   race: "Race", sprint: "Sprint", practice: "Practice", time_trial: "Time trial",

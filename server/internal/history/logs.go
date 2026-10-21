@@ -23,30 +23,31 @@ func (c *Catalog) LastInputTokens(ctx context.Context, conversationID string) in
 }
 
 type AgentLogRow struct {
-	ID                      string         `json:"id"`
-	SessionID               string         `json:"session_id"`
-	BranchID                string         `json:"branch_id"`
-	Profile                 string         `json:"profile"`
-	Status                  string         `json:"status"`
-	TriggerIDs              []string       `json:"trigger_ids"`
-	Model                   string         `json:"model"`
-	EndpointID              string         `json:"endpoint_id"`
-	ConversationID          string         `json:"conversation_id"`
-	PromptRevisionID        string         `json:"prompt_revision_id,omitempty"`
-	PromptSHA256            string         `json:"prompt_sha256,omitempty"`
-	StartedAtMs             *int64         `json:"started_at_ms"`
-	EndedAtMs               *int64         `json:"ended_at_ms"`
-	LatencyMs               *int64         `json:"latency_ms"`
-	CompactionCount         int            `json:"compaction_count"`
-	NotificationDisposition string         `json:"notification_disposition"`
-	Usage                   contract.Usage `json:"usage"`
-	Decision                string         `json:"decision,omitempty"`
-	DriverMessage           string         `json:"driver_message,omitempty"`
-	ErrorCode               string         `json:"error_code,omitempty"`
-	ErrorMessage            string         `json:"error_message,omitempty"`
-	EventCount              int            `json:"event_count"`
-	LastKind                string         `json:"last_kind,omitempty"`
-	LastAtMs                *int64         `json:"last_at_ms"`
+	ID                      string          `json:"id"`
+	SessionID               string          `json:"session_id"`
+	BranchID                string          `json:"branch_id"`
+	Profile                 string          `json:"profile"`
+	Status                  string          `json:"status"`
+	TriggerIDs              []string        `json:"trigger_ids"`
+	Model                   string          `json:"model"`
+	EndpointID              string          `json:"endpoint_id"`
+	ConversationID          string          `json:"conversation_id"`
+	PromptRevisionID        string          `json:"prompt_revision_id,omitempty"`
+	PromptSHA256            string          `json:"prompt_sha256,omitempty"`
+	StartedAtMs             *int64          `json:"started_at_ms"`
+	EndedAtMs               *int64          `json:"ended_at_ms"`
+	LatencyMs               *int64          `json:"latency_ms"`
+	CompactionCount         int             `json:"compaction_count"`
+	NotificationDisposition string          `json:"notification_disposition"`
+	Usage                   contract.Usage  `json:"usage"`
+	Decision                string          `json:"decision,omitempty"`
+	DriverMessage           string          `json:"driver_message,omitempty"`
+	ErrorCode               string          `json:"error_code,omitempty"`
+	ErrorMessage            string          `json:"error_message,omitempty"`
+	EventCount              int             `json:"event_count"`
+	LastKind                string          `json:"last_kind,omitempty"`
+	LastAtMs                *int64          `json:"last_at_ms"`
+	OutputJSON              json.RawMessage `json:"output_json,omitempty"`
 }
 
 type AgentLogFilter struct {
@@ -170,6 +171,9 @@ func (c *Catalog) ListAgentLogs(ctx context.Context, f AgentLogFilter) ([]AgentL
 			r.Decision = outObj.Decision
 			if outObj.DriverMessage != nil {
 				r.DriverMessage = *outObj.DriverMessage
+			}
+			if f.InvocationID != "" && json.Valid([]byte(output)) {
+				r.OutputJSON = json.RawMessage(output)
 			}
 		}
 		var errObj struct {

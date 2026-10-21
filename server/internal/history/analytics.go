@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"sort"
 	"strconv"
 	"strings"
@@ -36,6 +37,9 @@ type LapAnalytics struct {
 	FuelEnd        float64                         `json:"fuel_end_kg"`
 	ErsStart       float64                         `json:"ers_start_j"`
 	ErsEnd         float64                         `json:"ers_end_j"`
+	TyreWearPct    float64                         `json:"tyre_wear_pct"`
+	TyreSurfaceC   float64                         `json:"tyre_surface_c"`
+	TyreCoreC      float64                         `json:"tyre_core_c"`
 	PitIn          bool                            `json:"pit_in"`
 	PitOut         bool                            `json:"pit_out"`
 	Valid          bool                            `json:"valid"`
@@ -114,8 +118,9 @@ func (c *Catalog) UpsertLapAnalytics(ctx context.Context, l LapAnalytics) error 
 	extra, _ := json.Marshal(l.CornerSpeeds)
 	_, err := c.db.ExecContext(ctx, `INSERT INTO lap_analytics(session_id, branch_id, car_idx, lap, lap_ms, sector1_ms, sector2_ms, sector3_ms,
 		distance_m, avg_speed_mps, top_speed_mps, trap_speed_mps, position_start, position_end, gap_ahead_start_ms, gap_leader_start_ms,
-		compound, tyre_age_laps, fuel_start_kg, fuel_end_kg, ers_start_j, ers_end_j, pit_in, pit_out, valid, track_limits, complete, conditions, extra_json)
-		VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+		compound, tyre_age_laps, fuel_start_kg, fuel_end_kg, ers_start_j, ers_end_j, tyre_wear_pct, tyre_surface_c, tyre_core_c,
+		pit_in, pit_out, valid, track_limits, complete, conditions, extra_json)
+		VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 		ON CONFLICT(session_id, branch_id, car_idx, lap) DO UPDATE SET
 		lap_ms=excluded.lap_ms, sector1_ms=COALESCE(NULLIF(excluded.sector1_ms,0),lap_analytics.sector1_ms),
 		 sector2_ms=COALESCE(NULLIF(excluded.sector2_ms,0),lap_analytics.sector2_ms),
@@ -124,12 +129,24 @@ func (c *Catalog) UpsertLapAnalytics(ctx context.Context, l LapAnalytics) error 
 		position_start=excluded.position_start, position_end=excluded.position_end, gap_ahead_start_ms=excluded.gap_ahead_start_ms,
 		gap_leader_start_ms=excluded.gap_leader_start_ms, compound=excluded.compound, tyre_age_laps=excluded.tyre_age_laps,
 		fuel_start_kg=excluded.fuel_start_kg, fuel_end_kg=excluded.fuel_end_kg, ers_start_j=excluded.ers_start_j, ers_end_j=excluded.ers_end_j,
+		tyre_wear_pct=excluded.tyre_wear_pct, tyre_surface_c=excluded.tyre_surface_c, tyre_core_c=excluded.tyre_core_c,
 		pit_in=excluded.pit_in, pit_out=excluded.pit_out, valid=excluded.valid, track_limits=excluded.track_limits,
 		complete=excluded.complete, conditions=excluded.conditions, extra_json=excluded.extra_json`,
 		l.SessionID, l.BranchID, l.CarIndex, l.Lap, l.LapMs, l.Sector1Ms, l.Sector2Ms, l.Sector3Ms, l.DistanceM, l.AvgSpeed, l.TopSpeed,
 		l.TrapSpeed, l.PositionStart, l.PositionEnd, l.GapAheadStart, l.GapLeaderStart, l.Compound, l.TyreAge, l.FuelStart, l.FuelEnd,
-		l.ErsStart, l.ErsEnd, boolInt(l.PitIn), boolInt(l.PitOut), boolInt(l.Valid), boolInt(l.TrackLimits), boolInt(l.Complete), l.Conditions, string(extra))
+		l.ErsStart, l.ErsEnd, l.TyreWearPct, l.TyreSurfaceC, l.TyreCoreC, boolInt(l.PitIn), boolInt(l.PitOut), boolInt(l.Valid), boolInt(l.TrackLimits), boolInt(l.Complete), l.Conditions, string(extra))
 	return err
+}
+
+// LapComplete reports whether a lap row exists and whether it is complete.
+func (c *Catalog) LapComplete(ctx context.Context, sessionID, branchID string, car, lap int) (bool, bool, error) {
+	var complete int
+	err := c.db.QueryRowContext(ctx, `SELECT complete FROM lap_analytics WHERE session_id=? AND branch_id=? AND car_idx=? AND lap=?`,
+		sessionID, branchID, car, lap).Scan(&complete)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, false, nil
+	}
+	return true, complete != 0, err
 }
 
 // UpdateLapSectors fills the sector record from packet 11's lap history.
@@ -206,7 +223,8 @@ func (c *Catalog) LapAnalytics(ctx context.Context, sessionID, branchID string, 
 	q := `SELECT session_id, branch_id, car_idx, lap, COALESCE(lap_ms,0), COALESCE(sector1_ms,0), COALESCE(sector2_ms,0), COALESCE(sector3_ms,0),
 		COALESCE(distance_m,0), COALESCE(avg_speed_mps,0), COALESCE(top_speed_mps,0), COALESCE(trap_speed_mps,0), COALESCE(position_start,0), COALESCE(position_end,0),
 		COALESCE(gap_ahead_start_ms,0), COALESCE(gap_leader_start_ms,0), COALESCE(compound,''), COALESCE(tyre_age_laps,0), COALESCE(fuel_start_kg,0), COALESCE(fuel_end_kg,0),
-		COALESCE(ers_start_j,0), COALESCE(ers_end_j,0), pit_in, pit_out, valid, track_limits, complete, COALESCE(conditions,''), COALESCE(extra_json,'{}')
+		COALESCE(ers_start_j,0), COALESCE(ers_end_j,0), COALESCE(tyre_wear_pct,0), COALESCE(tyre_surface_c,0), COALESCE(tyre_core_c,0),
+		pit_in, pit_out, valid, track_limits, complete, COALESCE(conditions,''), COALESCE(extra_json,'{}')
 		FROM lap_analytics WHERE session_id=? AND branch_id IN (` + questionMarks(len(branches)) + `)`
 	for _, b := range branches {
 		rank[b] = len(rank)
@@ -229,7 +247,8 @@ func (c *Catalog) LapAnalytics(ctx context.Context, sessionID, branchID string, 
 		var extra string
 		if err := rows.Scan(&l.SessionID, &l.BranchID, &l.CarIndex, &l.Lap, &l.LapMs, &l.Sector1Ms, &l.Sector2Ms, &l.Sector3Ms,
 			&l.DistanceM, &l.AvgSpeed, &l.TopSpeed, &l.TrapSpeed, &l.PositionStart, &l.PositionEnd, &l.GapAheadStart, &l.GapLeaderStart,
-			&l.Compound, &l.TyreAge, &l.FuelStart, &l.FuelEnd, &l.ErsStart, &l.ErsEnd, &pitIn, &pitOut, &valid, &limits, &complete, &l.Conditions, &extra); err != nil {
+			&l.Compound, &l.TyreAge, &l.FuelStart, &l.FuelEnd, &l.ErsStart, &l.ErsEnd, &l.TyreWearPct, &l.TyreSurfaceC, &l.TyreCoreC,
+			&pitIn, &pitOut, &valid, &limits, &complete, &l.Conditions, &extra); err != nil {
 			return nil, err
 		}
 		l.PitIn, l.PitOut, l.Valid, l.TrackLimits, l.Complete = pitIn != 0, pitOut != 0, valid != 0, limits != 0, complete != 0
@@ -362,7 +381,7 @@ func (c *Catalog) insertStint(ctx context.Context, sessionID, branchID string, c
 	_, err := c.db.ExecContext(ctx, `INSERT INTO analytics_stints(session_id, branch_id, car_idx, kind, idx, start_lap, end_lap, compound, laps, best_ms, median_ms,
 		degradation_ms_per_lap, wear_start_pct, wear_end_pct, fuel_start_kg, fuel_end_kg, ers_start_j, ers_end_j, conditions)
 		VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, sessionID, branchID, car, kind, idx, start.Lap, end.Lap, end.Compound, len(ls),
-		best, med, slope, 0.0, 0.0, start.FuelStart, end.FuelEnd, start.ErsStart, end.ErsEnd, start.Conditions)
+		best, med, slope, start.TyreWearPct, end.TyreWearPct, start.FuelStart, end.FuelEnd, start.ErsStart, end.ErsEnd, start.Conditions)
 	return err
 }
 
@@ -402,6 +421,7 @@ func (c *Catalog) UpsertSessionAnalytics(ctx context.Context, sessionID, branchI
 		return err
 	}
 	var best, theo int64
+	var bestS1, bestS2, bestS3 int64
 	var clean, total int
 	var avgSum, top float64
 	for _, l := range laps {
@@ -414,9 +434,14 @@ func (c *Catalog) UpsertSessionAnalytics(ctx context.Context, sessionID, branchI
 			best = l.LapMs
 		}
 		if l.Sector1Ms > 0 && l.Sector2Ms > 0 && l.Sector3Ms > 0 {
-			v := l.Sector1Ms + l.Sector2Ms + l.Sector3Ms
-			if theo == 0 || v < theo {
-				theo = v
+			if bestS1 == 0 || l.Sector1Ms < bestS1 {
+				bestS1 = l.Sector1Ms
+			}
+			if bestS2 == 0 || l.Sector2Ms < bestS2 {
+				bestS2 = l.Sector2Ms
+			}
+			if bestS3 == 0 || l.Sector3Ms < bestS3 {
+				bestS3 = l.Sector3Ms
 			}
 		}
 		avgSum += l.AvgSpeed
@@ -427,6 +452,9 @@ func (c *Catalog) UpsertSessionAnalytics(ctx context.Context, sessionID, branchI
 	avg := 0.0
 	if clean > 0 {
 		avg = avgSum / float64(clean)
+	}
+	if bestS1 > 0 && bestS2 > 0 && bestS3 > 0 {
+		theo = bestS1 + bestS2 + bestS3
 	}
 	_, err = c.db.ExecContext(ctx, `INSERT INTO session_analytics(session_id, branch_id, best_lap_ms, theoretical_best_ms, clean_laps, total_laps, avg_speed_mps, top_speed_mps, derived_at_ms, method_version)
 		VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(session_id) DO UPDATE SET branch_id=excluded.branch_id, best_lap_ms=excluded.best_lap_ms,

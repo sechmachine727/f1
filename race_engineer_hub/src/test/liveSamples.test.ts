@@ -1,6 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { act, renderHook } from "@testing-library/react";
 import { UI_CHANNELS, type Metric } from "@/lib/live";
-import { TRACE_CHANNELS, pointAt, trimBefore } from "@/lib/liveSamples";
+import { TRACE_CHANNELS, pointAt, trimBefore, useLiveSamples } from "@/lib/liveSamples";
 import type { SamplePoint } from "@/lib/samples";
 
 const metric = (channel: string, car: number, value: number | string | boolean, availability = "available"): Metric => ({
@@ -43,6 +44,27 @@ describe("selected-car live samples", () => {
     expect(UI_CHANNELS).not.toContain("car.brake_fraction");
     expect(TRACE_CHANNELS).toContain("car.throttle_fraction");
     expect(TRACE_CHANNELS).toContain("car.brake_fraction");
+  });
+
+  it("reopens the sample stream when the branch changes", async () => {
+    const sockets: { url: string; close: () => void }[] = [];
+    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, status: 200, json: async () => ({ cars: [] }) }) as Response));
+    vi.stubGlobal("WebSocket", class {
+      onopen = null; onmessage = null; onerror = null;
+      constructor(public url: string) { sockets.push(this); }
+      send() {}
+      close() {}
+    });
+    try {
+      const { rerender } = renderHook(({ branch }) => useLiveSamples("s", branch, [0], true), { initialProps: { branch: "b1" } });
+      await act(async () => {});
+      expect(sockets).toHaveLength(1);
+      rerender({ branch: "b2" });
+      await act(async () => {});
+      expect(sockets).toHaveLength(2);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });
 

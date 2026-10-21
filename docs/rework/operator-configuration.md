@@ -11,13 +11,14 @@ Restart means the running process must restart for the change to take effect. Va
 | `F1TELE_HTTP_ADDR` | `0.0.0.0:8081` | yes | Dashboard and API listener as `host:port` |
 | `F1TELE_UDP_ADDR` | `0.0.0.0:20777` | yes | Telemetry listener as `host:port` |
 | `F1TELE_UDP_ADVERTISE_HOST` | first non-loopback IPv4 | live | Host shown to the game when it runs on another machine |
-| `F1TELE_RECORDING_ENABLED` | `true` | live | Record received datagrams |
-| `F1TELE_RECORDING_CAP_BYTES` | `107374182400` | live | Total recording cap in bytes (100 GB) |
-| `F1TELE_RECORDING_FREE_RESERVE_BYTES` | `5368709120` | live | Free disk kept unused (5 GB) |
-| `F1TELE_RECORDING_CHUNK_BYTES` | `1048576` | live | MCAP chunk size in bytes |
-| `F1TELE_RECORDING_ROTATE_BYTES` | `268435456` | live | Recording rotation size in bytes |
-| `F1TELE_RECORDING_CHUNK_FLUSH_MS` | `1000` | live | Checkpoint cadence in milliseconds |
+| `F1TELE_RECORDING_ENABLED` | `true` | restart | Record received datagrams |
+| `F1TELE_RECORDING_CAP_BYTES` | `107374182400` | restart | Total recording cap in bytes (100 GB) |
+| `F1TELE_RECORDING_FREE_RESERVE_BYTES` | `5368709120` | restart | Free disk kept unused (5 GB) |
+| `F1TELE_RECORDING_CHUNK_BYTES` | `1048576` | restart | MCAP chunk size in bytes |
+| `F1TELE_RECORDING_ROTATE_BYTES` | `268435456` | restart | Recording rotation size in bytes |
+| `F1TELE_RECORDING_CHUNK_FLUSH_MS` | `1000` | restart | Checkpoint cadence in milliseconds |
 | `F1TELE_SECURITY_ORIGIN_CHECK` | `true` | live | Reject cross-origin browser requests |
+| `F1TELE_SESSION_INACTIVITY_SECONDS` | `600` | live | Close a session after this quiet period |
 | `F1TELE_AUTH_PASSWORD` | generated once | live | Dashboard password; never returned by the API |
 | `F1TELE_AGENT_ENABLED` | `false` | live | Enable model-backed engineer calls |
 | `F1TELE_AGENT_ENDPOINT_ID` | `env` | live | Identifier of the endpoint to use |

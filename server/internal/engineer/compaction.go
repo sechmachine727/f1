@@ -117,7 +117,7 @@ func (m *Manager) conversation(ctx context.Context, convID string, tailTokens in
 	return kept, total, nil
 }
 
-func (m *Manager) compact(ctx context.Context, parent contract.Invocation, cfg contract.Config, endpoint contract.Endpoint, key, convID, trigger, focus string, beforeTokens int) (*history.AgentCompaction, error) {
+func (m *Manager) compact(ctx context.Context, parent contract.Invocation, cfg contract.Config, endpoint contract.Endpoint, key, convID, trigger, focus string, beforeTokens, tailTokens int) (*history.AgentCompaction, error) {
 	messages, total, err := m.conversation(ctx, convID, 0)
 	if err != nil {
 		return nil, err
@@ -129,19 +129,28 @@ func (m *Manager) compact(ctx context.Context, parent contract.Invocation, cfg c
 		beforeTokens = total
 	}
 	limit := effectiveLimit(cfg, endpoint)
-	tailTokens := limit * cfg.Agent.Compaction.RecentTailPercent / 100
-	if tailTokens < 400 {
-		tailTokens = 400
+	if tailTokens <= 0 {
+		tailTokens = limit * cfg.Agent.Compaction.RecentTailPercent / 100
+		if tailTokens < 400 {
+			tailTokens = 400
+		}
 	}
 	maxOut := cfg.Agent.MaxOutputTokens
 	if maxOut <= 0 || maxOut > 4096 {
 		maxOut = 4096
 	}
-	if _, ok, reason := m.budget.Reserve(int64(cfg.Agent.ContextTokens), maxOut); !ok {
+	res, ok, reason := m.budget.Reserve(int64(cfg.Agent.ContextTokens), maxOut)
+	if !ok {
 		return nil, fmt.Errorf("compaction budget blocked: %s", reason)
 	}
 	usage := contract.Usage{UsageEstimated: true}
-	defer func() { m.budget.Reconcile(int64(cfg.Agent.ContextTokens)+int64(maxOut), usage) }()
+	defer func() {
+		if usage.ProviderRequests == 0 {
+			m.budget.Release(res)
+			return
+		}
+		m.budget.Reconcile(res, usage)
+	}()
 	cmpInv := contract.Invocation{
 		ID: fmt.Sprintf("cmp-%d", time.Now().UnixNano()), Profile: "compaction", SessionID: parent.SessionID,
 		BranchID: parent.BranchID, Status: "running", StartedAtMs: int64Ptr(time.Now().UnixMilli()),
@@ -251,16 +260,16 @@ func callCompaction(ctx context.Context, ep contract.Endpoint, key, transcript, 
 	req.Header.Set("Authorization", "Bearer "+key)
 	resp, err := (&http.Client{Timeout: 90 * time.Second}).Do(req)
 	if err != nil {
-		return "", contract.Usage{UsageEstimated: true}, ep.Model, err
+		return "", contract.Usage{ProviderRequests: 1, UsageEstimated: true}, ep.Model, err
 	}
 	defer resp.Body.Close()
 	payload, _ := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
-		return "", contract.Usage{UsageEstimated: true}, ep.Model, fmt.Errorf("compaction provider %d: %s", resp.StatusCode, strings.TrimSpace(string(payload)))
+		return "", contract.Usage{ProviderRequests: 1, UsageEstimated: true}, ep.Model, fmt.Errorf("compaction provider %d: %s", resp.StatusCode, strings.TrimSpace(string(payload)))
 	}
 	var doc map[string]any
 	if err := json.Unmarshal(payload, &doc); err != nil {
-		return "", contract.Usage{UsageEstimated: true}, ep.Model, err
+		return "", contract.Usage{ProviderRequests: 1, UsageEstimated: true}, ep.Model, err
 	}
 	content := ""
 	if choices, ok := doc["choices"].([]any); ok && len(choices) > 0 {
@@ -288,7 +297,7 @@ func callCompaction(ctx context.Context, ep contract.Endpoint, key, transcript, 
 		}
 	}
 	if strings.TrimSpace(content) == "" {
-		return "", contract.Usage{UsageEstimated: true}, ep.Model, fmt.Errorf("compaction provider returned no text")
+		return "", contract.Usage{ProviderRequests: 1, UsageEstimated: true}, ep.Model, fmt.Errorf("compaction provider returned no text")
 	}
 	usage := contract.Usage{ProviderRequests: 1, UsageEstimated: true}
 	if u, ok := doc["usage"].(map[string]any); ok {

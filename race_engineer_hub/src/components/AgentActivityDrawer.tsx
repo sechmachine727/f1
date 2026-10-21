@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/live";
 import { type AgentEvent, type AgentLog, eventStage, runningKind, useAgentActivity } from "@/lib/activity";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 
 export function AgentActivityDrawer({ session, branch, onOpenLogs }: { session: string; branch: string; onOpenLogs?: (session?: string, branch?: string) => void }) {
   const [open, setOpen] = useState(false);
@@ -30,31 +31,23 @@ export function AgentActivityDrawer({ session, branch, onOpenLogs }: { session: 
     setLive((prev) => ({ ...prev, [e.invocation_id]: e }));
     if (["accepted", "rejected", "cancelled", "interrupted", "compaction_completed", "notification"].includes(e.kind)) void load();
   });
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (ev: KeyboardEvent) => { if (ev.key === "Escape") setOpen(false); };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open]);
-
   const running = useMemo(() => Object.values(live).filter((e) => runningKind(e.kind)), [live]);
   return (
-    <>
-      <button
-        onClick={() => setOpen(true)}
-        disabled={!session}
-        className="relative rounded-sm border border-[#2f5a3d] bg-[#1d3b2c] px-2.5 py-1 text-[12px] text-[#8ef0b4] disabled:opacity-40"
-      >
-        Agent activity
-        {running.length ? <span className="ml-1.5 rounded-full bg-[#8ef0b4] px-1.5 text-[10px] font-semibold text-[#0b0d11]">{running.length}</span> : null}
-      </button>
-      {open ? (
-        <div className="fixed inset-0 z-50 flex justify-end bg-black/40" onClick={() => setOpen(false)}>
-          <aside role="dialog" aria-modal="true" aria-label="Agent activity" className="h-full w-full max-w-[440px] overflow-auto border-l border-[#2a3038] bg-[#0d1015] p-4 text-neutral-100" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-start gap-2">
-              <div><h2 className="text-sm font-semibold">Agent activity</h2><p className="text-[11px] text-neutral-400">Live stages for this session.</p></div>
-              <button className="ml-auto text-[12px] text-neutral-400 underline" onClick={() => setOpen(false)}>Close</button>
-            </div>
+    <Sheet open={open} onOpenChange={setOpen}>
+      <SheetTrigger asChild>
+        <button
+          disabled={!session}
+          className="relative rounded-sm border border-[#2f5a3d] bg-[#1d3b2c] px-2.5 py-1 text-[12px] text-[#8ef0b4] disabled:opacity-40"
+        >
+          Agent activity
+          {running.length ? <span className="ml-1.5 rounded-full bg-[#8ef0b4] px-1.5 text-[10px] font-semibold text-[#0b0d11]">{running.length}</span> : null}
+        </button>
+      </SheetTrigger>
+      <SheetContent side="right" className="w-full max-w-[440px] overflow-auto border-l border-[#2a3038] bg-[#0d1015] p-4 text-neutral-100 sm:max-w-[440px]">
+        <SheetHeader className="pr-6 text-left">
+          <SheetTitle className="text-sm font-semibold text-neutral-100">Agent activity</SheetTitle>
+          <SheetDescription className="text-[11px] text-neutral-400">Live stages for this session.</SheetDescription>
+        </SheetHeader>
             {error ? <p role="alert" className="mt-3 text-[12px] text-[#f25a5c]">{error}</p> : null}
             {!session ? <p className="mt-4 text-[12px] text-neutral-400">No active session.</p> : null}
             {running.length ? <section className="mt-4 space-y-2">{running.map((e) => <LiveCard key={e.invocation_id} event={e} log={items.find((i) => i.id === e.invocation_id)} />)}</section> : null}
@@ -72,10 +65,8 @@ export function AgentActivityDrawer({ session, branch, onOpenLogs }: { session: 
               </ul>
             </section>
             <button onClick={() => { setOpen(false); onOpenLogs?.(session, branch); }} className="mt-4 w-full border border-[#2a3038] bg-[#151920] px-3 py-2 text-[12px] text-neutral-200">Open full logs</button>
-          </aside>
-        </div>
-      ) : null}
-    </>
+      </SheetContent>
+    </Sheet>
   );
 }
 

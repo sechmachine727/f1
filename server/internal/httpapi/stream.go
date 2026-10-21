@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sort"
 	"strconv"
 	"sync"
 	"time"
@@ -34,12 +35,15 @@ type fingerprint struct {
 }
 
 type streamClient struct {
-	mu      sync.Mutex
-	sub     contract.StreamSubscription
-	out     chan contract.StreamMessage
-	last    map[string]fingerprint
-	seq     uint64
-	lastEvt string
+	mu         sync.Mutex
+	sub        contract.StreamSubscription
+	out        chan contract.StreamMessage
+	last       map[string]fingerprint
+	seq        uint64
+	lastEvt    string
+	lastEvtSeq uint64
+	lastEvtIDs []string
+	lastAlerts string
 }
 
 func printOf(m contract.Measurement) fingerprint {
@@ -112,6 +116,9 @@ func (a *API) stream(w http.ResponseWriter, r *http.Request) {
 			// Force a fresh snapshot for the new subscription.
 			c.last = map[string]fingerprint{}
 			c.lastEvt = ""
+			c.lastEvtSeq = 0
+			c.lastEvtIDs = nil
+			c.lastAlerts = ""
 			c.mu.Unlock()
 			select {
 			case c.out <- a.snapshotMessage(c):
@@ -172,10 +179,12 @@ func (a *API) snapshotMessage(c *streamClient) contract.StreamMessage {
 		c.last[m.ID] = printOf(m.Measurement)
 	}
 	evts := a.eventsFor(c, snap.Events)
+	alerts := sortedAlerts(a.Arbiter.Alerts())
+	c.lastAlerts = alertsDigest(alerts)
 	msg := contract.StreamMessage{
 		SchemaVersion: contract.SchemaVersion, Type: "snapshot", SourceID: "live", Seq: seq, BaseSeq: nil,
 		Context: &ctx, Metrics: snap.Metrics, RemovedMetricIDs: []string{}, Events: evts,
-		Status: &snap.RecordingState, EngineerOutputs: []contract.AgentOutput{}, Alerts: a.Arbiter.Alerts(), Jobs: []contract.Job{},
+		Status: &snap.RecordingState, EngineerOutputs: []contract.AgentOutput{}, Alerts: alerts, Jobs: []contract.Job{},
 	}
 	if !snap.LastAcceptedAt.IsZero() {
 		msg.ObservedAtMs = snap.LastAcceptedAt.UnixMilli()
@@ -216,7 +225,14 @@ func (a *API) deltaMessage(c *streamClient) *contract.StreamMessage {
 		}
 	}
 	evts := a.eventsFor(c, snap.Events)
-	if len(changed) == 0 && len(removed) == 0 && len(evts) == 0 {
+	alerts := sortedAlerts(a.Arbiter.Alerts())
+	digest := alertsDigest(alerts)
+	var changedAlerts []contract.Alert
+	if digest != c.lastAlerts {
+		changedAlerts = alerts
+		c.lastAlerts = digest
+	}
+	if len(changed) == 0 && len(removed) == 0 && len(evts) == 0 && changedAlerts == nil {
 		return nil
 	}
 	prev := strconv.FormatUint(c.seq, 10)
@@ -229,7 +245,7 @@ func (a *API) deltaMessage(c *streamClient) *contract.StreamMessage {
 	msg := &contract.StreamMessage{
 		SchemaVersion: contract.SchemaVersion, Type: "delta", SourceID: "live", Seq: seq, BaseSeq: &prev,
 		Context: &ctx, Metrics: changed, RemovedMetricIDs: removed, Events: evts, Status: status,
-		EngineerOutputs: []contract.AgentOutput{}, Alerts: []contract.Alert{}, Jobs: []contract.Job{},
+		EngineerOutputs: []contract.AgentOutput{}, Alerts: changedAlerts, Jobs: []contract.Job{},
 	}
 	if !snap.LastAcceptedAt.IsZero() {
 		msg.ObservedAtMs = snap.LastAcceptedAt.UnixMilli()
@@ -239,20 +255,68 @@ func (a *API) deltaMessage(c *streamClient) *contract.StreamMessage {
 }
 
 func (a *API) eventsFor(c *streamClient, all []contract.Event) []contract.Event {
-	var out []contract.Event
+	out := []contract.Event{}
 	for _, e := range all {
-		if e.ID == c.lastEvt {
-			continue
+		if seq, err := strconv.ParseUint(e.Seq, 10, 64); err == nil {
+			if seq < c.lastEvtSeq {
+				continue
+			}
+			if seq == c.lastEvtSeq && containsString(c.lastEvtIDs, e.ID) {
+				continue
+			}
+			if seq > c.lastEvtSeq {
+				c.lastEvtSeq = seq
+				c.lastEvtIDs = c.lastEvtIDs[:0]
+			}
+			c.lastEvtIDs = append(c.lastEvtIDs, e.ID)
+		} else {
+			if e.ID == c.lastEvt {
+				continue
+			}
+			c.lastEvt = e.ID
 		}
 		out = append(out, e)
 	}
-	if len(out) > 0 {
-		c.lastEvt = out[len(out)-1].ID
-	}
-	if out == nil {
-		out = []contract.Event{}
-	}
 	return out
+}
+
+func containsString(values []string, want string) bool {
+	for _, v := range values {
+		if v == want {
+			return true
+		}
+	}
+	return false
+}
+
+func sortedAlerts(alerts []contract.Alert) []contract.Alert {
+	out := make([]contract.Alert, 0, len(alerts))
+	out = append(out, alerts...)
+	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
+	return out
+}
+
+// alertsDigest covers only fields a client can act on. Live timestamps and
+// summary values change on every observation and would resend the array at the
+// observation rate.
+func alertsDigest(alerts []contract.Alert) string {
+	type key struct {
+		ID          string
+		ConditionID string
+		State       string
+		Severity    string
+		Ack         bool
+	}
+	keys := make([]key, 0, len(alerts))
+	for _, a := range alerts {
+		keys = append(keys, key{ID: a.ID, ConditionID: a.ConditionID, State: a.State, Severity: a.Severity, Ack: a.Acknowledged})
+	}
+	sort.Slice(keys, func(i, j int) bool { return keys[i].ID < keys[j].ID })
+	raw, err := json.Marshal(keys)
+	if err != nil {
+		return ""
+	}
+	return string(raw)
 }
 
 func mustJSON(v any) []byte {

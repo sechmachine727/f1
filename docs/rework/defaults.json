@@ -19,6 +19,9 @@
     "rotate_bytes": 268435456,
     "automatic_cleanup": false
   },
+  "session": {
+    "inactivity_seconds": 600
+  },
   "security": {
     "origin_check": true
   },

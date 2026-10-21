@@ -22,6 +22,9 @@
   "security": {
     "origin_check": true
   },
+  "session": {
+    "inactivity_seconds": 600
+  },
   "agent": {
     "enabled": false,
     "endpoint_id": null,

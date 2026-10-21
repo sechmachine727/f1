@@ -52,7 +52,10 @@ type Server struct {
 	stats                                 *IntakeStats
 	lastContextFP                         string
 	lastSession, lastFragment, lastBranch string
+	closedSession                         string
+	closedFragment                        string
 	eventIndex                            int
+	eventSession                          string
 	laps                                  map[int]lapState
 	tracker                               *analytics.Tracker
 }
@@ -75,12 +78,23 @@ func New(store *config.Store, logger *slog.Logger) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
+	if err := history.ReconcileRecordings(context.Background(), cat); err != nil {
+		return nil, err
+	}
+	if err := cat.CloseStaleSessions(context.Background(), time.Now().UnixMilli()); err != nil {
+		return nil, err
+	}
 	rec := history.NewRecorder(cfg.Recording, cat, dir, nil)
 	src := "ctx-" + installID(dir)
 	if err := cat.EnsureSourceContext(context.Background(), src, "local"); err != nil {
 		return nil, err
 	}
 	reducer := state.New(src, time.Now)
+	rec.SetGapSink(reducer.SetRecordingGap)
+	reducer.SetSessionLookup(func(sourceCtx string, season, weekend, session uint64) (string, bool) {
+		id, lookupErr := cat.LinkedSession(context.Background(), sourceCtx, season, weekend, session)
+		return id, lookupErr == nil && id != ""
+	})
 	s := &Server{cfg: store, catalog: cat, recorder: rec, reducer: reducer, laps: map[int]lapState{}, stats: &IntakeStats{}}
 	s.engine = &analysis.Engine{Catalog: cat, DataDir: dir}
 	s.tracker = analytics.NewTracker(cat)
@@ -170,6 +184,12 @@ func (s *Server) Shutdown(timeout time.Duration) {
 	s.once.Do(func() {
 		if s.cancel != nil {
 			s.cancel()
+		}
+		if s.reducer != nil && s.catalog != nil {
+			cx := s.reducer.Context()
+			now := time.Now().UnixMilli()
+			_ = s.catalog.CloseFragment(context.Background(), cx.FragmentID, now)
+			_ = s.catalog.CloseSession(context.Background(), cx.SessionID, now)
 		}
 		if s.tracker != nil {
 			_ = s.tracker.Close(context.Background())
@@ -262,9 +282,24 @@ func (s *Server) loop(ctx context.Context, logger *slog.Logger) {
 			recState, _ := s.recorder.State()
 			s.reducer.SetRecordingState(recState)
 		case <-closeCheck.C:
-			// A session that has been quiet for ten minutes is closed once; a new
-			// logical session also closes the previous one in the tracker.
-			if last := s.reducer.LastPacketAt(); !last.IsZero() && time.Since(last) > 10*time.Minute {
+			// A quiet session is closed once; a new logical session also closes the
+			// previous one in the tracker. The window is configurable and read live.
+			inactivity := time.Duration(s.cfg.Config().Session.InactivitySeconds) * time.Second
+			if last := s.reducer.LastPacketAt(); !last.IsZero() && time.Since(last) > inactivity {
+				cx := s.reducer.Context()
+				now := time.Now().UnixMilli()
+				if cx.SessionID != "" && cx.SessionID != s.closedSession {
+					if err := s.catalog.CloseSession(ctx, cx.SessionID, now); err != nil {
+						logger.Warn("close session", "err", err)
+					}
+					s.closedSession = cx.SessionID
+				}
+				if cx.FragmentID != "" && cx.FragmentID != s.closedFragment {
+					if err := s.catalog.CloseFragment(ctx, cx.FragmentID, now); err != nil {
+						logger.Warn("close fragment", "err", err)
+					}
+					s.closedFragment = cx.FragmentID
+				}
 				_ = s.tracker.Close(ctx)
 			}
 		}
@@ -273,9 +308,23 @@ func (s *Server) loop(ctx context.Context, logger *slog.Logger) {
 
 func (s *Server) persistIdentityAndLaps(ctx context.Context, p *protocol.Packet, seq uint64) {
 	cx := s.reducer.Context()
+	if cx.SessionID != "" && cx.SessionID == s.closedSession {
+		_ = s.catalog.ReopenSession(ctx, cx.SessionID)
+		s.closedSession = ""
+	}
+	if cx.FragmentID != "" && cx.FragmentID == s.closedFragment {
+		_ = s.catalog.ReopenFragment(ctx, cx.FragmentID)
+		s.closedFragment = ""
+	}
 	if cx.SessionID != s.lastSession {
+		if s.lastSession != "" {
+			_ = s.catalog.CloseSession(ctx, s.lastSession, time.Now().UnixMilli())
+		}
 		_ = s.catalog.CreateSession(ctx, cx.SessionID, cx)
+		// A resumed session keeps its original start time and becomes live again.
+		_ = s.catalog.ReopenSession(ctx, cx.SessionID)
 		s.lastSession = cx.SessionID
+		s.closedSession = ""
 	}
 	if p.Header.PacketID == 1 || p.Header.PacketID == 16 {
 		fp := ctxFingerprint(cx)
@@ -285,8 +334,13 @@ func (s *Server) persistIdentityAndLaps(ctx context.Context, p *protocol.Packet,
 		}
 	}
 	if cx.FragmentID != s.lastFragment {
+		if s.lastFragment != "" {
+			_ = s.catalog.CloseFragment(ctx, s.lastFragment, time.Now().UnixMilli())
+		}
 		f := contract.Fragment{ID: cx.FragmentID, SessionID: cx.SessionID, SourceContextID: cx.SourceContextID, GameSessionUID: cx.GameSessionUID, StartedAtMs: time.Now().UnixMilli(), Range: contract.Range{FromSeq: strconv.FormatUint(seq, 10), ToSeq: strconv.FormatUint(seq, 10)}}
 		_ = s.catalog.CreateFragment(ctx, f)
+		// A fragment closed by inactivity or startup reconciliation becomes live again.
+		_ = s.catalog.ReopenFragment(ctx, cx.FragmentID)
 		s.lastFragment = cx.FragmentID
 	}
 	if cx.BranchID != s.lastBranch {
@@ -370,6 +424,10 @@ func compoundName(v int) string { return protocol.CompoundLabel(v) }
 func (s *Server) persistEvents() {
 	cx := s.reducer.Context()
 	events := s.reducer.Events()
+	if cx.SessionID != s.eventSession {
+		s.eventIndex = 0
+		s.eventSession = cx.SessionID
+	}
 	if s.eventIndex > len(events) {
 		s.eventIndex = 0
 	}

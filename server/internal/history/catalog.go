@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -37,6 +38,9 @@ var migration005 string
 
 //go:embed migrations/006_agent_activity.sql
 var migration006 string
+
+//go:embed migrations/007_tyre_metrics.sql
+var migration007 string
 
 const seqBlock = 4096
 
@@ -80,6 +84,15 @@ func OpenCatalog(path string) (*Catalog, error) {
 	if _, err := db.Exec(migration006); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("migrate agent activity catalog: %w", err)
+	}
+	for _, stmt := range strings.Split(migration007, ";") {
+		if strings.TrimSpace(stmt) == "" {
+			continue
+		}
+		if _, err := db.Exec(stmt); err != nil && !strings.Contains(err.Error(), "duplicate column name") {
+			db.Close()
+			return nil, fmt.Errorf("migrate tyre metrics catalog: %w", err)
+		}
 	}
 	for _, col := range []string{
 		"conversation_id TEXT",
@@ -174,8 +187,8 @@ func (c *Catalog) CreateSession(ctx context.Context, sessID string, cx contract.
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	raw, _ := json.Marshal(cx)
-	_, err := c.db.ExecContext(ctx, `INSERT OR REPLACE INTO sessions(id, source_context_id, regulation_season, career_id, mode_family, track_id, context_json, started_at_ms)
-		VALUES(?,?,?,NULL,?,?,?,?)`, sessID, cx.SourceContextID, cx.RegulationSeason, cx.ModeFamily, cx.TrackID, string(raw), time.Now().UnixMilli())
+	_, err := c.db.ExecContext(ctx, `INSERT INTO sessions(id, source_context_id, regulation_season, career_id, mode_family, track_id, context_json, started_at_ms)
+		VALUES(?,?,?,NULL,?,?,?,?) ON CONFLICT(id) DO NOTHING`, sessID, cx.SourceContextID, cx.RegulationSeason, cx.ModeFamily, cx.TrackID, string(raw), time.Now().UnixMilli())
 	return err
 }
 
@@ -193,8 +206,56 @@ func (c *Catalog) CreateFragment(ctx context.Context, f contract.Fragment) error
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	uid := nullableString(f.GameSessionUID)
-	_, err := c.db.ExecContext(ctx, `INSERT OR REPLACE INTO fragments(id, session_id, source_context_id, game_uid, source, started_at_ms, first_seq, last_seq)
-		VALUES(?,?,?,?,?,?,?,?)`, f.ID, f.SessionID, f.SourceContextID, uid, "live", f.StartedAtMs, atoi(f.Range.FromSeq), atoi(f.Range.ToSeq))
+	_, err := c.db.ExecContext(ctx, `INSERT INTO fragments(id, session_id, source_context_id, game_uid, source, started_at_ms, first_seq, last_seq)
+		VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING`, f.ID, f.SessionID, f.SourceContextID, uid, "live", f.StartedAtMs, atoi(f.Range.FromSeq), atoi(f.Range.ToSeq))
+	return err
+}
+
+// CloseSession stamps the end of an inactive session. A repeated or older
+// close leaves the recorded end unchanged.
+func (c *Catalog) CloseSession(ctx context.Context, sessionID string, endedAtMs int64) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	_, err := c.db.ExecContext(ctx, `UPDATE sessions SET ended_at_ms=? WHERE id=? AND (ended_at_ms IS NULL OR ended_at_ms < ?)`,
+		endedAtMs, sessionID, endedAtMs)
+	return err
+}
+
+// CloseFragment stamps the end of an inactive fragment, idempotently.
+func (c *Catalog) CloseFragment(ctx context.Context, fragmentID string, endedAtMs int64) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	_, err := c.db.ExecContext(ctx, `UPDATE fragments SET ended_at_ms=? WHERE id=? AND (ended_at_ms IS NULL OR ended_at_ms < ?)`,
+		endedAtMs, fragmentID, endedAtMs)
+	return err
+}
+
+// ReopenSession clears an inactivity close when telemetry resumes.
+func (c *Catalog) ReopenSession(ctx context.Context, sessionID string) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	_, err := c.db.ExecContext(ctx, `UPDATE sessions SET ended_at_ms=NULL WHERE id=?`, sessionID)
+	return err
+}
+
+// ReopenFragment clears an inactivity close when telemetry resumes.
+func (c *Catalog) ReopenFragment(ctx context.Context, fragmentID string) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	_, err := c.db.ExecContext(ctx, `UPDATE fragments SET ended_at_ms=NULL WHERE id=?`, fragmentID)
+	return err
+}
+
+// CloseStaleSessions closes every open session and fragment at startup. A
+// restart cannot know the last packet time, and any resumed telemetry reopens
+// the rows through ReopenSession and ReopenFragment.
+func (c *Catalog) CloseStaleSessions(ctx context.Context, endedAtMs int64) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if _, err := c.db.ExecContext(ctx, `UPDATE sessions SET ended_at_ms=? WHERE ended_at_ms IS NULL`, endedAtMs); err != nil {
+		return err
+	}
+	_, err := c.db.ExecContext(ctx, `UPDATE fragments SET ended_at_ms=? WHERE ended_at_ms IS NULL`, endedAtMs)
 	return err
 }
 
@@ -243,6 +304,15 @@ func (c *Catalog) CloseRecording(ctx context.Context, recordingID string, offset
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	_, err := c.db.ExecContext(ctx, `UPDATE recordings SET durable_offset=?, last_seq=?, bytes=?, sha256=?, state=? WHERE id=?`, offset, lastSeq, offset, sha, state, recordingID)
+	return err
+}
+
+// SetRecordingFirstSeq persists the first datagram sequence for ordering. It
+// only fills an unset value so a recovered file keeps its original range.
+func (c *Catalog) SetRecordingFirstSeq(ctx context.Context, recordingID string, firstSeq uint64) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	_, err := c.db.ExecContext(ctx, `UPDATE recordings SET first_seq=? WHERE id=? AND first_seq=0`, firstSeq, recordingID)
 	return err
 }
 
@@ -360,13 +430,39 @@ func (c *Catalog) Session(ctx context.Context, id string) (contract.SessionDetai
 
 var ErrNotFound = errors.New("not found")
 
+// LinkedSession finds the logical session that already owns these game link
+// identifiers in the same source context. Zero identifiers are not matched.
+func (c *Catalog) LinkedSession(ctx context.Context, sourceCtx string, season, weekend, session uint64) (string, error) {
+	if session == 0 {
+		return "", nil
+	}
+	q := `SELECT id FROM sessions WHERE source_context_id=? AND json_extract(context_json, '$.session_link_id')=?`
+	args := []any{sourceCtx, strconv.FormatUint(session, 10)}
+	if season != 0 {
+		q += " AND json_extract(context_json, '$.season_link_id')=?"
+		args = append(args, strconv.FormatUint(season, 10))
+	}
+	if weekend != 0 {
+		q += " AND json_extract(context_json, '$.weekend_link_id')=?"
+		args = append(args, strconv.FormatUint(weekend, 10))
+	}
+	q += " ORDER BY started_at_ms DESC, id DESC LIMIT 1"
+	var id string
+	err := c.db.QueryRowContext(ctx, q, args...).Scan(&id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", nil
+	}
+	return id, err
+}
+
 type SessionFilter struct {
-	Cursor     string
-	Limit      int
-	Season     *int
-	ModeFamily string
-	TrackID    *int
-	CareerID   string
+	Cursor           string
+	Limit            int
+	Season           *int
+	SeasonUnassigned bool
+	ModeFamily       string
+	TrackID          *int
+	CareerID         string
 }
 
 func (c *Catalog) ListSessions(ctx context.Context, f SessionFilter) ([]contract.SessionSummary, string, error) {
@@ -385,7 +481,11 @@ func (c *Catalog) ListSessions(ctx context.Context, f SessionFilter) ([]contract
 		"json_extract(s.context_json, '$.weekend_link_id') " +
 		"FROM sessions s WHERE 1=1"
 	args := []any{}
-	if f.Season != nil {
+	// The HTTP handler parses "unassigned" with strconv.Atoi, so a zero season
+	// reaches here as Season=&0. Both forms select sessions with no season.
+	if f.SeasonUnassigned || (f.Season != nil && *f.Season == 0) {
+		q += " AND s.regulation_season IS NULL"
+	} else if f.Season != nil {
 		q += " AND s.regulation_season=?"
 		args = append(args, *f.Season)
 	}
@@ -500,8 +600,21 @@ func (c *Catalog) InsertLap(ctx context.Context, l contract.LapSummary) error {
 func (c *Catalog) Laps(ctx context.Context, sessionID, branchID string, car *int) ([]contract.LapSummary, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	q := `SELECT id, session_id, branch_id, car_idx, lap, start_seq, end_seq, time_ms, validity_json, summary_json FROM laps WHERE session_id=? AND branch_id=?`
-	args := []any{sessionID, branchID}
+	branches, err := c.branchLineage(ctx, sessionID, branchID)
+	if err != nil {
+		return nil, err
+	}
+	if len(branches) == 0 {
+		branches = []string{branchID}
+	}
+	rank := make(map[string]int, len(branches))
+	args := make([]any, 0, len(branches)+2)
+	args = append(args, sessionID)
+	q := `SELECT id, session_id, branch_id, car_idx, lap, start_seq, end_seq, time_ms, validity_json, summary_json FROM laps WHERE session_id=? AND branch_id IN (` + questionMarks(len(branches)) + `)`
+	for _, b := range branches {
+		rank[b] = len(rank)
+		args = append(args, b)
+	}
 	if car != nil {
 		q += ` AND car_idx=?`
 		args = append(args, *car)
@@ -512,7 +625,7 @@ func (c *Catalog) Laps(ctx context.Context, sessionID, branchID string, car *int
 		return nil, err
 	}
 	defer rows.Close()
-	var out []contract.LapSummary
+	byLap := map[string]contract.LapSummary{}
 	for rows.Next() {
 		var l contract.LapSummary
 		var timeMs sql.NullInt64
@@ -540,8 +653,22 @@ func (c *Catalog) Laps(ctx context.Context, sessionID, branchID string, car *int
 		_ = json.Unmarshal([]byte(validity), &v)
 		l.Valid, l.PitLap, l.Neutralized, l.Complete = v["valid"], v["pit"], v["neutralized"], v["complete"]
 		l.Gaps = []string{}
+		k := strconv.Itoa(l.CarIndex) + ":" + strconv.Itoa(l.Lap)
+		if old, ok := byLap[k]; ok && rank[old.BranchID] > rank[l.BranchID] {
+			continue
+		}
+		byLap[k] = l
+	}
+	out := make([]contract.LapSummary, 0, len(byLap))
+	for _, l := range byLap {
 		out = append(out, l)
 	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].CarIndex != out[j].CarIndex {
+			return out[i].CarIndex < out[j].CarIndex
+		}
+		return out[i].Lap < out[j].Lap
+	})
 	return out, rows.Err()
 }
 

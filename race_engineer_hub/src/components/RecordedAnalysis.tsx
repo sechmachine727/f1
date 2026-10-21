@@ -37,7 +37,7 @@ export function RecordedAnalysis() {
   const [download, setDownload] = useState("");
   const [replay, setReplay] = useState<{ id: string; paused: boolean; playhead_session_time_ms: number } | null>(null);
 
-  const laps = useMemo(() => data?.laps.filter((l) => l.complete && l.lap_ms > 0) ?? [], [data]);
+  const laps = useMemo(() => data?.laps.filter((l) => l.lap_ms > 0 || !l.complete) ?? [], [data]);
   const key = (l: RecordedLap) => `${l.car_index}:${l.lap}`;
   const toggle = (l: RecordedLap) => setPicked((p) => p.includes(key(l)) ? p.filter((x) => x !== key(l)) : p.length >= 4 ? p : [...p, key(l)]);
   const name = (car: number) => data?.participants.find((p) => p.car_index === car)?.name || `Car ${car + 1}`;
@@ -102,13 +102,17 @@ export function RecordedAnalysis() {
   }
 
   const consistency = useMemo(() => {
-    const times = laps.filter((l) => picked.includes(key(l))).map((l) => l.lap_ms);
+    const times = laps.filter((l) => picked.includes(key(l)) && l.valid && l.complete).map((l) => l.lap_ms);
     if (times.length < 2) return null;
     const mean = times.reduce((a, b) => a + b, 0) / times.length;
     return Math.sqrt(times.reduce((a, b) => a + (b - mean) ** 2, 0) / times.length) / 1000;
   }, [laps, picked]);
 
   const pickedPairs = picked.map((k) => { const [car, lap] = k.split(":").map(Number); return { car, lap }; });
+  const pickedIncomplete = pickedPairs.some(({ car, lap }) => {
+    const l = laps.find((x) => x.car_index === car && x.lap === lap);
+    return !l || !l.complete || !l.valid || l.lap_ms <= 0;
+  });
   const pickedCars = [...new Set(pickedPairs.map((p) => p.car))];
   const pickedLaps = pickedPairs.map((p) => p.lap);
   const traces = useSessionTelemetry(
@@ -138,7 +142,8 @@ export function RecordedAnalysis() {
       <div className={panel + " flex flex-wrap items-center gap-3 px-4 py-2"}>
         <h2 className="text-lg">Analysis</h2>
         <span className="text-sm text-neutral-400">{sessionLabel[data.session_type] ?? data.session_type} · track {data.track_id ?? "?"} · session {data.session_id.slice(0, 12)}</span>
-        <button onClick={compare} disabled={busy || picked.length < 2} className="ml-auto rounded-sm bg-[#1d3b2c] px-3 py-1.5 text-sm text-[#4fd48a] disabled:opacity-40">{busy ? "Comparing…" : "Compare selected laps"}</button>
+        <button onClick={compare} disabled={busy || picked.length < 2 || pickedIncomplete} className="ml-auto rounded-sm bg-[#1d3b2c] px-3 py-1.5 text-sm text-[#4fd48a] disabled:opacity-40">{busy ? "Comparing…" : "Compare selected laps"}</button>
+        {pickedIncomplete ? <span role="status" className="text-[12px] text-[#f0a03c]">Invalid or incomplete laps cannot be compared.</span> : null}
         <button onClick={exportRange} className="rounded-sm bg-[#151920] px-3 py-1.5 text-sm text-neutral-300">Export CSV</button>
         {exportState ? <span className="text-[12px] text-neutral-400" role="status">{exportState}{download ? <a className="ml-2 text-[#8ef0b4] underline" href={download}>Download</a> : null}</span> : null}
       </div>
@@ -150,7 +155,7 @@ export function RecordedAnalysis() {
             {laps.map((l) => (
               <li key={key(l)}><button aria-pressed={picked.includes(key(l))} onClick={() => toggle(l)}
                 className={"flex w-full justify-between px-2 py-1 text-left text-[13px] " + (picked.includes(key(l)) ? "bg-[#1d3b2c] text-[#c7f5d6]" : "hover:bg-[#151920]")}>
-                <span>{name(l.car_index)} · L{l.lap}</span><span className="tabular-nums text-neutral-400">{fmtLap(l.lap_ms)}</span></button></li>
+                <span>{name(l.car_index)} · L{l.lap}{!l.valid ? <span className="ml-1 text-[10px] text-[#f0a03c]">invalid</span> : null}{!l.complete ? <span className="ml-1 text-[10px] text-neutral-400">incomplete</span> : null}</span><span className="tabular-nums text-neutral-400">{fmtLap(l.lap_ms)}</span></button></li>
             ))}
           </ul>
         </section>

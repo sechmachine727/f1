@@ -71,11 +71,16 @@ type Observer interface {
 	OnBranch(b contract.Branch)
 }
 
+// SessionLookup resolves a saved race by its link identifiers within one
+// source context. The catalog supplies it; state never imports the catalog.
+type SessionLookup func(sourceCtx string, season, weekend, session uint64) (string, bool)
+
 type Reducer struct {
 	mu        sync.RWMutex
 	now       clock
 	sourceCtx string
 	observer  Observer
+	lookup    SessionLookup
 
 	sessionID       string
 	fragmentID      string
@@ -142,6 +147,14 @@ func newID(prefix string) string {
 
 func (r *Reducer) SetObserver(o Observer) { r.mu.Lock(); r.observer = o; r.mu.Unlock() }
 
+// SetSessionLookup lets a new game session rejoin the logical session that
+// already holds the same season, weekend and session link identifiers.
+func (r *Reducer) SetSessionLookup(fn SessionLookup) {
+	r.mu.Lock()
+	r.lookup = fn
+	r.mu.Unlock()
+}
+
 // Apply reduces one validated datagram. Invalid packets are reported to the
 // observer but never mutate live state.
 func (r *Reducer) Apply(seq uint64, at time.Time, data []byte, p *protocol.Packet, invalidReason string) {
@@ -184,14 +197,38 @@ func (r *Reducer) Apply(seq uint64, at time.Time, data []byte, p *protocol.Packe
 
 func (r *Reducer) observeSession(h protocol.Header, p *protocol.Packet) {
 	uid := h.SessionUID
+	if p.Header.PacketID != 1 {
+		if uid != 0 && uid != r.uid {
+			// Without packet 1 the only link evidence is the previous session's.
+			// A resume continues the session clock; a fresh session starts at the
+			// origin, so only the resume may join.
+			if h.SessionTime <= 5 || !r.joinLinked(r.linkSeason, r.linkWeekend, r.linkSession) {
+				r.newFragment(uid)
+			}
+			r.uid = uid
+		}
+		return
+	}
+	var nextSeason, nextWeekend, nextSession uint64
+	var haveSession bool
+	if v, ok := p.Field("m_seasonLinkIdentifier"); ok {
+		nextSeason = uint64(v.F)
+	}
+	if v, ok := p.Field("m_weekendLinkIdentifier"); ok {
+		nextWeekend = uint64(v.F)
+	}
+	if v, ok := p.Field("m_sessionLinkIdentifier"); ok {
+		nextSession, haveSession = uint64(v.F), true
+	}
 	if uid != 0 && uid != r.uid {
-		if r.uid != 0 {
+		season, weekend, session := r.linkSeason, r.linkWeekend, r.linkSession
+		if haveSession {
+			season, weekend, session = nextSeason, nextWeekend, nextSession
+		}
+		if !r.joinLinked(season, weekend, session) {
 			r.newFragment(uid)
 		}
 		r.uid = uid
-	}
-	if p.Header.PacketID != 1 {
-		return
 	}
 	if next, ok := p.Field("m_sessionType"); ok {
 		if r.sessionType != 0 && int(next.F) != r.sessionType {
@@ -232,6 +269,19 @@ func (r *Reducer) observeSession(h protocol.Header, p *protocol.Packet) {
 		r.linkSession = uint64(v.F)
 	}
 	r.resolveSeason(p)
+}
+
+// joinLinked keeps the existing logical session and opens a new fragment.
+func (r *Reducer) joinLinked(season, weekend, session uint64) bool {
+	if r.lookup == nil || session == 0 {
+		return false
+	}
+	id, ok := r.lookup(r.sourceCtx, season, weekend, session)
+	if !ok || id == "" {
+		return false
+	}
+	r.resetFragment(id, true)
+	return true
 }
 
 // resolveSeason keeps the evidence rather than accepting packet format as proof.
@@ -278,10 +328,14 @@ func (r *Reducer) supportedPre2026() bool {
 }
 
 func (r *Reducer) newFragment(uid uint64) {
+	r.resetFragment(newID("ses"), false)
+}
+
+func (r *Reducer) resetFragment(sessionID string, keepLinks bool) {
 	r.fragmentID = newID("frg")
-	r.sessionID = newID("ses")
+	r.sessionID = sessionID
 	r.branchID = newID("br")
-	r.branches = []contract.Branch{{ID: r.branchID, SessionID: r.sessionID, IsSurviving: true}}
+	r.branches = []contract.Branch{{ID: r.branchID, SessionID: sessionID, IsSurviving: true}}
 	r.paused = false
 	r.fields = map[key]sample{}
 	r.carCount = 0
@@ -301,9 +355,11 @@ func (r *Reducer) newFragment(uid uint64) {
 	r.gameMode = 0
 	r.online = 0
 	r.formula = 0
-	r.linkSeason = 0
-	r.linkWeekend = 0
-	r.linkSession = 0
+	if !keepLinks {
+		r.linkSeason = 0
+		r.linkWeekend = 0
+		r.linkSession = 0
+	}
 	r.curveFrame = 0
 	r.gaps = nil
 }

@@ -62,6 +62,14 @@ export function useLiveSamples(sessionId: string | null, branchId: string | null
   const [epoch, setEpoch] = useState(0);
   const key = cars.join(",");
 
+  // A flashback keeps the session id but starts a new branch. Drop the old
+  // samples before the stored-lap fetch or stream for the new scope resolves.
+  useEffect(() => {
+    stored.current = new Map();
+    anchor.current = 0;
+    setPoints(new Map());
+  }, [sessionId, branchId, key, enabled]);
+
   // Completed laps come from the catalogue, on mount and after each lap change.
   useEffect(() => {
     if (!enabled || !sessionId || cars.length === 0) return;
@@ -123,7 +131,7 @@ export function useLiveSamples(sessionId: string | null, branchId: string | null
     ws.onerror = () => ws.close();
     return () => ws.close();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key, enabled]);
+  }, [sessionId, branchId, key, enabled]);
 
   return { anchor: anchor.current, points };
 }

@@ -27,7 +27,8 @@ func (m *Manager) ContextUsage(ctx context.Context, sessionID, branchID string) 
 }
 
 func (m *Manager) Compact(ctx context.Context, sessionID, branchID, focus string) (map[string]any, error) {
-	cfg := m.Store.Config()
+	cfg, rev := m.Store.Snapshot()
+	m.syncConfig(cfg, rev, time.Now())
 	if !cfg.Agent.Enabled || cfg.Agent.EndpointID == nil {
 		return nil, errors.New("no enabled agent endpoint")
 	}
@@ -37,7 +38,7 @@ func (m *Manager) Compact(ctx context.Context, sessionID, branchID, focus string
 	}
 	convID := conversationID("live_question", sessionID, branchID)
 	parent := contract.Invocation{ID: fmt.Sprintf("manual-cmp-%d", time.Now().UnixNano()), SessionID: sessionID, BranchID: branchID, Profile: "compaction"}
-	cmp, err := m.compact(ctx, parent, cfg, endpoint, m.Store.Secret(deref(endpoint.APIKeyEnv)), convID, "manual", focus, 0)
+	cmp, err := m.compact(ctx, parent, cfg, endpoint, m.Store.Secret(deref(endpoint.APIKeyEnv)), convID, "manual", focus, 0, 0)
 	if err != nil {
 		return nil, err
 	}

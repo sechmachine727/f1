@@ -197,7 +197,15 @@ func (a *API) createReplay(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, r, 404, "not_found", "no recording for session")
 		return
 	}
-	src, err := history.LoadReplay(paths[0])
+	var segs []history.Segment
+	if in.BranchID != "" {
+		segs, err = a.Catalog.InheritedSegments(r.Context(), in.BranchID)
+		if err != nil {
+			writeErr(w, r, 404, "not_found", "unknown branch")
+			return
+		}
+	}
+	src, err := history.LoadReplaySession(paths, segs)
 	if err != nil {
 		writeErr(w, r, 500, "replay_error", err.Error())
 		return
