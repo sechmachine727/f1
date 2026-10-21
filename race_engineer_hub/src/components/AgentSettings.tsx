@@ -193,7 +193,7 @@ function CompactionSettings({ view, draft, update }: { view: any; draft: any; up
     if (!selection.sessionId) { setUsage(null); return; }
     try { setUsage(await api<any>("/engineer/context?session=" + encodeURIComponent(selection.sessionId) + "&branch=" + encodeURIComponent(selection.branchId ?? ""))); } catch { setUsage(null); }
   }
-  useEffect(() => { void load(); }, []);
+  useEffect(() => { void load(); }, [selection.sessionId, selection.branchId]);
   async function compact() {
     setBusy(true); setError("");
     try {

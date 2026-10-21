@@ -17,6 +17,7 @@ public sealed partial class SettingsWindow : Window
     private readonly Func<Task>? _beforeSave;
     private readonly SettingsStore _local;
     private ServerConfigFile _config;
+    private bool _saved;
 
     public SettingsWindow(string dataDir, string serverExe, bool firstRun, Func<Task> onSaved, Func<Task>? beforeSave = null)
     {
@@ -36,6 +37,7 @@ public sealed partial class SettingsWindow : Window
         SaveButton.Content = firstRun ? "Save and start" : "Save and restart";
         LoadFields();
         Activated += OnActivated;
+        Closed += (_, _) => { if (_firstRun && !_saved) Application.Current.Exit(); };
     }
 
     private async void OnActivated(Window sender, WindowActivatedEventArgs args)
@@ -184,6 +186,7 @@ public sealed partial class SettingsWindow : Window
             _config.Save(_dataDir);
             _local.FirstRunComplete = true;
             _local.Save();
+            _saved = true;
             StatusText.Text = "Configuration saved.";
             await _onSaved();
             Close();
