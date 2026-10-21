@@ -28,6 +28,7 @@ The dashboard currently has no authentication or Origin validation, the web Sett
 - `agent-context`: durable model-visible transcripts, token accounting, manual and automatic compaction and overflow recovery.
 - `windows-settings`: first-run native configuration, password display/reset, Origin toggle and portable-package connection settings.
 - `session-continuity`: clean reducer and stream state when the game changes qualifying segments or restarts a session.
+- `tyre-corner-telemetry`: independent wheel-array decoding and a continuous green-to-red wear scale.
 
 ### Modified Capabilities
 

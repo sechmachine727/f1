@@ -33,6 +33,8 @@ A temporary server on `127.0.0.1:8099` with a fresh data directory and `F1TELE_A
 - The final container was rebuilt and started with `F1TELE_UDP_ADVERTISE_HOST=192.168.69.42`. Its first start printed the generated password once; a restart printed no password.
 - Container checks: login 200, authenticated config 200, cross-origin config 403, same-origin config 200, authenticated SSE returned a real `retry: 3000` frame, and an agent config PATCH round trip incremented revisions and restored the original value.
 - The container now sets `F1TELE_DATA_DIR=/data`. `docker exec -i f1-25-tele-f1tele-1 /f1tele auth reset --stdin` succeeded without `--data-dir`, the temporary password logged in, and resetting back to the generated password restored login.
+- Corner decoding now reads each wheel-array element independently. A synthetic packet 10 produced FL30%, FR40%, RL10% and RR20% wear, with distinct surface, core, pressure, brake and damage values.
+- The tyre-wear graph uses the worst wheel value and a continuous green-to-red scale. Unit tests pin the scale at 0% green, 50% yellow and 100% red; the synthetic 40% graph rendered yellow-green.
 
 ## Not yet qualified
 

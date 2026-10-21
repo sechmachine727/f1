@@ -4,6 +4,7 @@ import { stats } from "@/lib/latency";
 import { DriveGraph } from "@/components/DriveGraph";
 import { DEFAULT_RANGE_MS, METRICS, appendSample, specOf, type Sample } from "@/lib/driveHistory";
 import { completedLaps, useLiveLaps } from "@/lib/liveLaps";
+import { wearColor } from "@/lib/wear";
 
 const wheel = ["fl", "fr", "rl", "rr"] as const;
 const SLOT_COLORS = ["#7fb0ff", "#f0a03c", "#5fd68f"];
@@ -27,7 +28,7 @@ function WearRing({ pct }: { pct: number | null }) {
   return (
     <svg width="4.2em" height="4.2em" viewBox="0 0 72 72" role="img" aria-label={pct == null ? "wear unknown" : Math.round(v) + " percent wear"} className="shrink-0">
       <circle cx="36" cy="36" r={r} fill="none" stroke="#2a303a" strokeWidth="7" />
-      <circle cx="36" cy="36" r={r} fill="none" stroke={v >= 90 ? "#f2484b" : v >= 75 ? "#f0a03c" : "#4fd48a"} strokeWidth="7" strokeDasharray={String((Math.min(v, 100) / 100) * c) + " " + String(c)} transform="rotate(-90 36 36)" strokeLinecap="round" />
+      <circle cx="36" cy="36" r={r} fill="none" stroke={wearColor(pct)} strokeWidth="7" strokeDasharray={String((Math.min(v, 100) / 100) * c) + " " + String(c)} transform="rotate(-90 36 36)" strokeLinecap="round" />
       <text x="36" y="41" textAnchor="middle" className="fill-white text-[1em] font-semibold tabular-nums">{pct == null ? "—" : Math.round(v) + "%"}</text>
     </svg>
   );

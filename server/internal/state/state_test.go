@@ -46,6 +46,25 @@ func TestNewerPerKeyAndLatePacketType(t *testing.T) {
 	}
 }
 
+func TestCornerChannelsStayDistinct(t *testing.T) {
+	c := &fixedClock{time.UnixMilli(1_000_000)}
+	r := New("ctx", c.now)
+	feed(r, 1, c, protocol.BuildPacket(2026, 10, hdr(9, 1, 1, 1), nil, map[int]map[string]float64{
+		0: {"m_tyresWear[0]": 10, "m_tyresWear[1]": 20, "m_tyresWear[2]": 30, "m_tyresWear[3]": 40},
+	}, nil))
+	for _, tc := range []struct {
+		channel string
+		want    float64
+	}{
+		{"tyre.rl.wear_pct", 10}, {"tyre.rr.wear_pct", 20}, {"tyre.fl.wear_pct", 30}, {"tyre.fr.wear_pct", 40},
+	} {
+		snap := r.Snapshot([]int{0}, []string{tc.channel})
+		if len(snap.Metrics) != 1 || snap.Metrics[0].Measurement.Value != tc.want {
+			t.Fatalf("%s = %#v want %v", tc.channel, snap.Metrics, tc.want)
+		}
+	}
+}
+
 func TestSameFrameDistinctEventsSurvive(t *testing.T) {
 	c := &fixedClock{time.UnixMilli(1_000_000)}
 	r := New("ctx", c.now)

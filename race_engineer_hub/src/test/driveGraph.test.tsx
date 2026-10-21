@@ -41,5 +41,14 @@ describe("DriveGraph", () => {
     render(<DriveGraph index={0} spec={specOf("fuel")} series={[]} rangeMs={120000} color="#fff" onMetric={() => {}} onRange={() => {}} />);
     expect(screen.getByText("Collecting…")).toBeInTheDocument();
   });
+
+  it("colors tyre wear from green to red across the graph", () => {
+    const { container } = render(<DriveGraph index={1} spec={specOf("tyre_wear")} series={[
+      { t: now - 90_000, v: 0 }, { t: now - 60_000, v: 50 }, { t: now - 30_000, v: 100 },
+    ]} rangeMs={120000} color="#fff" onMetric={() => {}} onRange={() => {}} />);
+    const stops = [...container.querySelectorAll("stop")].map((s) => s.getAttribute("stop-color"));
+    expect(stops).toEqual(["hsl(140.0 68% 52%)", "hsl(70.0 68% 52%)", "hsl(0.0 68% 52%)"]);
+    expect(container.querySelector("polyline")?.getAttribute("stroke")).toContain("url(#wear-gradient-1)");
+  });
 });
 

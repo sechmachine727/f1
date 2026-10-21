@@ -38,6 +38,34 @@ func TestDeclaredPacketSizes(t *testing.T) {
 	}
 }
 
+func TestCarCornerFieldReadsWheelArray(t *testing.T) {
+	data := BuildPacket(2026, 10, Header{Format: 2026, GameYear: 26, PacketVersion: 1, PacketID: 10}, nil, map[int]map[string]float64{
+		0: {"m_tyresWear[0]": 10, "m_tyresWear[1]": 20, "m_tyresWear[2]": 30, "m_tyresWear[3]": 40,
+			"m_tyresDamage[0]": 11, "m_tyresDamage[1]": 22, "m_tyresDamage[2]": 33, "m_tyresDamage[3]": 44},
+		1: {"m_tyresWear[0]": 50, "m_tyresWear[1]": 60, "m_tyresWear[2]": 70, "m_tyresWear[3]": 80},
+	}, nil)
+	p, err := Decode(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []float64{10, 20, 30, 40}
+	for corner, v := range want {
+		got, ok := p.CarCornerField("m_tyresWear", 0, corner)
+		if !ok || got.F != v {
+			t.Fatalf("car 0 corner %d wear = %#v ok=%v want %v", corner, got, ok, v)
+		}
+	}
+	if got, ok := p.CarCornerField("m_tyresWear", 1, 3); !ok || got.F != 80 {
+		t.Fatalf("car 1 corner 3 wear = %#v ok=%v", got, ok)
+	}
+	if _, ok := p.CarCornerField("m_tyresWear", 0, 4); ok {
+		t.Fatal("out-of-range corner accepted")
+	}
+	if first, ok := p.CarField("m_tyresWear", 0); !ok || first.F != 10 {
+		t.Fatalf("CarField first element = %#v ok=%v", first, ok)
+	}
+}
+
 type golden2026 struct {
 	Packets map[string]struct {
 		Length  int            `json:"length"`
@@ -121,6 +149,43 @@ func TestReal2025Parity(t *testing.T) {
 		}
 		compareMap(t, fmt.Sprintf("record %d packet %d", i, p.Header.PacketID), p.Values(), rec.Decoded)
 	}
+}
+
+func TestCarCornerFieldMatchesGoldenDamageArray(t *testing.T) {
+	blob, err := os.ReadFile("testdata/golden_2026.bin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for off := 0; off < len(blob); {
+		pid := blob[off]
+		length := int(binary.LittleEndian.Uint16(blob[off+4:]))
+		off += 6
+		data := blob[off : off+length]
+		off += length
+		if pid != 10 {
+			continue
+		}
+		p, err := Decode(data)
+		if err != nil {
+			t.Fatal(err)
+		}
+		cars, ok := p.Values()["m_carDamageData"].([]any)
+		if !ok {
+			t.Fatal("golden packet 10 has no car damage array")
+		}
+		for car, raw := range cars {
+			item, _ := raw.(map[string]any)
+			arr, _ := item["m_tyresWear"].([]any)
+			for corner, want := range arr {
+				got, ok := p.CarCornerField("m_tyresWear", car, corner)
+				if !ok || got.F != want.(float64) {
+					t.Fatalf("car %d corner %d = %#v ok=%v want %v", car, corner, got, ok, want)
+				}
+			}
+		}
+		return
+	}
+	t.Fatal("golden packet 10 not found")
 }
 
 func TestMalformedPackets(t *testing.T) {

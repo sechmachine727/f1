@@ -71,6 +71,12 @@
 - [x] 10.3 Add reducer tests and an end-to-end WebSocket test for Q1-to-Q2 and restart transitions.
 - [x] 10.4 Set `F1TELE_DATA_DIR=/data` in the container image and Compose so password reset uses the same data directory as the server.
 
+## 11. Tyre corner telemetry
+
+- [x] 11.1 Add a corner-aware packet read and use it for every wheel-array channel in the reducer.
+- [x] 11.2 Add unit and golden-packet tests proving four corner values remain distinct.
+- [x] 11.3 Use a continuous green-to-red wear color in the Drive ring and tyre-wear graph.
+
 ## Qualification notes
 
 - Windows Core builds and its 15 tests pass on macOS. The WinUI project cannot compile its XAML here because the Windows SDK XamlCompiler.exe is a Windows executable. Tasks 8.1-8.4 remain open until a Windows host build and launch pass.

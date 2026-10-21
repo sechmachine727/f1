@@ -378,7 +378,13 @@ func (r *Reducer) observeFields(seq uint64, at time.Time, p *protocol.Packet) {
 				continue
 			}
 			for car := 0; car < n; car++ {
-				v, ok := p.CarField(spec.Field, car)
+				var v protocol.Value
+				var ok bool
+				if spec.Corner >= 0 {
+					v, ok = p.CarCornerField(spec.Field, car, spec.Corner)
+				} else {
+					v, ok = p.CarField(spec.Field, car)
+				}
 				if !ok {
 					continue
 				}

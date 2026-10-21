@@ -2,6 +2,7 @@ import {
   METRICS, RANGE_OPTIONS, formatAgo, formatValue, latestSample, windowSamples,
   type MetricSpec, type Sample,
 } from "@/lib/driveHistory";
+import { wearColor } from "@/lib/wear";
 
 const RANGE_LABEL: Record<number, string> = {
   30000: "30 s", 60000: "1 min", 120000: "2 min", 300000: "5 min", 600000: "10 min",
@@ -42,6 +43,11 @@ export function DriveGraph({ index, spec, series, rangeMs, color, onMetric, onRa
   }
   if (current.length) segments.push(current);
   const latest = latestSample(series);
+  const wearable = visible.filter((s): s is Sample & { v: number } => s.v != null);
+  const wear = spec.id === "tyre_wear";
+  const latestColor = wear && latest?.v != null ? wearColor(latest.v) : color;
+  const gradientId = "wear-gradient-" + index;
+  const stroke = wear && wearable.length > 1 ? "url(#" + gradientId + ")" : latestColor;
   const name = "Graph " + (index + 1);
 
   return (
@@ -61,7 +67,7 @@ export function DriveGraph({ index, spec, series, rangeMs, color, onMetric, onRa
           {RANGE_OPTIONS.map((ms) => <option key={ms} value={ms}>{RANGE_LABEL[ms]}</option>)}
         </select>
         <span className="ml-auto shrink-0 text-[0.9em] tabular-nums text-neutral-100">
-          <span className="text-[1.25em] font-semibold" style={{ color }}>{latest ? formatValue(latest.v as number, spec.digits) : "—"}</span>
+          <span className="text-[1.25em] font-semibold" style={{ color: latestColor }}>{latest ? formatValue(latest.v as number, spec.digits) : "—"}</span>
           <span className="ml-1 text-[0.7em] text-neutral-400">{spec.unit}</span>
         </span>
       </div>
@@ -82,13 +88,16 @@ export function DriveGraph({ index, spec, series, rangeMs, color, onMetric, onRa
             {[0, 1, 2].map((i) => <div key={i} className="border-t border-[#232830]" />)}
           </div>
           <svg viewBox="0 0 100 40" preserveAspectRatio="none" className="absolute inset-0 h-full w-full"
-            role="img" aria-label={name + ": " + spec.label + " over the last " + RANGE_LABEL[rangeMs]}>
+            role="img" aria-label={name + ": " + spec.label + " over the last " + RANGE_LABEL[rangeMs] + (wear ? "; color scales from green at 0 percent to red at 100 percent" : "")}>
+            {wear && wearable.length > 1 ? <defs><linearGradient id={gradientId} gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="100" y2="0">
+              {wearable.map((s) => <stop key={s.t} offset={Math.max(0, Math.min(100, x(s.t))).toFixed(2) + "%"} stopColor={wearColor(s.v)} />)}
+            </linearGradient></defs> : null}
             {segments.map((seg, i) => (
               <polyline key={i} points={seg.map((p) => p.x.toFixed(2) + "," + p.y.toFixed(2)).join(" ")}
-                fill="none" stroke={color} strokeWidth="1.6" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+                fill="none" stroke={stroke} strokeWidth="1.6" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
             ))}
             {segments.length === 1 && segments[0].length === 1 ? (
-              <circle cx={segments[0][0].x} cy={segments[0][0].y} r="1.4" fill={color} />
+              <circle cx={segments[0][0].x} cy={segments[0][0].y} r="1.4" fill={latestColor} />
             ) : null}
           </svg>
           {visible.length === 0 ? <span className="absolute inset-0 flex items-center justify-center text-[0.68em] text-neutral-500">{spec.id === "lap_time" ? "Waiting for a completed lap" : "Collecting…"}</span> : null}

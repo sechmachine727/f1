@@ -47,6 +47,7 @@ type fieldLoc struct {
 	kind     kind
 	isString bool
 	size     int
+	count    int
 }
 
 type layout struct {
@@ -72,7 +73,7 @@ func init() {
 						fsize = f.strLen
 					}
 					if _, exists := l.loc[f.name]; !exists {
-						l.loc[f.name] = fieldLoc{seg: si, offset: fo, kind: f.kind, isString: f.kind == kStr, size: fsize}
+						l.loc[f.name] = fieldLoc{seg: si, offset: fo, kind: f.kind, isString: f.kind == kStr, size: fsize, count: f.count}
 					}
 					fo += fsize
 				}
@@ -218,6 +219,24 @@ func (p *Packet) CarField(name string, car int) (Value, bool) {
 	}
 	base := segStart(p.l.segs, loc.seg) + car*seg.width
 	return p.read(base+loc.offset, loc)
+}
+
+// CarCornerField reads one element of a per-car wheel array. CarField returns
+// the first array element, so corner channels need this index as well.
+func (p *Packet) CarCornerField(name string, car, corner int) (Value, bool) {
+	loc, ok := p.l.loc[name]
+	if !ok {
+		return Value{}, false
+	}
+	if loc.count <= 1 {
+		return p.CarField(name, car)
+	}
+	seg := &p.l.segs[loc.seg]
+	if seg.count == 1 || car < 0 || car >= seg.count || corner < 0 || corner >= loc.count {
+		return Value{}, false
+	}
+	base := segStart(p.l.segs, loc.seg) + car*seg.width + loc.offset + corner*kindSize(loc.kind)
+	return p.read(base, fieldLoc{kind: loc.kind, isString: loc.isString, size: kindSize(loc.kind)})
 }
 
 // CarCount returns the length of the packet's car array (0 when not per-car).
